@@ -9,12 +9,13 @@ from fsl.wrappers import fslmaths, LOAD, bet, fast
 from initial_bookkeeping import create_dirs
 import subprocess
 
-def load_json(json_name):
+def load_json(subject_dir):
     """
     Load json but with some error-checking to make sure it exists.
     If it doesn't exist, instruct user to run the first part of 
     the pipeline first.
     """
+    json_name = subject_dir / 'ASL/ASL.json'
     if json_name.exists():
         with open(json_name, 'r') as infile:
             json_dict = json.load(infile)
@@ -40,8 +41,7 @@ def correct_M0(subject_dir, mt_factors):
     # load json containing info on where files are stored
         # if doesn't exist, throw error and ask user to run
         # initial_processing() from initial_bookkeeping.py first
-    json_name = subject_dir / 'ASL/ASL.json'
-    load_json(json_name)
+    load_json(subject_dir)
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['CALIB0_img'], json_dict['CALIB1_img']]
