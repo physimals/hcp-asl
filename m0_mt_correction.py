@@ -24,6 +24,23 @@ def load_json(subject_dir):
                         'Please run initial_processing() first.')
     return json_dict
 
+def update_json(new_dict, old_dict):
+    """
+    Adds the key-value pairs in `new_dict` to the `old_dict` 
+    and save the resulting dictionary to the json found in 
+    `old_dict['json_name']`.
+
+    Inputs:
+        - `new_dict` = dictionary containing new key-value 
+            pairs to add to the json of important file 
+            names
+        - `old_dict` = dictionary to be updated, also 
+            has a field containing the location of the json.
+    """
+    old_dict.update(new_dict)
+    with open(Path(old_dict['json_name']), 'w') as fp:
+        json.dump(old_dict, fp, sort_keys=True, indent=4)
+
 def correct_M0(subject_dir, mt_factors):
     """
     Correct the M0 images for a particular subject whose data 
@@ -40,33 +57,51 @@ def correct_M0(subject_dir, mt_factors):
             scaling factors
     """
     # load json containing info on where files are stored
-        # if doesn't exist, throw error and ask user to run
-        # initial_processing() from initial_bookkeeping.py first
-    load_json(subject_dir)
+    json_dict = load_json(subject_dir)
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['CALIB0_img'], json_dict['CALIB1_img']]
     for calib_name in calib_names:
+        # get calib_dir and other info
+        calib_path = Path(calib_name)
+        calib_dir = calib_path.parent
+        # messy way to remove all suffixes but seem to be best 
+        # I could find
+        calib_name_stem = calib_path.stem.split('.')[0]
+
         # run BET on m0 image
         betted_m0 = bet(calib_name, LOAD)
+
+        # create directories to store results
+        fast_dir = calib_dir / 'FAST'
+        biascorr_dir = calib_dir / 'BIASCORR'
+        mtcorr_dir = calib_dir / 'MTCORR'
+        create_dirs([fast_dir, biascorr_dir, mtcorr_dir])
+
         # estimate bias field on brain-extracted m0 image
-            # create FAST directory
-        fast_dir = Path(calib_name).parent / 'FAST'
-        create_dirs(fast_dir)
             # run FAST, storing results in directory
-        fast_base = fast_dir / 'FAST'
+        fast_base = fast_dir / calib_name_stem
         fast(
             betted_m0['output'], # output of bet
-            out=LOAD, 
-            t=3, # image type, 3=PD image
-            B=True, # output bias-corrected image
-            b=True # output estimated bias field
+            out=str(fast_base), 
+            type=3, # image type, 3=PD image
+            b=True, # output estimated bias field
+            nopve=True # don't need pv estimates
         )
+        bias_name = fast_dir / f'{calib_name_stem}_bias.nii.gz'
+
         # apply bias field to original m0 image (i.e. not BETted)
+        biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
+        fslmaths(calib_name).div(str(bias_name)).run(str(biascorr_name))
 
         # apply mt_factors to bias-corrected m0 image
-
-        # save bias field, bias-corrected m0 and mt-corrected m0
+        mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
+        fslmaths(str(biascorr_name)).mul(str(mt_factors)).run(str(mtcorr_name))
 
         # add locations of above files to the json
-    pass
+        important_names = {
+            f'{calib_name_stem}_bias' : str(bias_name),
+            f'{calib_name_stem}_bc' : str(biascorr_name),
+            f'{calib_name_stem}_mc' : str(mtcorr_name)
+        }
+        update_json(important_names, json_dict)
