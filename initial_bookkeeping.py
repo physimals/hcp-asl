@@ -107,7 +107,7 @@ def initial_processing(subject_dir):
     t1_restore_brain = fsl_anat_dir / 'T1_biascorr_brain.nii.gz'
 
     # add filenames to a dictionary to be saved to a json
-    json_name = asl_dir / 'ASl.json'
+    json_name = asl_dir / 'ASL.json'
     fields = [
         "T1w_dir",
         "T1w",
