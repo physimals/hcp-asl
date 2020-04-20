@@ -22,6 +22,7 @@ def load_json(subject_dir):
     else:
         raise Exception(f'File {json_name} does not exist.' + 
                         'Please run initial_processing() first.')
+    return json_dict
 
 def correct_M0(subject_dir, mt_factors):
     """
