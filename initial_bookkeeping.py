@@ -107,6 +107,7 @@ def initial_processing(subject_dir):
     t1_restore_brain = fsl_anat_dir / 'T1_biascorr_brain.nii.gz'
 
     # add filenames to a dictionary to be saved to a json
+    json_name = asl_dir / 'ASl.json'
     fields = [
         "T1w_dir",
         "T1w",
@@ -123,7 +124,8 @@ def initial_processing(subject_dir):
         "pve1",
         "pve2",
         "T1w_restore",
-        "T1w_restore_brain"
+        "T1w_restore_brain",
+        "json_name"
     ]
     field_values = [
         t1_dir,
@@ -140,11 +142,11 @@ def initial_processing(subject_dir):
         pve1,
         pve2,
         t1_restore,
-        t1_restore_brain
+        t1_restore_brain,
+        json_name
     ]
     names_dict = {}
     for key, value in zip(fields, field_values):
         names_dict[key] = str(value)
-    json_name = asl_dir / 'ASl.json'
     with open(json_name, 'w') as fp:
         json.dump(names_dict, fp, sort_keys=True, indent=4)
