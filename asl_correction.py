@@ -36,6 +36,67 @@ from fsl.data.image import Image
 from fabber import Fabber, percent_progress
 from initial_bookkeeping import create_dirs
 from pathlib import Path
+import subprocess
+def _satrecov_worker():
+    pass
+
+def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
+    """
+    Given and ASL time series, `asl_name`, and the sequence details, 
+    split the series into 2 files, even and odd. Save these with the 
+    base of `asl_name`_even.nii.gz for example.
+
+    Inputs:
+        - `asl_name` = pathlib.Path object for the ASL series to be 
+            split
+    """
+    asl_base = asl_name.parent / asl_name.stem.split('.')[0]
+    # messy - is there a better way of filling in arguments?
+    cmd = [
+        'asl_file',
+        f'--data={str(asl_name)}',
+        f'--ntis={ntis}',
+        f'--iaf={iaf}',
+        f'--ibf={ibf}',
+        '--spairs',
+        f'--rpts={rpts[0]},{rpts[1]},{rpts[2]},{rpts[3]},{rpts[4]}',
+        f'--out={asl_base}'
+    ]
+    subprocess.run(cmd)
+
+def _saturation_recovery(asl_name, results_dir):
+    """
+    Wrapper function for Fabber's `satrecov` model.
+
+    Given an ASL time series, `asl_name`, estimate Fabber's 
+    `satrecov` model on the series' control images. This 
+    function will assume the ASL data is HCP-ASL data which 
+    is ###insert tag-control / control-tag here###.
+
+    Fabber will be called twice:
+        - once with spatial mode off
+        - once with spatial mode on, initialised from the 
+            prior run
+    
+    Inputs:
+        - `asl_name` = pathlib.Path object for the ASL series on 
+            which the model will be estimated
+        - `results_dir` = pathlib.Path object in which to store the 
+            `nospatial` and `spatial` parameter estimates
+    """
+    # asl sequence parameters
+    ntis = 5
+    iaf = "tc"
+    ibf = "tis"
+    tis = [1.7, 2.2, 2.7, 3.2, 3.7]
+    rpts = [6, 6, 6, 10, 15]
+    # obtain control images of ASL series
+    _split_tag_control(asl_name, ntis, iaf, ibf, rpts)
+    # satrecov nospatial
+    # satrecov spatial
+    # return T1t map?
+    pass
+
 def hcp_asl_moco(subject_dir, mt_factors):
     """
     This function performs the full motion-correction pipeline for 
@@ -81,7 +142,7 @@ def hcp_asl_moco(subject_dir, mt_factors):
     fslmaths(str(biascorr_name)).mul(str(mt_factors)).run(str(mtcorr_name))
 
     # estimate satrecov model on bias-corrected, MT-corrected ASL series
-
+    _saturation_recovery(mtcorr_name, satrecov_dir_name)
     # perform initial slice-timing correction using estimated tissue params
         # median filter the parameter estimates
 
@@ -95,4 +156,3 @@ def hcp_asl_moco(subject_dir, mt_factors):
     # apply motion estimates to slice-timing corrected ASL series
 
     # save locations of important files in the json
-    pass
