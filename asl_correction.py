@@ -29,7 +29,7 @@ Corrections to be applied include:
         fully-corrected, registered ASL series)
 """
 
-from m0_mt_correction import load_json
+from m0_mt_correction import load_json, update_json
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 from fsl.data.image import Image
@@ -40,6 +40,23 @@ from pathlib import Path
 import subprocess
 import numpy as np
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
+    """
+    Runs fabber's saturation recovery model on the given sequence 
+    of control images.
+
+    Inputs:
+        - `control_name` = name of control sequence
+        - `satrecov_dir` = parent directory for the satrecov 
+            results. Results from this will be stored either 
+            in {`satrecov_dir`}/spatial or 
+            {`satrecov_dir`}/nospatial depending on value of 
+            `spatial`
+        - `tis` = list of TIs for the ASL sequence
+        - `rpts` = list of repeats for each TI in the sequence
+        - `ibf` = input format of the sequence
+        - `spatial` = Boolean for whether to run fabber in 
+            spatial (True) or non-spatial (False) mode
+    """
     # set options for Fabber run, generic to spatial and non-spatial runs
     options = {
         'data': str(control_name),
@@ -152,6 +169,11 @@ def _saturation_recovery(asl_name, results_dir, ntis, iaf, ibf, tis, rpts):
     return t1_name
 
 def _fslmaths_med_filter_wrapper(image_name):
+    """
+    Simple wrapper for fslmaths' median filter function. Applies 
+    the median filter to `image_name`. Derives and returns the 
+    name of the filtered image as {image_name}_filt.nii.gz.
+    """
     filtered_name = image_name.parent / f'{image_name.stem.split(".")[0]}_filt.nii.gz'
     cmd = [
         'fslmaths',
@@ -166,6 +188,27 @@ def _slicetiming_correction(
     asl_name, t1_name, tis, rpts, 
     slicedt, sliceband, n_slices
     ):
+    """
+    Performs rescaling of ASL series, `asl_name`, accounting for 
+    the estimated T1t in a given voxel, `t1_name`.
+
+    satrecov_model: S(t) = M_0 * (1 - exp{-t/T1t})
+
+    Divides the value in a voxel by the above model evaluated at 
+    t = TI + n*slicedt where n is the slice number of the voxel 
+    within a band. This accounts for the voxel being imaged at a 
+    different time than its supposed TI.
+
+    Multiplies the value in a voxel by the above model evaluated 
+    at t = TI, i.e. scales the values as if they had been imaged 
+    at the TI that was specified in the ASL sequence.
+
+    Returns the slice-timing corrected ASL series, `stcorr_img`, 
+    and the scaling factors used to perform the correction, 
+    `stcorr_factors_img` where:
+        `stcorr_factors` = S(TI) / S(TI + n*slicedt)
+        `stcorr_img` = `stcorr_factors` * `asl_name`
+    """
     # timing information for scan
     # supposed measurement time of slice
     tis_array = np.repeat(np.array(tis), 2*np.array(rpts)).reshape(1, 1, 1, -1)
@@ -198,6 +241,21 @@ def _slicetiming_correction(
     return stcorr_img, stcorr_factors_img
 
 def _register_param(param_name, transform_dir, reffile, param_reg_name):
+    """
+    Given a parameter map, `param_name`, and a series of motion 
+    estimates, `transform_dir`, apply the motion estimates to 
+    the parameter map and obtain a time series of the map 
+    in the frame described by the motion estimates.
+
+    Inputs:
+        - `param_name` = pathlib.Path object for the parameter 
+            estimate
+        - `transform_dir` = pathlib.Path object for the 
+            directory containing mcflirt motion estimates
+        - `reffile` = filename for reference image in mcflirt 
+            motion estimate
+        - `param_reg_name` = name of output file
+    """
     # list of transformations in transform_dir
     transforms = sorted(transform_dir.glob('**/*'))
     out_names = []
@@ -242,6 +300,13 @@ def hcp_asl_moco(subject_dir, mt_factors):
     - Motion estimation
     - Second slice-timing correction
     - Registration
+
+    Inputs
+        - `subject_dir` = pathlib.Path object specifying the 
+            subject's base directory
+        - `mt_factors` = pathlib.Path object specifying the 
+            location of empirically estimated MT correction 
+            scaling factors
     """
     # asl sequence parameters
     ntis = 5
@@ -327,3 +392,10 @@ def hcp_asl_moco(subject_dir, mt_factors):
     applyxfm4D(st_factors_img, json_dict['calib0_mc'], sf_moco_name, asln2asl0_name, fourdigit=True)
 
     # save locations of important files in the json
+        # registered, corrected asl data
+        # registered scaling factors
+    important_names = {
+        'ASL_moco': str(asl_moco_name),
+        'STcorr_SF': str(sf_moco_name)
+    }
+    update_json(important_names, json_dict)
