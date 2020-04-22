@@ -97,14 +97,6 @@ def initial_processing(subject_dir):
     # get calibration images
     fslroi(str(mbpcasl), calib0_name, 88, 1)
     fslroi(str(mbpcasl), calib1_name, 89, 1)
-    # run fsl_anat on structural image
-    fsl_anat_dir = strucasl_dir / 'struc'
-    fsl_anat(str(t1_name), out=str(fsl_anat_dir), clobber=True)
-    pve0 = fsl_anat_dir / 'T1_fast_pve_0.nii.gz'
-    pve1 = fsl_anat_dir / 'T1_fast_pve_1.nii.gz'
-    pve2 = fsl_anat_dir / 'T1_fast_pve_2.nii.gz'
-    t1_restore = fsl_anat_dir / 'T1_biascorr.nii.gz'
-    t1_restore_brain = fsl_anat_dir / 'T1_biascorr_brain.nii.gz'
 
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'
@@ -119,12 +111,6 @@ def initial_processing(subject_dir):
         "CALIB1_dir",
         "CALIB0_img",
         "CALIB1_img",
-        "fsl_anat_dir",
-        "pve0",
-        "pve1",
-        "pve2",
-        "T1w_restore",
-        "T1w_restore_brain",
         "json_name"
     ]
     field_values = [
@@ -138,11 +124,6 @@ def initial_processing(subject_dir):
         calib1_dir,
         calib0_name,
         calib1_name,
-        pve0,
-        pve1,
-        pve2,
-        t1_restore,
-        t1_restore_brain,
         json_name
     ]
     names_dict = {}
