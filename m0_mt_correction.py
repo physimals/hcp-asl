@@ -60,13 +60,11 @@ def correct_M0(subject_dir, mt_factors):
     json_dict = load_json(subject_dir)
     
     # do for both m0 images for the subject, calib0 and calib1
-    calib_names = [json_dict['CALIB0_img'], json_dict['CALIB1_img']]
+    calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
     for calib_name in calib_names:
         # get calib_dir and other info
         calib_path = Path(calib_name)
         calib_dir = calib_path.parent
-        # messy way to remove all suffixes but seem to be best 
-        # I could find
         calib_name_stem = calib_path.stem.split('.')[0]
 
         # run BET on m0 image
@@ -74,8 +72,8 @@ def correct_M0(subject_dir, mt_factors):
 
         # create directories to store results
         fast_dir = calib_dir / 'FAST'
-        biascorr_dir = calib_dir / 'BIASCORR'
-        mtcorr_dir = calib_dir / 'MTCORR'
+        biascorr_dir = calib_dir / 'BiasCorr'
+        mtcorr_dir = calib_dir / 'MTCorr'
         create_dirs([fast_dir, biascorr_dir, mtcorr_dir])
 
         # estimate bias field on brain-extracted m0 image
