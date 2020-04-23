@@ -62,22 +62,18 @@ def initial_processing(subject_dir):
     # create ${subject_dir}/ASL and ${subject_dir}/T1w/Results/ASL 
     # directories
     asl_dir = subject_dir / 'ASL'
-    tis_dir = asl_dir / 'TIS'
-    calib_dir = asl_dir / 'CALIB'
-    calib0_dir = calib_dir / 'CALIB0'
-    calib1_dir = calib_dir / 'CALIB1'
+    tis_dir = asl_dir / 'TIs'
+    calib_dir = asl_dir / 'Calib'
+    calib0_dir = calib_dir / 'Calib0'
+    calib1_dir = calib_dir / 'Calib1'
     strucasl_dir = subject_dir / 'T1w/Results/ASL'
     create_dirs([asl_dir, tis_dir, calib0_dir, calib1_dir, strucasl_dir])
 
     # find sub-directories
     # structural
-    a_dir = subject_dir / f'{subject_name}_V1_A'
-    t1base_dir = list(a_dir.glob('**/*T1w'))[0]
-    t1_dir = t1base_dir / 'resources/NIFTI/files'
-
-    # do I need glob.glob here or is there a more deterministic naming system 
-    # for T1w?
-    t1_name = list(t1_dir.glob(f'**/{subject_name}_*.nii.gz'))[0]
+    t1_dir = subject_dir / 'T1w'
+    t1_name = t1_dir / 'T1w_acpc_dc_restore.nii.gz'
+    t1_brain_name = t1_dir / 'T1w_acpc_dc_restore_brain.nii.gz'
 
     # asl
     b_dir = subject_dir / f'{subject_name}_V1_B'
@@ -102,22 +98,26 @@ def initial_processing(subject_dir):
     json_name = asl_dir / 'ASL.json'
     fields = [
         "T1w_dir",
-        "T1w",
+        "T1w_acpc",
+        "T1w_acpc_brain",
         "ASL_seq",
         "ASL_dir",
+        "TIs_dir",
         "structasl",
-        "CALIB_dir",
-        "CALIB0_dir",
-        "CALIB1_dir",
-        "CALIB0_img",
-        "CALIB1_img",
+        "calib_dir",
+        "calib0_dir",
+        "calib1_dir",
+        "calib0_img",
+        "calib1_img",
         "json_name"
     ]
     field_values = [
         t1_dir,
         t1_name,
+        t1_brain_name,
         tis_name,
         asl_dir,
+        tis_dir,
         strucasl_dir,
         calib_dir,
         calib0_dir,
