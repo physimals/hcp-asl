@@ -43,7 +43,7 @@ def tag_control_differencing(subject_dir):
     B_baseline = (X_odd*Y_even - X_even*Y_odd) / (X_odd - X_even)
 
     # save both images
-    beta_dir_name = Path(json_dict['ASL_dir']) / 'Betas2'
+    beta_dir_name = Path(json_dict['ASL_dir']) / 'Betas'
     create_dirs([beta_dir_name, ])
     B_perf_name = beta_dir_name / 'beta_perf.nii.gz'
     B_perf_img = Image(B_perf, header=Y_moco.header)
