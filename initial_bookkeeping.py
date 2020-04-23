@@ -94,6 +94,15 @@ def initial_processing(subject_dir):
     fslroi(str(mbpcasl), calib0_name, 88, 1)
     fslroi(str(mbpcasl), calib1_name, 89, 1)
 
+    # get surface names
+    surfaces_dir = t1_dir / 'Native'
+    L_mid = surfaces_dir / f'{subject_name}_V1_MR.L.midthickness.native.surf.gii'
+    R_mid = surfaces_dir / f'{subject_name}_V1_MR.R.midthickness.native.surf.gii'
+    L_pial = surfaces_dir / f'{subject_name}_V1_MR.L.pial.native.surf.gii'
+    R_pial = surfaces_dir / f'{subject_name}_V1_MR.R.pial.native.surf.gii'
+    L_white = surfaces_dir / f'{subject_name}_V1_MR.L.white.native.surf.gii'
+    R_white = surfaces_dir / f'{subject_name}_V1_MR.R.white.native.surf.gii'
+
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'
     fields = [
@@ -109,6 +118,12 @@ def initial_processing(subject_dir):
         "calib1_dir",
         "calib0_img",
         "calib1_img",
+        "L_mid",
+        "R_mid",
+        "L_pial",
+        "R_pial",
+        "L_white",
+        "R_white",
         "json_name"
     ]
     field_values = [
@@ -124,6 +139,12 @@ def initial_processing(subject_dir):
         calib1_dir,
         calib0_name,
         calib1_name,
+        L_mid,
+        R_mid,
+        L_pial,
+        R_pial,
+        L_white,
+        R_white,
         json_name
     ]
     names_dict = {}
