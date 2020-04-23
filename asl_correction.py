@@ -266,7 +266,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
         else:
             out_n = param_reg_name.parent / f'{param_reg_name.stem.split(".")[0]}_00{n}.nii.gz'
         out_names.append(out_n)
-        # applyxfm(str(param_name), str(reffile), str(transform), str(out_n))
+        applyxfm(str(param_name), str(reffile), str(transform), str(out_n))
         cmd = [
             "applyxfm4D",
             str(param_name),
@@ -275,7 +275,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
             str(transform),
             "-singlematrix"
         ]
-        subprocess.run(cmd)
+        # subprocess.run(cmd)
         # # print(" ".join(cmd))
     # merge registered parameter volumes into one time series
     cmd = [
@@ -322,11 +322,12 @@ def hcp_asl_moco(subject_dir, mt_factors):
     json_dict = load_json(subject_dir)
 
     # create directories for results
-    asl_dir_name = Path(json_dict['ASL_dir'])
-    biascorr_dir_name = asl_dir_name / 'BIASCORR'
-    mtcorr_dir_name = asl_dir_name / 'MTCORR'
-    satrecov_dir_name = asl_dir_name / 'SATRECOV'
-    moco_dir_name = asl_dir_name / 'MOCO'
+    tis_dir_name = Path(json_dict['TIs_dir'])
+    biascorr_dir_name = tis_dir_name / 'BiasCorr'
+    mtcorr_dir_name = tis_dir_name / 'MTCorr'
+    satrecov_dir_name = tis_dir_name / 'SatRecov'
+    moco_dir_name = tis_dir_name / 'MoCo'
+    asln2m0_name = moco_dir_name / 'asln2m0.mat'
     asln2asl0_name = moco_dir_name / 'asln2asl0.mat'
     asl02asln_name = moco_dir_name / 'asl02asln.mat'
     # this is getting messy, maybe a function to make
@@ -338,7 +339,8 @@ def hcp_asl_moco(subject_dir, mt_factors):
         satrecov_dir_name,
         moco_dir_name,
         asln2asl0_name,
-        asl02asln_name
+        asl02asln_name,
+        asln2m0_name
     ])
 
     # bias-correction of original ASL series
@@ -360,9 +362,9 @@ def hcp_asl_moco(subject_dir, mt_factors):
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
     # perform initial slice-timing correction using estimated tissue params
     stcorr_img, st_factors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
-    stcorr_name = asl_dir_name / 'corrected_tis.nii.gz'
+    stcorr_name = tis_dir_name / 'corrected_tis.nii.gz'
     stcorr_img.save(stcorr_name)
-    st_factors_name = asl_dir_name / 'st_scalingfactors.nii.gz'
+    st_factors_name = tis_dir_name / 'st_scalingfactors.nii.gz'
     st_factors_img.save(st_factors_name)
 
     # motion estimation from ASL to M0 image
@@ -372,8 +374,12 @@ def hcp_asl_moco(subject_dir, mt_factors):
     m02asl0 = np.linalg.inv(mcflirt_results['out.mat/MAT_0000'])
     for key in sorted(mcflirt_results.keys()):
         if key != 'out':
-            forward_trans = m02asl0 @ mcflirt_results[key] # asln to asl0
+            if key == 'out.mat/MAT_0000':
+                forward_trans = np.eye(4)
+            else:
+                forward_trans = m02asl0 @ mcflirt_results[key] # asln to asl0
             inv_trans = np.linalg.inv(forward_trans) # asl0 to asln
+            np.savetxt(asln2m0_name / key.split('/')[-1], mcflirt_results[key])
             np.savetxt(asln2asl0_name / key.split('/')[-1], forward_trans)
             np.savetxt(asl02asln_name / key.split('/')[-1], inv_trans)
 
