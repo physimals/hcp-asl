@@ -33,3 +33,9 @@ def run_oxford_asl(subject_dir):
         f"--sbrain={json_dict['T1w_acpc_brain']}"
     ]
     subprocess.run(" ".join(cmd), shell=True)
+
+    # add oxford_asl directory to the json
+    important_names = {
+        "oxford_asl": str(oxford_dir)
+    }
+    update_json(important_names, json_dict)
