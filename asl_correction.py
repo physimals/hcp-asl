@@ -330,9 +330,6 @@ def hcp_asl_moco(subject_dir, mt_factors):
     asln2m0_name = moco_dir_name / 'asln2m0.mat'
     asln2asl0_name = moco_dir_name / 'asln2asl0.mat'
     asl02asln_name = moco_dir_name / 'asl02asln.mat'
-    # this is getting messy, maybe a function to make
-    # the directories given a parent and a list of 
-    # strings to create as sub-dirs within the parent?
     create_dirs([
         biascorr_dir_name, 
         mtcorr_dir_name, 
