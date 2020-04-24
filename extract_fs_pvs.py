@@ -233,9 +233,9 @@ if __name__ == "__main__":
     --aseg: path to aseg.mgz in FS output directory
     --t1: path to T1 image for alignment
     --asl: path to ASL image
-    --out: path to save output at
-    --stack: return 4D volume, stacked GM,WM,CSF in last dimension
-    --super: super-sampling level for intermediate resampling
+    --out: path to save output at (with suffix _GM, _WM, _CSF, unless --stack)
+    --stack: return 4D volume, stacked GM,WM,CSF in last dimension (default false)
+    --super: super-sampling level for intermediate resampling (default 4)
     --cores: CPU cores to use (default max)
     """
 
