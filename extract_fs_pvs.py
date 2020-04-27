@@ -11,7 +11,9 @@ import nibabel as nib
 
 import regtools as rt 
 
-FS_LUT = {
+
+# Labels taken from standard FS LUT, subcortex: 
+SUBCORT_LUT = {
     # Left hemisphere
     2 : "WM",
     3 : "GM",
@@ -27,6 +29,12 @@ FS_LUT = {
     10 : "L_Thal",
 
     24 : "CSF",
+    0 : "CSF",
+    14 : "CSF", 
+    15 : "CSF",
+    77 : "WM",
+    78 : "WM",
+    79 : "WM",
 
     # Right hemisphere 
     41 : "WM",
@@ -43,23 +51,59 @@ FS_LUT = {
     49 : "R_Thal"
 }
 
+
+# Do not label the following tissues 
+IGNORE = [
+    6,7,8,45,46,47,     # cerebellum 
+    16                  # brstem 
+]
+
+
+# To handle labels from the aparc 
+def CTX_LUT(val):
+    if val >= 251 and val < 256: 
+        return "WM"     # corpus callosum 
+    elif val >= 1000 and val < 3000: 
+        return "GM"
+    elif val >= 3000 and val < 5000:
+        return "WM"
+    else: 
+        return None 
+
+
 def extract_fs_pvs(aseg, t1, asl, superfactor, cores): 
+    """
+    Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
+    Results are stored in ASL-gridded T1 space. 
+
+    Args:
+        aseg: path to aparc+aseg file
+        t1: path to T1 file
+        asl: path to ASL file (for setting resolution)
+        superfactor: supersampling factor for intermediate steps
+        cores: number CPU cores to use 
+
+    Returns: 
+        nibabel Nifti object 
+    """
 
     asl_spc = rt.ImageSpace(asl)
     t1_spc = rt.ImageSpace(t1)
     ref_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
     high_spc = ref_spc.resize_voxels(1/superfactor, 'ceil')
 
-    src_spc = nib.load(aseg)
-    aseg = src_spc.get_fdata().astype(np.int32)
-    src_spc = rt.ImageSpace(src_spc)
+    aseg_spc = nib.load(aseg)
+    aseg = aseg_spc.dataobj
+    aseg_spc = rt.ImageSpace(aseg_spc)
 
     # Need cortex_*, FAST_*, and individual structures 
     pv_dict = {}
     cortex = np.zeros((np.prod(aseg.shape), 3), dtype=np.float32)
 
     for label in np.unique(aseg):
-        tissue = FS_LUT.get(label)
+        tissue = SUBCORT_LUT.get(label)
+        if not tissue: 
+            tissue = CTX_LUT(label)
         if tissue: 
             mask = (aseg == label) 
             if tissue == "WM":
@@ -70,13 +114,13 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
                 pass 
             else: 
                 pv_dict[tissue] = mask.astype(np.float32)
-        else: 
-            print("Did not assign", label)
+        elif label not in IGNORE: 
+            print("Did not assign aseg/aparc label:", label)
 
     reg = rt.Registration.identity()
-    cortex = src_spc.make_nifti(cortex.reshape(*aseg.shape, 3))
-    cortex = reg.apply_to_image(cortex, high_spc, order=1, cores=cores)
-    cortex = _sumArrayBlocks(cortex, 3*[superfactor] + [1]) / (superfactor**3)
+    cortex = reg.apply_to_array(cortex.reshape(*aseg.shape, 3), 
+                                aseg_spc, high_spc, order=1, cores=cores)
+    cortex = _sumArrayBlocks(cortex, 3 * [superfactor] + [1]) / (superfactor ** 3)
     cortex = cortex.reshape(-1,3)
     cortex[:,2] = np.maximum(0, 1 - cortex[:,:2].sum(1))
     cortex[cortex[:,2] < 1e-2, 2] = 0 
@@ -84,10 +128,10 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
     cortex = cortex.reshape(*ref_spc.size, 3)
 
     keys, values = list(pv_dict.keys()), list(pv_dict.values())
-    subcorts = src_spc.make_nifti(np.stack(values, axis=-1))
     del pv_dict
-    subcorts = reg.apply_to_image(subcorts, high_spc, order=1, cores=cores)
-    subcorts = _sumArrayBlocks(subcorts, 3*[superfactor] + [1]) / (superfactor**3)
+    subcorts = reg.apply_to_array(np.stack(values, axis=-1), 
+                                  aseg_spc, high_spc, order=1, cores=cores)
+    subcorts = _sumArrayBlocks(subcorts, 3 * [superfactor] + [1]) / (superfactor ** 3)
     subcorts = np.moveaxis(subcorts, 3, 0)
     pv_dict = dict(zip(keys, subcorts))
 
@@ -143,7 +187,7 @@ def _sumArrayBlocks(array, factor):
                 newshape[d+1] = array.shape[d]
 
         newshape = newshape + list(array.shape[3:])
-        out = np.sum(out.reshape(newshape), axis=dim+1)
+        out = out.reshape(newshape).sum(dim+1)
 
     return out 
 
@@ -166,15 +210,6 @@ def stack_images(images):
     """
 
     # The logic is as follows: 
-    # Initialise everything as non-brain
-    # Write in PV estimates from the cortical surfaces. This sets the cortical GM
-    # and also all subcortical tissue as WM 
-    # Layer in subcortical GM from each individual FIRST structure (except brain stem). 
-    # After adding in each structure's GM, recalculate CSF as either the existing amount, 
-    # or reduce the CSF estimate if the total (GM + CSF) > 1
-    # If there is any remainder unassigned in the voxel, set that as WM
-
-    # To summarise, the tissues are stacked up as: 
     # All CSF 
     # Cortical GM
     # Then within the subcortex only: 
@@ -239,8 +274,8 @@ if __name__ == "__main__":
     --cores: CPU cores to use (default max)
     """
 
-    # cmd = "--aseg testdata/fs/mri/aseg.mgz --t1 testdata/T1.nii.gz --asl testdata/T1low.nii.gz --out testdata/stacked.nii.gz"
-    # sys.argv = cmd.split()
+    # cmd = "--aseg testdata/fs/mri/aparc+aseg.mgz --t1 testdata/T1.nii.gz --asl testdata/T1low.nii.gz --out testdata/stacked.nii.gz --super 2 --stack"
+    # sys.argv[1:] = cmd.split()
 
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("--aseg", required=True)
@@ -251,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--super", default=4, type=int)
     parser.add_argument("--cores", default=mp.cpu_count(), type=int)
 
-    args = parser.parse_args(sys.argv)
+    args = parser.parse_args(sys.argv[1:])
     pvs = extract_fs_pvs(args.aseg, args.t1, args.asl, args.super, args.cores)
 
     if args.stack: 
