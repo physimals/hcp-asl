@@ -12,10 +12,6 @@ def project_to_surface(subject_dir):
     projection_dir = Path(json_dict['TIs_dir']) / 'SurfaceResults'
     create_dirs([projection_dir, ])
 
-    # directory containing surface files
-    surface_dir = Path(json_dict['T1w_dir']) / 'Native'
-    subject_name = Path(subject_dir).stem
-
     # perfusion calib
     pc_name = Path(json_dict['oxford_asl']) / 'struct_space/perfusion_calib.nii.gz'
     sides = ('L', 'R')
