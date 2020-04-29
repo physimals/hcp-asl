@@ -66,7 +66,7 @@ def initial_processing(subject_dir):
     calib_dir = asl_dir / 'Calib'
     calib0_dir = calib_dir / 'Calib0'
     calib1_dir = calib_dir / 'Calib1'
-    strucasl_dir = subject_dir / 'T1w/Results/ASL'
+    strucasl_dir = subject_dir / 'T1w/ASL'
     create_dirs([asl_dir, tis_dir, calib0_dir, calib1_dir, strucasl_dir])
 
     # find sub-directories
