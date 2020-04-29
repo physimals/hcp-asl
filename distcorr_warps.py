@@ -289,7 +289,7 @@ if __name__ == "__main__":
     print("Running regtools bit")
     t1_spc = rt.ImageSpace(t1)
     asl_spc = rt.ImageSpace(asl_v1)
-    t1_spc_asl = t1_spc.resize_voxels(asl_spc.voxel_size / t1_spc.voxel_size)
+    t1_spc_asl = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
     r = rt.Registration.identity()
     t1_asl = r.apply_to_image(t1, t1_spc_asl)
     nb.save(t1_asl, t1_asl_res)
