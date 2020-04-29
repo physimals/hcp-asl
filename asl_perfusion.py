@@ -9,7 +9,10 @@ def run_oxford_asl(subject_dir):
     json_dict = load_json(subject_dir)
 
     # directory for oxford_asl results
-    oxford_dir = Path(json_dict['TIs_dir']) / 'OxfordASL'
+    oxford_dir = Path(json_dict['structasl']) / 'TIs/OxfordASL'
+    pvgm_name = Path(json_dict['structasl']) / 'PVEs/pve_GM.nii.gz'
+    pvwm_name = Path(json_dict['structasl']) / 'PVEs/pve_WM.nii.gz'
+    calib_name = Path(json_dict['structasl']) / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
     cmd = [
         "oxford_asl",
         f"-i {json_dict['beta_perf']}",
@@ -22,8 +25,10 @@ def run_oxford_asl(subject_dir):
         "--fixbolus",
         "--bolus=1.5",
         "--pvcorr",
-        f"-c {json_dict['calib0_mc']}",
+        f"-c {str(calib_name)}",
         "--cmethod=single",
+        f"--pvgm={str(pvgm_name)}",
+        f"--pvwm={str(pvwm_name)}",
         "--te=19",
         "--debug",
         "--spatial=off",
