@@ -1,3 +1,4 @@
+#! /usr/bin/env python3
 """ 
  Script for gradient and EPI ddistortion correction of HCP ASL data
 
@@ -95,23 +96,45 @@ def gen_initial_trans(regfrom, outdir, struct, struct_brain):
     print(reg_call)
     # sp.run(reg_call.split(), check=True, stderr=PIPE, stdout=PIPE)
 
-def gen_asl_mask():
+def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
+                struct2asl):
     """
     Generate a mask of the brain in the space of the first ASL volume. The
     make is required for use in asl_reg when it is called for the purpose
     of generating te distortion correction warp.
     """
-    invert_reg = ("")
-    fslmaths $tempdir/struc_bet -bin $tempdir/struc_bet_mask
-    flirt -in $tempdir/struc_bet_mask -ref $regfrom -applyxfm -init $tempdir/struct2asl.mat -out $tempdir/mask  $APPLYXFM_OPTS
-    fslmaths $tempdir/mask -thr 0.25 -bin -fillh $tempdir/mask
-    fslcpgeom $regfrom $tempdir/mask
+    invert_reg = ("convert_xfm -omat " + struct2asl + " -inverse " + asl2struct)
 
-def gen_pves():
+    sbrain_call = ("fslmaths " + struct_brain + " -bin " + struct_bet_mask)
+    trans_call = ("flirt -in " + struct_bet_mask + " -ref " + regfrom + " -applyxfm -init " + 
+                    struct2asl + " -out " + asl_mask + " -interp trilinear -paddingsize 1")
+    fill_call = ("fslmaths " + asl_mask + " -thr 0.25 -bin -fillh " + asl_mask)
+    hdr_call = ("fslcpgeom " + regfrom + " " + asl_mask)
+
+    print(invert_reg)
+    print(sbrain_call)
+    print(trans_call)
+    print(fill_call)
+    print(hdr_call)
+
+    # sp.run(invert_reg.split(), check=True, stderr=PIPE, stdout=PIPE)
+    # sp.run(sbrain_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    # sp.run(trans_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    # sp.run(fill_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    # sp.run(hdr_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+
+def gen_pves(aparc_aseg, t1, asl, fileroot):
     """
-    Generate artialo volume estimates from freesurfer segmentations of the cortex
+    Generate partial volume estimates from freesurfer segmentations of the cortex
     and subcortical structures.
     """    
+    print("pve_output = extract_fs_pvs(aparc_aseg, t1, asl)")
+    # Not sure if I need to copy headers from another file in order to save these
+    # I don't think I have one available
+    print("nb.save(pve_output[:,:,:,0], (fileroot + _GM.nii.gz)")
+    print("nb.save(pve_output[:,:,:,0], (fileroot + _WM.nii.gz)")
+    print("nb.save(pve_output[:,:,:,0], (fileroot + _CSF.nii.gz)")
+    
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
                         asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
@@ -271,14 +294,27 @@ if __name__ == "__main__":
 
     outdir = (study_dir + "/" + sub_num + "/T1w/ASL/reg")
     gen_initial_trans(asl_v1_brain, outdir, t1, t1_brain)
+
+    # Generate a brain mask in the space of the 1st ASL volume
+    asl2struct = (outdir + "/asl2struct.mat")
+    t1_brain_mask = (outdir + "/T1w_acpc_dc_restore_brain_mask.nii.gz")
+    asl_mask = (outdir + "/asl_vol1_mask.nii.gz")
+    struct2asl = (outdir + "/struct2asl.mat")
+
+    gen_asl_mask(t1_brain, t1_brain_mask, asl_v1_brain, asl2struct, asl_mask,
+                struct2asl)
+
+    # Generate PVEs
+    aparc_aseg = (study_dir + "/" + sub_num + "/T1w/aparc+aseg.nii.gz")
+    pve_files = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/pve")
+    gen_pves(aparc_aseg, t1, asl, pve_files)
     
 
     # Calculate the overall distortion correction warp
-    mask =
     tissseg = 
     asl2str_trans = (outdir + "/asl2struct.mat")
     gdc_warp = (oph + "/gdc_warp.nii.gz")
-    calc_distcorr_warp(asl_v1_brain, oph, t1, t1_brain, mask, tissseg,
+    calc_distcorr_warp(asl_v1_brain, oph, t1, t1_brain, asl_mask, tissseg,
                         asl2str_trans, fmap_rads, fmapmag, fmapmagbrain, t1_asl_res,
                         gdc_warp)
 
