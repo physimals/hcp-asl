@@ -18,6 +18,8 @@ import regtools as rt
 import tempfile as td
 import shutil
 
+from extract_fs_pvs import extract_fs_pvs
+
 # Generate gradient distortion correction warp
 def calc_gdc_warp(asldata_vol1, coeffs_loc, oph):
     """
@@ -128,12 +130,15 @@ def gen_pves(aparc_aseg, t1, asl, fileroot):
     Generate partial volume estimates from freesurfer segmentations of the cortex
     and subcortical structures.
     """    
-    print("pve_output = extract_fs_pvs(aparc_aseg, t1, asl)")
-    # Not sure if I need to copy headers from another file in order to save these
-    # I don't think I have one available
-    print("nb.save(pve_output[:,:,:,0], (fileroot + _GM.nii.gz)")
-    print("nb.save(pve_output[:,:,:,0], (fileroot + _WM.nii.gz)")
-    print("nb.save(pve_output[:,:,:,0], (fileroot + _CSF.nii.gz)")
+
+    # FIXME: superfactor and cores are at debug settings here. 
+    pvs_stacked = extract_fs_pvs(aparc_aseg, t1, asl, superfactor=2, cores=1)
+    hdr = pvs_stacked.header 
+    aff = pvs_stacked.affine 
+    for idx, suffix in enumerate(['GM', 'WM', 'CSF']):
+        p = "{}_{}".format(fileroot, suffix)
+        nii = nb.Nifti2Image(pvs_stacked.dataobj[...,idx], aff, header=hdr)
+        nb.save(nii, p)
     
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
