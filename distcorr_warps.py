@@ -1,4 +1,3 @@
-#! /usr/bin/env python3
 """ 
  Script for gradient and EPI ddistortion correction of HCP ASL data
 
@@ -17,7 +16,7 @@ import subprocess as sp
 import regtools as rt
 import  sys
 
-sys.path.append("/mnt/hgfs/Postdoc_data_files/HCP/hcp-asl")
+sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
 
 from extract_fs_pvs import extract_fs_pvs
 from pathlib import Path
@@ -63,7 +62,7 @@ def calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, distcorr_
     """
     merge_sefm_call = ("fslmerge -t " + pa_ap_sefms + " " + pa_sefm + " " + ap_sefm)
     # print(merge_sefm_call)
-    sp.run(merge_sefm_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(merge_sefm_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
     topup_call = ("topup --imain=" + pa_ap_sefms + 
                     " --datain=" + pars_filepath + " --config=" + cnf_file + 
@@ -72,21 +71,21 @@ def calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, distcorr_
                     "/corrected_sefms.nii.gz")
     
     # print(topup_call)
-    sp.run(topup_call.split(), check=True, stderr=PIPE, stdout=sp.PIPE)
+    sp.run(topup_call.split(), check=True, stderr=sp.PIPE, stdout=sp.sp.PIPE)
 
     convert_torads = ("fslmaths " + topup_fmap + 
                         " -mul 3.14159 -mul 2 " + "/" + fmap_rads)
     # print(convert_torads)
-    sp.run(convert_torads.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(convert_torads.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     mean_fmapmag_call = ("fslmaths " + distcorr_dir + "/corrected_sefms.nii.gz -Tmean " + 
                             "/" + fmapmag)
     # print(mean_fmapmag_call)
-    sp.run(mean_fmapmag_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(mean_fmapmag_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     bet_fmapmag_call = ("bet " + "/" + fmapmag + " /" + fmapmagbrain)
     # print(bet_fmapmag_call)
-    sp.run(bet_fmapmag_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(bet_fmapmag_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 def gen_initial_trans(regfrom, outdir, struct, struct_brain):
     """
@@ -97,7 +96,7 @@ def gen_initial_trans(regfrom, outdir, struct, struct_brain):
     reg_call = ("asl_reg -i " + regfrom + " -o " + outdir + " -s " + struct +
                 " --sbet=" + struct_brain + " --mainonly")
     # print(reg_call)
-    sp.run(reg_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
                 struct2asl):
@@ -120,11 +119,11 @@ def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
     # print(fill_call)
     # print(hdr_call)
 
-    sp.run(invert_reg.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(sbrain_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(trans_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(fill_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(hdr_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(invert_reg.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(sbrain_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(trans_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(fill_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(hdr_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 def gen_pves(aparc_aseg, t1, asl, fileroot):
     """
@@ -149,7 +148,7 @@ def gen_wm_mask(pvwm, tissseg):
 
     maths_call = ("fslmaths " + pvwm + " -thr 0.5 -bin " + tissseg)
     # print(maths_call)
-    sp.run(maths_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
@@ -168,7 +167,7 @@ def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissse
                 fmap_rads + " --fmapmag=" + fmapmag + " --fmapmagbrain=" + fmapmagbrain +
                 " --pedir=y --echospacing=0.00057")
     # print(reg_call)
-    sp.run(reg_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
     # Add the gradient distortion correction warp to the EPI distortion correction warp
     if os.path.isfile(gdc_warp):
@@ -176,13 +175,13 @@ def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissse
                         "/distcorr_warp -w " + distcorr_dir + "/asl2struct_warp --warp2=" + 
                         gdc_warp + " --rel")
         # print(merge_warp_call)
-        sp.run(merge_warp_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+        sp.run(merge_warp_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     else:
         print("Gradient distortion correction not applied")
         cp_call = ("imcp " + distcorr_dir + "/asl2struct_warp.nii.gz " + distcorr_dir +
                     "/distcorr_warp")
         # print(cp_call)
-        sp.run(cp_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+        sp.run(cp_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 # calculate the jacobian of the warp for intensity correction
 def calc_warp_jacobian(distcorr_dir):
@@ -201,9 +200,9 @@ def calc_warp_jacobian(distcorr_dir):
     # print(utils_call2)
     # print(hdr_call)
 
-    sp.run(utils_call1.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(utils_call2.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(hdr_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(utils_call1.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(utils_call2.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(hdr_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 # apply the combined distortion correction warp
 def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir,
@@ -245,17 +244,18 @@ def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir
     # print(sfacs_apply_call)
     # print(sfacs_jaco_call)
 
-    sp.run(asl_apply_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(asl_jaco_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(calib_apply_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(calib_jaco_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(sfacs_apply_call.split(), check=True, stderr=PIPE, stdout=PIPE)
-    sp.run(sfacs_jaco_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(asl_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(asl_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(calib_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(calib_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(sfacs_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    sp.run(sfacs_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 if __name__ == "__main__":
     # fill in function calls
     
-    (argno, in_args) = (sys.argc, sys.argv)
+    # (argno, in_args) = (sys.argc, sys.argv)
+    in_args = sys.argv
 
     study_dir = in_args[1]
     sub_num = in_args[2]
@@ -278,13 +278,13 @@ if __name__ == "__main__":
     t1 = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore.nii.gz")
     t1_brain = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore_brain.nii.gz")
 
-    asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/Second_pass/tis_stcorr.nii.gz") 
+    asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr.nii.gz") 
     t1_asl_res = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz")
 
-    asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/Second_pass/tis_stcorr_vol1.nii.gz")
+    asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
     first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
     # print(first_asl_call)
-    sp.run(first_asl_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     print("Running regtools bit")
     t1_spc = rt.ImageSpace(t1)
@@ -298,7 +298,7 @@ if __name__ == "__main__":
     # GDC warp if they are:
     #### Note - I've stored the .grad file in "{$HCPPIPEDIR_Config}", which is the directory ####
     #### listed below. This might not be the right place for this file.                      ####
-    grad_coeffs = os.path.expanduser("~/projects/Pipelines/global/config/coeff_AS82_Prisma.grad")
+    grad_coeffs = "/mnt/hgfs/shared_with_vm/hcp-asl/coeff_AS82_Prisma.grad" # filepath on Jack's VM
     if os.path.isfile(grad_coeffs):
         calc_gdc_warp(asl_v1, grad_coeffs, oph)
     else:
@@ -326,10 +326,10 @@ if __name__ == "__main__":
                 fmap_rads, fmapmag, fmapmagbrain)
     
     # Calculate initial linear transformation from ASL-space to T1w-space
-    asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/Second_pass/tis_stcorr_vol1_brain.nii.gz")
+    asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1_brain.nii.gz")
     bet_regfrom_call = ("bet " + asl_v1 + " " + asl_v1_brain)
     # print(bet_regfrom_call)
-    sp.run(bet_regfrom_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(bet_regfrom_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     gen_initial_trans(asl_v1_brain, outdir, t1, t1_brain)
 
@@ -376,12 +376,12 @@ if __name__ == "__main__":
     calib_inv_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2m0.mat/MAT_0000")
     calib_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/calibTOasl1.mat")
 
-    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/Second_pass/st_scaling_factors.nii.gz")
+    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/st_scaling_factors.nii.gz")
     sfacs_distcorr = (T1w_oph + "/st_scaling_factors.nii.gz")
 
     invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
     # print(invert_call)
-    sp.run(invert_call.split(), check=True, stderr=PIPE, stdout=PIPE)
+    sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, T1w_oph,
                         moco_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
