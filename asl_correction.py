@@ -275,8 +275,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
             str(transform),
             "-singlematrix"
         ]
-        # subprocess.run(cmd)
-        # # print(" ".join(cmd))
+        subprocess.run(cmd)
     # merge registered parameter volumes into one time series
     cmd = [
         'fslmerge',
@@ -326,6 +325,8 @@ def hcp_asl_moco(subject_dir, mt_factors):
     biascorr_dir_name = tis_dir_name / 'BiasCorr'
     mtcorr_dir_name = tis_dir_name / 'MTCorr'
     satrecov_dir_name = tis_dir_name / 'SatRecov'
+    stcorr1_dir_name = tis_dir_name / 'STCorr/FirstPass'
+    stcorr2_dir_name = tis_dir_name / 'STCorr/SecondPass'
     moco_dir_name = tis_dir_name / 'MoCo'
     asln2m0_name = moco_dir_name / 'asln2m0.mat'
     asln2asl0_name = moco_dir_name / 'asln2asl0.mat'
@@ -334,10 +335,11 @@ def hcp_asl_moco(subject_dir, mt_factors):
         biascorr_dir_name, 
         mtcorr_dir_name, 
         satrecov_dir_name,
+        stcorr1_dir_name,
+        stcorr2_dir_name,
         moco_dir_name,
         asln2asl0_name,
-        asl02asln_name,
-        asln2m0_name
+        asl02asln_name
     ])
 
     # bias-correction of original ASL series
@@ -359,26 +361,29 @@ def hcp_asl_moco(subject_dir, mt_factors):
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
     # perform initial slice-timing correction using estimated tissue params
     stcorr_img, st_factors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
-    stcorr_name = tis_dir_name / 'corrected_tis.nii.gz'
-    stcorr_img.save(stcorr_name)
-    st_factors_name = tis_dir_name / 'st_scalingfactors.nii.gz'
-    st_factors_img.save(st_factors_name)
+    stcorr1_name = stcorr1_dir_name / 'tis_stcorr.nii.gz'
+    stcorr_img.save(stcorr1_name)
+    st_factors1_name = stcorr1_dir_name / 'st_scaling_factors.nii.gz'
+    st_factors_img.save(st_factors1_name)
 
     # motion estimation from ASL to M0 image
-    mcflirt_results = mcflirt(stcorr_img, reffile=json_dict['calib0_mc'], mats=True, out=LOAD)
+    reg_name = moco_dir_name / 'initial_registration_TIs.nii.gz'
+    mcflirt(stcorr_img, reffile=json_dict['calib0_mc'], mats=True, out=str(reg_name))
+    # rename mcflirt matrices directory
+    (moco_dir_name / 'initial_registration_TIs.nii.gz.mat').rename(asln2m0_name)
 
     # obtain motion estimates from ASLn to ASL0 (and their inverse)
-    m02asl0 = np.linalg.inv(mcflirt_results['out.mat/MAT_0000'])
-    for key in sorted(mcflirt_results.keys()):
-        if key != 'out':
-            if key == 'out.mat/MAT_0000':
-                forward_trans = np.eye(4)
-            else:
-                forward_trans = m02asl0 @ mcflirt_results[key] # asln to asl0
-            inv_trans = np.linalg.inv(forward_trans) # asl0 to asln
-            np.savetxt(asln2m0_name / key.split('/')[-1], mcflirt_results[key])
-            np.savetxt(asln2asl0_name / key.split('/')[-1], forward_trans)
-            np.savetxt(asl02asln_name / key.split('/')[-1], inv_trans)
+    # get list of registration matrices
+    asl2m0_list = sorted(asln2m0_name.glob('**/MAT*'))
+    m02asl0 = np.linalg.inv(np.loadtxt(asl2m0_list[0]))
+    for n, transformation in enumerate(asl2m0_list):
+        if n == 0:
+            forward_trans = np.eye(4)
+        else:
+            forward_trans = m02asl0 @ np.loadtxt(transformation)
+        inv_trans = np.linalg.inv(forward_trans)
+        np.savetxt(asln2asl0_name / transformation.stem, forward_trans)
+        np.savetxt(asl02asln_name / transformation.stem, inv_trans)
 
     # apply inverse transformations to parameter estimates to align them with 
     # the individual frames of the ASL series
@@ -387,6 +392,12 @@ def hcp_asl_moco(subject_dir, mt_factors):
 
     # second slice-timing correction using registered parameter estimates
     stcorr_img, st_factors_img = _slicetiming_correction(mtcorr_name, reg_t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
+
+    # save slice-time corrected image and slice-time correcting scaling factors
+    stcorr2_name = stcorr2_dir_name / 'tis_stcorr.nii.gz'
+    stcorr_img.save(stcorr2_name)
+    st_factors2_name = stcorr2_dir_name / 'st_scaling_factors.nii.gz'
+    st_factors_img.save(st_factors2_name)
 
     # apply motion estimates to slice-timing corrected ASL series
     asl_moco_name = moco_dir_name / 'ASL_reg.nii.gz'
