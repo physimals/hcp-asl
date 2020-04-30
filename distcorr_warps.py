@@ -312,9 +312,9 @@ if __name__ == "__main__":
     produce_topup_params(pars_filepath)
 
     # generate EPI distortion correction fieldmaps for use in asl_reg
-    pa_sefm = (sub_num + "/" + sub_num + "_V1_A/30_Fieldmap_SE_EPI/NIFTI/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz")
+    pa_sefm = (study_dir + "/" + sub_num + "/" + sub_num + "_V1_B/scans/30-FieldMap_SE_EPI/resources/NIFTI/files/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz")
        #/mnt/hgfs/Postdoc_data_files/HCP/Aging/HCA6002236/B_scans/30_FieldMap_SE_EPI/NIFTI
-    ap_sefm = (sub_num + "/" + sub_num + "_V1_A/30_Fieldmap_SE_EPI/NIFTI/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz")
+    ap_sefm = (study_dir + "/" + sub_num + "/" + sub_num + "_V1_B/scans/29-FieldMap_SE_EPI/resources/NIFTI/files/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz")
     pa_ap_sefms = (oph + "/merged_sefms.nii.gz")
     cnf_file = "b02b0.cnf"
     out_basename = (oph + "/topup_result")
