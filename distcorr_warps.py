@@ -45,11 +45,14 @@ def produce_topup_params(pars_filepath):
     """
     Generate a file containing the parameters used by topup to generate EPI distortion
     correction fieldmap and output this into subject's directory. -- This could be a 
-    global/config file if that is preferable
+    global/config file if that is preferable. If the .txt file already exists, delete 
+    and recreate it.
     """
+    if os.path.isfile(pars_filepath):
+        os.remove(pars_filepath)
     with open(pars_filepath, "a") as t_pars:
         t_pars.write("0 1 0 0.04845" + "\n")
-        t_pars.write("0 -1 0 0.04845" + "\n")
+        t_pars.write("0 -1 0 0.04845")
     
 def calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, distcorr_dir, out_basename, topup_fmap, 
                 fmap_rads, fmapmag, fmapmagbrain):
@@ -71,7 +74,7 @@ def calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, distcorr_
                     "/corrected_sefms.nii.gz")
     
     # print(topup_call)
-    sp.run(topup_call.split(), check=True, stderr=sp.PIPE, stdout=sp.sp.PIPE)
+    sp.run(topup_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     convert_torads = ("fslmaths " + topup_fmap + 
                         " -mul 3.14159 -mul 2 " + "/" + fmap_rads)
