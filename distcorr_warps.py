@@ -28,7 +28,7 @@ def calc_gdc_warp(asldata_vol1, coeffs_loc, oph):
     coefficients file.
     """
 
-    gdc_call = ("python gradient_unwarp.py " + asldata_vol1 + " gdc_corr_vol1.nii.gz " +
+    gdc_call = ("gradient_unwarp.py " + asldata_vol1 + " gdc_corr_vol1.nii.gz " +
                     "siemens -g " + coeffs_loc)
 
     # print(gdc_call)
