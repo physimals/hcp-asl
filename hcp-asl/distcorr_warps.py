@@ -286,8 +286,8 @@ if __name__ == "__main__":
 
     asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
     first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
-    # print(first_asl_call)
-    sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    # # print(first_asl_call)
+    # sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     print("Running regtools bit")
     t1_spc = rt.ImageSpace(t1)
@@ -295,24 +295,24 @@ if __name__ == "__main__":
     t1_spc_asl = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
     r = rt.Registration.identity()
     t1_asl = r.apply_to_image(t1, t1_spc_asl)
-    nb.save(t1_asl, t1_asl_res)
+    # nb.save(t1_asl, t1_asl_res)
 
     # Check .grad coefficients are available and call function to generate 
     # GDC warp if they are:
     #### Note - I've stored the .grad file in "{$HCPPIPEDIR_Config}", which is the directory ####
     #### listed below. This might not be the right place for this file.                      ####
     grad_coeffs = "/mnt/hgfs/shared_with_vm/hcp-asl/coeff_AS82_Prisma.grad" # filepath on Jack's VM
-    if os.path.isfile(grad_coeffs):
-        calc_gdc_warp(asl_v1, grad_coeffs, oph)
-    else:
-        print("Gradient coefficients not available")
+    # if os.path.isfile(grad_coeffs):
+    #     calc_gdc_warp(asl_v1, grad_coeffs, oph)
+    # else:
+    #     print("Gradient coefficients not available")
 
     print("Changing back to original working directory: " + initial_wd)
     os.chdir(initial_wd)
 
     # output file of topup parameters to subject's distortion correction dir
     pars_filepath = (oph + "/topup_params.txt")
-    produce_topup_params(pars_filepath)
+    # produce_topup_params(pars_filepath)
 
     # generate EPI distortion correction fieldmaps for use in asl_reg
     pa_sefm = (study_dir + "/" + sub_num + "/" + sub_num + "_V1_B/scans/30-FieldMap_SE_EPI/resources/NIFTI/files/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz")
@@ -325,16 +325,16 @@ if __name__ == "__main__":
     fmap_rads = (oph + "/fmap_rads.nii.gz")
     fmapmag = (oph + "/fmapmag.nii.gz")
     fmapmagbrain = (oph + "/fmapmag_brain.nii.gz")
-    calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, oph, out_basename, topup_fmap, 
-                fmap_rads, fmapmag, fmapmagbrain)
+    # calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, oph, out_basename, topup_fmap, 
+    #             fmap_rads, fmapmag, fmapmagbrain)
     
     # Calculate initial linear transformation from ASL-space to T1w-space
     asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1_brain.nii.gz")
     bet_regfrom_call = ("bet " + asl_v1 + " " + asl_v1_brain)
-    # print(bet_regfrom_call)
-    sp.run(bet_regfrom_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    # # print(bet_regfrom_call)
+    # sp.run(bet_regfrom_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
-    gen_initial_trans(asl_v1_brain, outdir, t1, t1_brain)
+    # gen_initial_trans(asl_v1_brain, outdir, t1, t1_brain)
 
     # Generate a brain mask in the space of the 1st ASL volume
     asl2struct = (outdir + "/asl2struct.mat")
@@ -342,29 +342,29 @@ if __name__ == "__main__":
     asl_mask = (outdir + "/asl_vol1_mask.nii.gz")
     struct2asl = (outdir + "/struct2asl.mat")
 
-    gen_asl_mask(t1_brain, t1_brain_mask, asl_v1_brain, asl2struct, asl_mask,
-                struct2asl)
+    # gen_asl_mask(t1_brain, t1_brain_mask, asl_v1_brain, asl2struct, asl_mask,
+    #             struct2asl)
 
     # Generate PVEs
     aparc_aseg = (study_dir + "/" + sub_num + "/T1w/aparc+aseg.nii.gz")
     pve_files = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/pve")
-    gen_pves(aparc_aseg, t1, asl, pve_files)
+    # gen_pves(aparc_aseg, t1, asl, pve_files)
 
     # Generate WM mask
     pvwm = (pve_files + "_WM.nii.gz")
     tissseg = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/wm_mask.nii.gz")
-    gen_wm_mask(pvwm, tissseg)
+    # gen_wm_mask(pvwm, tissseg)
     
 
     # Calculate the overall distortion correction warp
     asl2str_trans = (outdir + "/asl2struct.mat")
     gdc_warp = (oph + "/gdc_warp.nii.gz")
-    calc_distcorr_warp(asl_v1_brain, oph, t1, t1_brain, asl_mask, tissseg,
-                        asl2str_trans, fmap_rads, fmapmag, fmapmagbrain, t1_asl_res,
-                        gdc_warp)
+    # calc_distcorr_warp(asl_v1_brain, oph, t1, t1_brain, asl_mask, tissseg,
+    #                     asl2str_trans, fmap_rads, fmapmag, fmapmagbrain, t1_asl_res,
+    #                     gdc_warp)
 
-    # Calculate the Jacobian of the distortion correction warp 
-    calc_warp_jacobian(oph)
+    # # Calculate the Jacobian of the distortion correction warp 
+    # calc_warp_jacobian(oph)
 
     # apply the combined distortion correction warp with motion correction
     # to move asl data, calibrationn images, and scaling factors into 
@@ -383,8 +383,8 @@ if __name__ == "__main__":
     sfacs_distcorr = (T1w_oph + "/st_scaling_factors.nii.gz")
 
     invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
-    # print(invert_call)
-    sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    # # print(invert_call)
+    # sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, T1w_oph,
                         moco_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
