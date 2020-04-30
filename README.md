@@ -2,12 +2,10 @@
 This repository contains the ASL processing pipeline scripts for the Human Connectome Project.
 
 ## Contents
------
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 
 ## Prerequisites
------
 The HCP list some prerequisites for their pipelines: https://github.com/Washington-University/HCPpipelines/wiki/Installation-and-Usage-Instructions.
 
 The prerequisites specific to this pipeline, along with links to their installation pages, are listed below:
@@ -18,4 +16,3 @@ The prerequisites specific to this pipeline, along with links to their installat
 - [HCP's gradunwarp](https://github.com/Washington-University/gradunwarp)
 
 ## Installation
------
