@@ -197,7 +197,7 @@ def calc_warp_jacobian(distcorr_dir):
     utils_call2 = ("fnirtfileutils -i " + distcorr_dir + "/distcorr_warp_coeff -j " +
                     distcorr_dir + "/distcorr_jacobian")
     hdr_call = ("fslcpgeom " + distcorr_dir + "/distcorr_warp " + distcorr_dir + 
-                    "/distcorr_jacobian")
+                    "/distcorr_jacobian -d")
 
     # print(utils_call1)
     # print(utils_call2)
@@ -392,8 +392,8 @@ if __name__ == "__main__":
     sfacs_distcorr = (T1w_oph + "/st_scaling_factors.nii.gz")
 
     invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
-    # # print(invert_call)
-    # sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    # print(invert_call)
+    sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, oph,
                         concat_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
