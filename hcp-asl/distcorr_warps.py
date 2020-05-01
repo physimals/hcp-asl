@@ -247,11 +247,17 @@ def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir
     # print(sfacs_apply_call)
     # print(sfacs_jaco_call)
 
-    sp.run(asl_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(asl_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(calib_apply_call)
     sp.run(calib_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(asl_apply_call)
+    sp.run(asl_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(asl_jaco_call)
+    sp.run(asl_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(calib_jaco_call)
     sp.run(calib_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(sfacs_apply_call)
     sp.run(sfacs_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    print(sfacs_jaco_call)
     sp.run(sfacs_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 if __name__ == "__main__":
@@ -363,8 +369,8 @@ if __name__ == "__main__":
     #                     asl2str_trans, fmap_rads, fmapmag, fmapmagbrain, t1_asl_res,
     #                     gdc_warp)
 
-    # # Calculate the Jacobian of the distortion correction warp 
-    # calc_warp_jacobian(oph)
+    # Calculate the Jacobian of the distortion correction warp 
+    calc_warp_jacobian(oph)
 
     # apply the combined distortion correction warp with motion correction
     # to move asl data, calibrationn images, and scaling factors into 
@@ -372,7 +378,10 @@ if __name__ == "__main__":
     
     asl_distcorr = (T1w_oph + "/tis_distcorr.nii.gz")
     moco_xfms = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2asl0.mat") #will this work?
-
+    concat_xfms = str(Path(moco_xfms).parent / f'{Path(moco_xfms).stem}.cat')
+    # concatenate xfms like in oxford_asl
+    concat_call = f'cat {moco_xfms}/MAT* > {concat_xfms}'
+    sp.run(concat_call, shell=True)
     # only correcting and transforming the 1st of the calibration images at the moment
     calib_orig = (study_dir + "/" + sub_num + "/ASL/Calib/Calib0/MTCorr/calib0_mtcorr.nii.gz")
     calib_distcorr = (study_dir + "/" + sub_num + "/T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz")
@@ -386,8 +395,8 @@ if __name__ == "__main__":
     # # print(invert_call)
     # sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
-    apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, T1w_oph,
-                        moco_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
+    apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, oph,
+                        concat_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
                         sfacs_distcorr)
 
     
