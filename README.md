@@ -11,8 +11,19 @@ The HCP list some prerequisites for their pipelines: https://github.com/Washingt
 The prerequisites specific to this pipeline, along with links to their installation pages, are listed below:
 - [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation)
 - [Workbench](https://www.humanconnectome.org/software/get-connectome-workbench)
-- [Regtools](https://github.com/tomfrankkirk/regtools)
-- [Toblerone](https://ibme-gitcvs.eng.ox.ac.uk/TomK/pytoblerone)
-- [HCP's gradunwarp](https://github.com/Washington-University/gradunwarp)
 
 ## Installation
+To install hcpasl in the current Python environment:
+
+```
+git clone https://github.com/ibme-qubic/hcp-asl.git
+cd hcp-asl
+python -m pip install --user .
+```
+
+## Usage
+Once installed, the pipeline may be used as a command-line script as follows:
+
+```
+hcp_asl ${SubjectDirectory} ${mt_scaling_factors}
+```
