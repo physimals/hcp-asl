@@ -1,5 +1,5 @@
-from m0_mt_correction import load_json, update_json
-from initial_bookkeeping import create_dirs
+from .m0_mt_correction import load_json, update_json
+from .initial_bookkeeping import create_dirs
 from pathlib import Path
 import subprocess
 import numpy as np
@@ -9,10 +9,12 @@ def run_oxford_asl(subject_dir):
     json_dict = load_json(subject_dir)
 
     # directory for oxford_asl results
-    oxford_dir = Path(json_dict['structasl']) / 'TIs/OxfordASL'
-    pvgm_name = Path(json_dict['structasl']) / 'PVEs/pve_GM.nii.gz'
-    pvwm_name = Path(json_dict['structasl']) / 'PVEs/pve_WM.nii.gz'
-    calib_name = Path(json_dict['structasl']) / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+    structasl_dir = Path(json_dict['structasl'])
+    oxford_dir = structasl_dir / 'TIs/OxfordASL'
+    pvgm_name = structasl_dir / 'PVEs/pve_GM.nii.gz'
+    pvwm_name = structasl_dir / 'PVEs/pve_WM.nii.gz'
+    calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+    brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
     cmd = [
         "oxford_asl",
         f"-i {json_dict['beta_perf']}",
@@ -27,16 +29,18 @@ def run_oxford_asl(subject_dir):
         "--pvcorr",
         f"-c {str(calib_name)}",
         "--cmethod=single",
+        f"-m {str(brain_mask)}",
         f"--pvgm={str(pvgm_name)}",
         f"--pvwm={str(pvwm_name)}",
         "--te=19",
         "--debug",
         "--spatial=off",
         "--slicedt=0.059",
-        "--sliceband=10",
         f"-s {json_dict['T1w_acpc']}",
-        f"--sbrain={json_dict['T1w_acpc_brain']}"
+        f"--sbrain={json_dict['T1w_acpc_brain']}",
+        "--sliceband=10"
     ]
+    print(" ".join(cmd))
     subprocess.run(" ".join(cmd), shell=True)
 
     # add oxford_asl directory to the json

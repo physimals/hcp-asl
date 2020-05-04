@@ -29,13 +29,13 @@ Corrections to be applied include:
         fully-corrected, registered ASL series)
 """
 
-from m0_mt_correction import load_json, update_json
+from .initial_bookkeeping import create_dirs
+from .m0_mt_correction import load_json, update_json
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 from fsl.data.image import Image
 from fabber import Fabber, percent_progress
 import sys
-from initial_bookkeeping import create_dirs
 from pathlib import Path
 import subprocess
 import numpy as np

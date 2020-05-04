@@ -15,10 +15,11 @@ import os
 import subprocess as sp
 import regtools as rt
 import  sys
+from fsl.wrappers import fslmaths
 
 sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
 
-from extract_fs_pvs import extract_fs_pvs
+from hcpasl.extract_fs_pvs import extract_fs_pvs
 from pathlib import Path
 
 # Generate gradient distortion correction warp
@@ -254,7 +255,7 @@ def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir
     sp.run(sfacs_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     sp.run(sfacs_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
-if __name__ == "__main__":
+def main():
     # fill in function calls
     
     # (argno, in_args) = (sys.argc, sys.argv)
@@ -275,19 +276,21 @@ if __name__ == "__main__":
     initial_wd = os.getcwd()
     print("Pre-distortion correction working directory was: " + initial_wd)
     print("Changing working directory to: " + oph)
-    os.chdir(oph)
+    # os.chdir(oph)
 
     # Generate ASL-gridded T1-aligned T1w image for use as a reg reference
     t1 = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore.nii.gz")
     t1_brain = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore_brain.nii.gz")
+    t1_mask = (study_dir + "/" + sub_num + "/T1w/ASL/reg/T1w_acpc_dc_restore_brain_mask.nii.gz")
 
     asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr.nii.gz") 
     t1_asl_res = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    t1_asl_mask_name = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
 
     asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
     first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
-    # print(first_asl_call)
-    sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+    # # print(first_asl_call)
+    # sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
     print("Running regtools bit")
     t1_spc = rt.ImageSpace(t1)
@@ -295,8 +298,14 @@ if __name__ == "__main__":
     t1_spc_asl = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
     r = rt.Registration.identity()
     t1_asl = r.apply_to_image(t1, t1_spc_asl)
-    nb.save(t1_asl, t1_asl_res)
-
+    # nb.save(t1_asl, t1_asl_res)
+    # # brain mask
+    t1_mask_spc = rt.ImageSpace(t1_mask)
+    t1_mask_spc_asl = t1_mask_spc.resize_voxels(asl_spc.vox_size / t1_mask_spc.vox_size)
+    r = rt.Registration.identity()
+    t1_mask_asl = r.apply_to_image(t1_mask, t1_mask_spc_asl)
+    fslmaths(t1_mask_asl).thr(0.5).bin().run(t1_asl_mask_name)
+    raise Exception
     # Check .grad coefficients are available and call function to generate 
     # GDC warp if they are:
     #### Note - I've stored the .grad file in "{$HCPPIPEDIR_Config}", which is the directory ####
@@ -394,3 +403,7 @@ if __name__ == "__main__":
                         sfacs_distcorr)
 
     
+
+
+if __name__ == "__main__":
+    main()

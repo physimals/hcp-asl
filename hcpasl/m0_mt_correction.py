@@ -6,7 +6,7 @@ Magnetisation Transfer effect visible in the HCP data.
 import json
 from pathlib import Path
 from fsl.wrappers import fslmaths, LOAD, bet, fast
-from initial_bookkeeping import create_dirs
+from .initial_bookkeeping import create_dirs
 import subprocess
 
 def load_json(subject_dir):
