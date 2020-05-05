@@ -21,6 +21,7 @@ sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
 
 from hcpasl.extract_fs_pvs import extract_fs_pvs
 from pathlib import Path
+import argparse
 
 # Generate gradient distortion correction warp
 def calc_gdc_warp(asldata_vol1, coeffs_loc, oph):
@@ -270,11 +271,26 @@ def find_field_maps(study_dir, subject_number):
     return str(pa_sefm), str(ap_sefm)
     
 def main():
-    # fill in function calls
-    in_args = sys.argv
-
-    study_dir = in_args[1]
-    sub_num = in_args[2]
+    # argument handling
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "study_dir",
+        help="Path of the base study directory."
+    )
+    parser.add_argument(
+        "sub_number",
+        help="Subject number."
+    )
+    parser.add_argument(
+        "-g",
+        "--grads",
+        help="Filename of the gradient coefficients for gradient"
+            + "distortion correction (optional)."
+    )
+    args = parser.parse_args()
+    study_dir = args.study_dir
+    sub_num = args.sub_number
+    grad_coeffs = args.grads
 
     oph = (study_dir + "/" + sub_num + "/ASL/TIs/DistCorr")
     outdir = (study_dir + "/" + sub_num + "/T1w/ASL/reg")
@@ -319,9 +335,6 @@ def main():
     fslmaths(t1_mask_asl).thr(0.5).bin().run(t1_asl_mask_name)
     # Check .grad coefficients are available and call function to generate 
     # GDC warp if they are:
-    #### Note - I've stored the .grad file in "{$HCPPIPEDIR_Config}", which is the directory ####
-    #### listed below. This might not be the right place for this file.                      ####
-    grad_coeffs = "/mnt/hgfs/shared_with_vm/hcp-asl/coeff_AS82_Prisma.grad" # filepath on Jack's VM
     if os.path.isfile(grad_coeffs):
         calc_gdc_warp(asl_v1, grad_coeffs, oph)
     else:
