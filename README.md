@@ -27,3 +27,21 @@ Once installed, the pipeline may be used as a command-line script as follows:
 ```
 hcp_asl ${SubjectDirectory} ${mt_scaling_factors}
 ```
+
+If available, the user can supply a gradient coefficients file for use in gradient 
+distortion correction as follows:
+
+```
+hcp_asl ${SubjectDirectory} ${mt_scaling_factors} -g ${grad_coeffs}
+hcp_asl ${SubjectDirectory} ${mt_scaling_factors} --grads ${grad_coeffs}
+```
+
+The distortion correction script can also be called directly:
+
+```
+hcp_asl_distcorr ${StudyDirectory} ${SubjectNumber} (-g ${grad_coeffs})
+```
+
+If the gradient coefficients are not supplied, the script will perform the other 
+motion correction and registration steps without including gradient distortion 
+correction.
