@@ -255,6 +255,20 @@ def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir
     sp.run(sfacs_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     sp.run(sfacs_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
+def find_field_maps(study_dir, subject_number):
+    """
+    Find the mbPCASL field maps in the subject's directory.
+    The field maps are found in the subject's B session directory. 
+    Multiple pairs of field maps are taken in the B session; this 
+    function assumes that the mbPCASL field maps are the final 2 
+    field map directories in the session.
+    """
+    scan_dir = Path(study_dir) / subject_number / f'{subject_number}_V1_B/scans'
+    pa_dir, ap_dir = sorted(scan_dir.glob('**/*_FieldMap_SE_EPI'))[-2:]
+    pa_sefm = pa_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz'
+    ap_sefm = ap_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz'
+    return str(pa_sefm), str(ap_sefm)
+    
 def main():
     # fill in function calls
     in_args = sys.argv
@@ -321,9 +335,7 @@ def main():
     produce_topup_params(pars_filepath)
 
     # generate EPI distortion correction fieldmaps for use in asl_reg
-    pa_sefm = (study_dir + "/" + sub_num + "/" + sub_num + "_V1_B/scans/30-FieldMap_SE_EPI/resources/NIFTI/files/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz")
-       #/mnt/hgfs/Postdoc_data_files/HCP/Aging/HCA6002236/B_scans/30_FieldMap_SE_EPI/NIFTI
-    ap_sefm = (study_dir + "/" + sub_num + "/" + sub_num + "_V1_B/scans/29-FieldMap_SE_EPI/resources/NIFTI/files/HCA6002236_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz")
+    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_num)
     pa_ap_sefms = (oph + "/merged_sefms.nii.gz")
     cnf_file = "b02b0.cnf"
     out_basename = (oph + "/topup_result")
