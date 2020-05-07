@@ -1,7 +1,0 @@
-numpy
-fslpy
-pyfab
-nibabel
-regtools@ git+https://github.com/tomfrankkirk/regtools.git
-toblerone@ git+https://ibme-gitcvs.eng.ox.ac.uk/TomK/pytoblerone.git
-gradunwarp@ git+https://github.com/Washington-University/gradunwarp.git
