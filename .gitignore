@@ -1,3 +1,6 @@
 .vscode
 testdata
-.DS_Store
+__pycache__
+MTEstimation
+build
+hcpasl.egg-info

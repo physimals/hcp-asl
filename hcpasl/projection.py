@@ -1,5 +1,5 @@
-from m0_mt_correction import load_json, update_json
-from initial_bookkeeping import create_dirs
+from .initial_bookkeeping import create_dirs
+from .m0_mt_correction import load_json, update_json
 from pathlib import Path
 import subprocess
 from fsl.wrappers.flirt import applyxfm
@@ -8,16 +8,12 @@ def project_to_surface(subject_dir):
     # load subject's json
     json_dict = load_json(subject_dir)
 
-    # create directory for surface results
-    projection_dir = Path(json_dict['TIs_dir']) / 'SurfaceResults'
-    create_dirs([projection_dir, ])
-
-    # directory containing surface files
-    surface_dir = Path(json_dict['T1w_dir']) / 'Native'
-    subject_name = Path(subject_dir).stem
-
     # perfusion calib
     pc_name = Path(json_dict['oxford_asl']) / 'struct_space/perfusion_calib.nii.gz'
+
+    # create directory for surface results
+    projection_dir = Path(json_dict['oxford_asl']) / 'SurfaceResults'
+    create_dirs([projection_dir, ])
     sides = ('L', 'R')
     for side in sides:
         # surface file names

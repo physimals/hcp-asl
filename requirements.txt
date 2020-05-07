@@ -1,0 +1,7 @@
+numpy
+fslpy
+nibabel
+pyfab
+regtools
+toblerone
+gradunwarp

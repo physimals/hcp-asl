@@ -10,9 +10,9 @@ simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A.
 Chappell, M.J.P. van Osch
 """
 
-from m0_mt_correction import load_json, update_json
+from .initial_bookkeeping import create_dirs
+from .m0_mt_correction import load_json, update_json
 from fsl.data.image import Image
-from initial_bookkeeping import create_dirs
 from pathlib import Path
 import subprocess
 import numpy as np
@@ -21,11 +21,14 @@ def tag_control_differencing(subject_dir):
     # load subject's json
     json_dict = load_json(subject_dir)
 
-    # load motion-corrected data, Y_moco
-    Y_moco = Image(json_dict['ASL_moco'])
+    # load motion- and distortion- corrected data, Y_moco
+    distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
+    Y_moco_name = distcorr_dir / 'tis_distcorr.nii.gz'
+    Y_moco = Image(str(Y_moco_name))
 
     # load registered scaling factors, S_st
-    S_st = Image(json_dict['STcorr_SF'])
+    sfs_name = distcorr_dir / 'st_scaling_factors.nii.gz'
+    S_st = Image(str(sfs_name))
 
     # calculate X_perf = X_tc * S_st
     X_tc = np.ones((1, 1, 1, 86)) * 0.5
@@ -43,7 +46,7 @@ def tag_control_differencing(subject_dir):
     B_baseline = (X_odd*Y_even - X_even*Y_odd) / (X_odd - X_even)
 
     # save both images
-    beta_dir_name = Path(json_dict['TIs_dir']) / 'Betas'
+    beta_dir_name = Path(json_dict['structasl']) / 'TIs/Betas'
     create_dirs([beta_dir_name, ])
     B_perf_name = beta_dir_name / 'beta_perf.nii.gz'
     B_perf_img = Image(B_perf, header=Y_moco.header)
