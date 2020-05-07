@@ -1,6 +1,5 @@
 .vscode
 testdata
 __pycache__
-MTEstimation
 build
 hcpasl.egg-info
