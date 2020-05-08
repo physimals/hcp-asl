@@ -1,3 +1,4 @@
+
 #! /usr/bin/env python3
 """Script to extract PVs from FS binary volumetric segmentation"""
 
@@ -5,12 +6,15 @@ import pathlib
 import sys 
 import argparse
 import multiprocessing as mp 
+import os.path as op
+import tempfile
+import os 
 
 import numpy as np 
 import nibabel as nib
 
 import regtools as rt 
-
+from toblerone.pvestimation import cortex as estimate_cortex
 
 # Labels taken from standard FS LUT, subcortex: 
 SUBCORT_LUT = {
@@ -59,6 +63,20 @@ IGNORE = [
 ]
 
 
+    # # Need cortex_*, FAST_*, and individual structures 
+    # pv_dict = {}
+    # cortex = tob.pvestimation.cortex(fsdir=fsdir, ref=ref, struct2ref='I', ones=True).reshape(-1,3)
+
+    # reg = rt.Registration.identity()
+    # FAST = reg.apply_to_array(FAST.reshape(*src_spc.size, -1), src_spc, high_spc, order=1)
+    # FAST = _sumArrayBlocks(FAST, 3*[superfactor] + [1]) / (superfactor**3)
+    # FAST = FAST.reshape(-1,3)
+    # FAST[:,2] = np.maximum(0, 1 - FAST[:,:2].sum(1))
+    # FAST[FAST[:,2] < 1e-2, 2] = 0 
+    # FAST /= FAST.sum(1)[:,None]
+    # FAST = FAST.reshape(*ref_spc.size, 3)
+
+
 # To handle labels from the aparc 
 def CTX_LUT(val):
     if val >= 251 and val < 256: 
@@ -70,19 +88,16 @@ def CTX_LUT(val):
     else: 
         return None 
 
-
-def extract_fs_pvs(aseg, t1, asl, superfactor, cores): 
+def extract_fs_pvs(fsdir, t1, asl, superfactor, cores): 
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
     Results are stored in ASL-gridded T1 space. 
-
     Args:
         aseg: path to aparc+aseg file
         t1: path to T1 file
         asl: path to ASL file (for setting resolution)
         superfactor: supersampling factor for intermediate steps
         cores: number CPU cores to use 
-
     Returns: 
         nibabel Nifti object 
     """
@@ -91,15 +106,21 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
     t1_spc = rt.ImageSpace(t1)
     ref_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
     high_spc = ref_spc.resize_voxels(1/superfactor, 'ceil')
-
-    aseg_spc = nib.load(aseg)
+    aseg_spc = nib.load(op.join(fsdir, 'mri/aparc+aseg.mgz'))
     aseg = aseg_spc.dataobj
     aseg_spc = rt.ImageSpace(aseg_spc)
 
     # Need cortex_*, FAST_*, and individual structures 
-    pv_dict = {}
-    cortex = np.zeros((np.prod(aseg.shape), 3), dtype=np.float32)
+    with tempfile.TemporaryDirectory() as td:
+        ref_path = op.join(td, 'ref.nii.gz')
+        ref_spc.touch(ref_path)
+        cortex = estimate_cortex(fsdir=fsdir, ref=ref_path, struct2ref='I', superfactor=1, cores=cores)
 
+    # cortex = np.zeros((*ref_spc.size, 3), dtype=np.float32)
+    # cortex[...,2] = 1
+
+    pv_dict = {}
+    vol_pvs = np.zeros((aseg_spc.size.prod(), 3), dtype=np.float32)
     for label in np.unique(aseg):
         tissue = SUBCORT_LUT.get(label)
         if not tissue: 
@@ -107,9 +128,9 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
         if tissue: 
             mask = (aseg == label) 
             if tissue == "WM":
-                cortex[mask.flatten(),1] = 1
+                vol_pvs[mask.flatten(),1] = 1
             elif tissue == "GM":
-                cortex[mask.flatten(),0] = 1 
+                vol_pvs[mask.flatten(),0] = 1 
             elif tissue == "CSF":
                 pass 
             else: 
@@ -118,14 +139,14 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
             print("Did not assign aseg/aparc label:", label)
 
     reg = rt.Registration.identity()
-    cortex = reg.apply_to_array(cortex.reshape(*aseg.shape, 3), 
+    vol_pvs = reg.apply_to_array(vol_pvs.reshape(*aseg.shape, 3), 
                                 aseg_spc, high_spc, order=1, cores=cores)
-    cortex = _sumArrayBlocks(cortex, 3 * [superfactor] + [1]) / (superfactor ** 3)
-    cortex = cortex.reshape(-1,3)
-    cortex[:,2] = np.maximum(0, 1 - cortex[:,:2].sum(1))
-    cortex[cortex[:,2] < 1e-2, 2] = 0 
-    cortex /= cortex.sum(1)[:,None]
-    cortex = cortex.reshape(*ref_spc.size, 3)
+    vol_pvs = _sumArrayBlocks(vol_pvs, 3 * [superfactor] + [1]) / (superfactor ** 3)
+    vol_pvs = vol_pvs.reshape(-1,3)
+    vol_pvs[:,2] = np.maximum(0, 1 - vol_pvs[:,:2].sum(1))
+    vol_pvs[vol_pvs[:,2] < 1e-2, 2] = 0 
+    vol_pvs /= vol_pvs.sum(1)[:,None]
+    vol_pvs = vol_pvs.reshape(*ref_spc.size, 3)
 
     keys, values = list(pv_dict.keys()), list(pv_dict.values())
     del pv_dict
@@ -138,6 +159,9 @@ def extract_fs_pvs(aseg, t1, asl, superfactor, cores):
     pv_dict['cortex_GM'] = cortex[...,0]
     pv_dict['cortex_WM'] = cortex[...,1]
     pv_dict['cortex_nonbrain'] = cortex[...,2]
+    pv_dict['FAST_GM'] = vol_pvs[...,0]    
+    pv_dict['FAST_WM'] = vol_pvs[...,1]    
+    pv_dict['FAST_CSF'] = vol_pvs[...,2]
     result = stack_images(pv_dict)
 
     # Squash small values (looks like dodgy output otherwise, but
@@ -153,11 +177,9 @@ def _sumArrayBlocks(array, factor):
     """Sum sub-arrays of a larger array, each of which is sized according to factor. 
     The array is split into smaller subarrays of size given by factor, each of which 
     is summed, and the results returned in a new array, shrunk accordingly. 
-
     Args:
         array: n-dimensional array of data to sum
         factor: n-length tuple, size of sub-arrays to sum over
-
     Returns:
         array of size array.shape/factor, each element containing the sum of the 
             corresponding subarray in the input
@@ -199,12 +221,10 @@ def stack_images(images):
     to the surfaces produced by FreeSurfer, FIRST and how they may be
     combined with FAST estimates. If you're going off-piste anywhere else
     then you probably DON'T want to re-use this logic. 
-
     Args: 
         dictionary of PV maps, keyed as follows: all FIRST subcortical
         structures named by their FIST convention (eg L_Caud); FAST's estimates
         named as FAST_CSF/WM/GM; cortex estimates as cortex_GM/WM/non_brain
-
     Returns: 
         single 4D array of PVs, arranged GM/WM/non-brain in the 4th dim
     """
@@ -217,6 +237,12 @@ def stack_images(images):
         # Subcortical CSF fixed using FAST 
         # Add in subcortical GM for each structure, reducing CSF if required 
         # Set the remainder 1 - (GM+CSF) as WM in voxels that were updated 
+
+    # Pop out FAST's estimates  
+    csf = images.pop('FAST_CSF').flatten()
+    wm = images.pop('FAST_WM').flatten()
+    gm = images.pop('FAST_GM')
+    shape = (*gm.shape[0:3], 3)
 
     # Pop the cortex estimates and initialise output as all CSF
     ctxgm = images.pop('cortex_GM').flatten()
@@ -232,9 +258,25 @@ def stack_images(images):
     mask = np.logical_or(ctx[:,0], ctx[:,1])
     out[mask,:] = ctx[mask,:]
 
+    # Layer in FAST's CSF estimates (to get mid-brain and ventricular CSF). 
+    # Where FAST has suggested a higher CSF estimate than currently exists, 
+    # and the voxel does not intersect the cortical ribbon, accept FAST's 
+    # estimate. Then update the WM estimates, reducing where necessary to allow
+    # for the greater CSF volume
+    GM_threshold = 0.01 
+    ctxmask = (ctx[:,0] > GM_threshold)
+    to_update = np.logical_and(csf > out[:,2], ~ctxmask)
+    tmpwm = out[to_update,1]
+    out[to_update,2] = csf[to_update]
+    out[to_update,0] = np.minimum(out[to_update,0], 1 - out[to_update,2])
+    out[to_update,1] = np.minimum(tmpwm, 1 - (out[to_update,2] + out[to_update,0]))
+
     # Sanity checks: total tissue PV in each vox should sum to 1
     # assert np.all(out[to_update,0] <= GM_threshold), 'Some update voxels have GM'
-    assert np.all(np.abs(out.sum(1) - 1) < 1e-6), 'Voxel PVs do not sum to 1'
+    assert (np.abs(out.sum(1) - 1) < 1e-6).all(), 'Voxel PVs do not sum to 1'
+    assert (out > -1e-6).all()
+    assert (out < 1 + 1e-6).all()
+
 
     # For each subcortical structure, create a mask of the voxels which it 
     # relates to. The following operations then apply only to those voxels 
@@ -256,16 +298,14 @@ def stack_images(images):
 
     return out.reshape(shape)
 
-
 if __name__ == "__main__":
 
     usage = """
     usage: generate_pvs --fsdir <dir> --t1 <path> --asl <path> --out <path> [--stack]
-
     Extracts PV estimates from FS' binary volumetric segmentation. Saves output 
     in T1 space, with voxels resized to match ASL resolution. 
     
-    --aseg: path to aseg.mgz in FS output directory
+    --fsdir: FS subject directory
     --t1: path to T1 image for alignment
     --asl: path to ASL image
     --out: path to save output at (with suffix _GM, _WM, _CSF, unless --stack)
@@ -274,11 +314,11 @@ if __name__ == "__main__":
     --cores: CPU cores to use (default max)
     """
 
-    # cmd = "--aseg testdata/fs/mri/aparc+aseg.mgz --t1 testdata/T1.nii.gz --asl testdata/T1low.nii.gz --out testdata/stacked.nii.gz --super 2 --stack"
-    # sys.argv[1:] = cmd.split()
+    cmd = "--fsdir testdata/fs --t1 testdata/T1.nii.gz --asl testdata/T1low.nii.gz --out testdata/stacked.nii.gz --super 4 --stack"
+    sys.argv[1:] = cmd.split()
 
     parser = argparse.ArgumentParser(usage=usage)
-    parser.add_argument("--aseg", required=True)
+    parser.add_argument("--fsdir", required=True)
     parser.add_argument("--t1", required=True)
     parser.add_argument("--asl", required=True)
     parser.add_argument("--out", required=True)
@@ -287,7 +327,7 @@ if __name__ == "__main__":
     parser.add_argument("--cores", default=mp.cpu_count(), type=int)
 
     args = parser.parse_args(sys.argv[1:])
-    pvs = extract_fs_pvs(args.aseg, args.t1, args.asl, args.super, args.cores)
+    pvs = extract_fs_pvs(args.fsdir, args.t1, args.asl, args.super, args.cores)
 
     if args.stack: 
         nib.save(pvs, args.out)

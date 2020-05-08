@@ -4,3 +4,4 @@ __pycache__
 MTEstimation
 build
 hcpasl.egg-info
+*.nii.gz
