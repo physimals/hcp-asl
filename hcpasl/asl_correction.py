@@ -373,7 +373,7 @@ def hcp_asl_moco(subject_dir, mt_factors):
     # rename mcflirt matrices directory
     orig_mcflirt = (moco_dir_name / 'initial_registration_TIs.nii.gz.mat')
     if asln2m0_name.exists():
-        shutil.rmtree(alsn2m0_name)
+        shutil.rmtree(asln2m0_name)
     orig_mcflirt.rename(asln2m0_name)
 
     # obtain motion estimates from ASLn to ASL0 (and their inverse)
