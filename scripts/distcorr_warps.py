@@ -9,12 +9,15 @@
  F. A. Kennedy McConnell - April 2020
 """
 
-import nibabel as nb
-import numpy as np
 import os
 import subprocess as sp
+import sys
+import os.path as op 
+import glob 
+
 import regtools as rt
-import  sys
+import nibabel as nb
+import numpy as np
 from fsl.wrappers import fslmaths
 
 sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
@@ -130,14 +133,37 @@ def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
     sp.run(fill_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     sp.run(hdr_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
-def gen_pves(aparc_aseg, t1, asl, fileroot):
+def gen_pves(t1w_dir, asl, fileroot):
     """
     Generate partial volume estimates from freesurfer segmentations of the cortex
     and subcortical structures.
+
+    Args: 
+        t1w_dir: path to subject's T1w directory, containing a T1w scan (eg 
+            acdc_dc_restore), aparc+aseg FS volumetric segmentation and 
+            fsaverage_32k surface directory
+        asl: path to ASL image, used for setting resolution of output 
+        fileroot: path basename for output, will add suffix GM/WM/CSF
     """    
-    # print("Running Tom's bit")
-    # FIXME: superfactor and cores are at debug settings here. 
-    pvs_stacked = extract_fs_pvs(aparc_aseg, t1, asl, superfactor=2, cores=1)
+
+    # Load the t1 image, aparc+aseg and surfaces from their expected 
+    # names and locations within t1w_dir 
+    surf_dict = {}
+    t1 = op.join(t1w_dir, 'T1w_acpc_dc.nii.gz')
+    aparcseg = op.join(t1w_dir, 'aparc+aseg.nii.gz')
+    for k,n in zip(['LWS', 'LPS', 'RPS', 'RWS'], 
+                   ['L.white.32k_fs_LR.surf.gii',
+                    'L.pial.32k_fs_LR.surf.gii', 
+                    'R.pial.32k_fs_LR.surf.gii', 
+                    'R.white.32k_fs_LR.surf.gii']):
+        paths = glob.glob(op.join(t1w_dir, 'fsaverage_LR32k', '*' + n))
+        assert len(paths) == 1, f'Found multiple surfaces for {k}'
+        surf_dict[k] = paths[0]
+
+    # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
+    pvs_stacked = extract_fs_pvs(aparcseg, surf_dict, t1, asl)
+
+    # Save output with tissue suffix 
     hdr = pvs_stacked.header 
     aff = pvs_stacked.affine 
     for idx, suffix in enumerate(['GM', 'WM', 'CSF']):
