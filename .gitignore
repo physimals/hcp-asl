@@ -3,3 +3,5 @@ testdata
 __pycache__
 build
 hcpasl.egg-info
+*.nii.gz
+*.log
