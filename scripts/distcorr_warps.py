@@ -339,11 +339,9 @@ def main():
     # Generate ASL-gridded T1-aligned T1w image for use as a reg reference
     t1 = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore.nii.gz")
     t1_brain = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore_brain.nii.gz")
-    t1_mask = (study_dir + "/" + sub_num + "/T1w/ASL/reg/T1w_acpc_dc_restore_brain_mask.nii.gz")
 
     asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr.nii.gz") 
     t1_asl_res = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz")
-    t1_asl_mask_name = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
 
     asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
     first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
@@ -357,12 +355,6 @@ def main():
     r = rt.Registration.identity()
     t1_asl = r.apply_to_image(t1, t1_spc_asl)
     nb.save(t1_asl, t1_asl_res)
-    # brain mask
-    t1_mask_spc = rt.ImageSpace(t1_mask)
-    t1_mask_spc_asl = t1_mask_spc.resize_voxels(asl_spc.vox_size / t1_mask_spc.vox_size)
-    r = rt.Registration.identity()
-    t1_mask_asl = r.apply_to_image(t1_mask, t1_mask_spc_asl)
-    fslmaths(t1_mask_asl).thr(0.5).bin().run(t1_asl_mask_name)
     # Check .grad coefficients are available and call function to generate 
     # GDC warp if they are:
     if os.path.isfile(grad_coeffs):
@@ -406,6 +398,15 @@ def main():
     gen_asl_mask(t1_brain, t1_brain_mask, asl_v1_brain, asl2struct, asl_mask,
                 struct2asl)
 
+    # brain mask
+    t1_mask = (study_dir + "/" + sub_num + "/T1w/ASL/reg/T1w_acpc_dc_restore_brain_mask.nii.gz")
+    t1_asl_mask_name = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
+    t1_mask_spc = rt.ImageSpace(t1_mask)
+    t1_mask_spc_asl = t1_mask_spc.resize_voxels(asl_spc.vox_size / t1_mask_spc.vox_size)
+    r = rt.Registration.identity()
+    t1_mask_asl = r.apply_to_image(t1_mask, t1_mask_spc_asl)
+    fslmaths(t1_mask_asl).thr(0.5).bin().run(t1_asl_mask_name)
+    
     # Generate PVEs
     aparc_aseg = (study_dir + "/" + sub_num + "/T1w/aparc+aseg.nii.gz")
     pve_files = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/pve")
