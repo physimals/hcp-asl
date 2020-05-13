@@ -95,13 +95,13 @@ def initial_processing(subject_dir):
     fslroi(str(mbpcasl), calib1_name, 89, 1)
 
     # get surface names
-    surfaces_dir = t1_dir / 'Native'
-    L_mid = surfaces_dir / f'{subject_name}_V1_MR.L.midthickness.native.surf.gii'
-    R_mid = surfaces_dir / f'{subject_name}_V1_MR.R.midthickness.native.surf.gii'
-    L_pial = surfaces_dir / f'{subject_name}_V1_MR.L.pial.native.surf.gii'
-    R_pial = surfaces_dir / f'{subject_name}_V1_MR.R.pial.native.surf.gii'
-    L_white = surfaces_dir / f'{subject_name}_V1_MR.L.white.native.surf.gii'
-    R_white = surfaces_dir / f'{subject_name}_V1_MR.R.white.native.surf.gii'
+    surfaces_dir = t1_dir / 'fsaverage_LR32k'
+    L_mid = surfaces_dir / f'{subject_name}_V1_MR.L.midthickness.32k_fs_LR.surf.gii'
+    R_mid = surfaces_dir / f'{subject_name}_V1_MR.R.midthickness.32k_fs_LR.surf.gii'
+    L_pial = surfaces_dir / f'{subject_name}_V1_MR.L.pial.32k_fs_LR.surf.gii'
+    R_pial = surfaces_dir / f'{subject_name}_V1_MR.R.pial.32k_fs_LR.surf.gii'
+    L_white = surfaces_dir / f'{subject_name}_V1_MR.L.white.32k_fs_LR.surf.gii'
+    R_white = surfaces_dir / f'{subject_name}_V1_MR.R.white.32k_fs_LR.surf.gii'
 
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'

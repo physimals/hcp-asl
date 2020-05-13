@@ -12,7 +12,7 @@ def project_to_surface(subject_dir):
     pc_name = Path(json_dict['oxford_asl']) / 'struct_space/perfusion_calib.nii.gz'
 
     # create directory for surface results
-    projection_dir = Path(json_dict['oxford_asl']) / 'SurfaceResults'
+    projection_dir = Path(json_dict['oxford_asl']) / 'SurfaceResults32k'
     create_dirs([projection_dir, ])
     sides = ('L', 'R')
     for side in sides:
