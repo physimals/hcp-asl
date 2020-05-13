@@ -410,7 +410,7 @@ def main():
     # Generate PVEs
     aparc_aseg = (study_dir + "/" + sub_num + "/T1w/aparc+aseg.nii.gz")
     pve_files = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/pve")
-    gen_pves(t1, asl, pve_files)
+    gen_pves(Path(t1).parent, asl, pve_files)
 
     # Generate WM mask
     pvwm = (pve_files + "_WM.nii.gz")
