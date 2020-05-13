@@ -403,15 +403,7 @@ def hcp_asl_moco(subject_dir, mt_factors):
     st_factors2_name = stcorr2_dir_name / 'st_scaling_factors.nii.gz'
     st_factors_img.save(st_factors2_name)
 
-    # apply motion estimates to slice-timing corrected ASL series
-    asl_moco_name = moco_dir_name / 'ASL_reg.nii.gz'
-    applyxfm4D(stcorr_img, json_dict['calib0_mc'], asl_moco_name, asln2asl0_name, fourdigit=True)
-    sf_moco_name = moco_dir_name / 'ST_scalingfactors_reg.nii.gz'
-    applyxfm4D(st_factors_img, json_dict['calib0_mc'], sf_moco_name, asln2asl0_name, fourdigit=True)
-
     # save locations of important files in the json
-        # registered, corrected asl data
-        # registered scaling factors
     important_names = {
         'ASL_moco': str(asl_moco_name),
         'STcorr_SF': str(sf_moco_name)
