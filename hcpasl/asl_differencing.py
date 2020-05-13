@@ -27,7 +27,7 @@ def tag_control_differencing(subject_dir):
     Y_moco = Image(str(Y_moco_name))
 
     # load registered scaling factors, S_st
-    sfs_name = distcorr_dir / 'st_scaling_factors.nii.gz'
+    sfs_name = distcorr_dir / 'combined_scaling_factors.nii.gz'
     S_st = Image(str(sfs_name))
 
     # calculate X_perf = X_tc * S_st

@@ -444,8 +444,8 @@ def main():
     calib_inv_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2m0.mat/MAT_0000")
     calib_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/calibTOasl1.mat")
 
-    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/st_scaling_factors.nii.gz")
-    sfacs_distcorr = (T1w_oph + "/st_scaling_factors.nii.gz")
+    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/combined_scaling_factors.nii.gz")
+    sfacs_distcorr = (T1w_oph + "/combined_scaling_factors.nii.gz")
 
     invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
     # print(invert_call)

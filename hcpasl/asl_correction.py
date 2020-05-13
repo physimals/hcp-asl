@@ -402,10 +402,13 @@ def hcp_asl_moco(subject_dir, mt_factors):
     stcorr_img.save(stcorr2_name)
     st_factors2_name = stcorr2_dir_name / 'st_scaling_factors.nii.gz'
     st_factors_img.save(st_factors2_name)
+    # also obtain combined MT- and ST- correction scaling factors
+    combined_factors_name = stcorr2_dir_name / 'combined_scaling_factors.nii.gz'
+    fslmaths(st_factors2_name).mul(mt_factors).run(combined_factors_name)
 
     # save locations of important files in the json
     important_names = {
-        'ASL_moco': str(asl_moco_name),
-        'STcorr_SF': str(sf_moco_name)
+        'ASL_stcorr': str(stcorr2_name),
+        'scaling_factors': str(combined_factors_name)
     }
     update_json(important_names, json_dict)
