@@ -18,8 +18,8 @@ setup(
         'fslpy',
         'pyfab',
         'nibabel',
-        'regtools @ git+https://github.com/tomfrankkirk/regtools.git',
-        'toblerone @ git+https://github.com/tomfrankkirk/toblerone.git',
+        'regtricks',
+        'toblerone',
         'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git'
     ],
     entry_points={

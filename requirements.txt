@@ -2,7 +2,7 @@ numpy
 fslpy
 nibabel
 pyfab
-regtools
+regtricks
 toblerone
 gradunwarp
 requests

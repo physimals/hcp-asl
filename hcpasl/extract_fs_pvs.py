@@ -12,7 +12,7 @@ import os
 import numpy as np 
 import nibabel as nib
 
-import regtools as rt 
+import regtricks as rt 
 from toblerone.pvestimation import cortex as estimate_cortex
 
 # Labels taken from standard FS LUT, subcortex: 

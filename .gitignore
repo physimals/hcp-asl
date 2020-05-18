@@ -5,3 +5,4 @@ build
 hcpasl.egg-info
 *.nii.gz
 *.log
+.DS_Store

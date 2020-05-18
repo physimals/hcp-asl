@@ -15,7 +15,7 @@ import sys
 import os.path as op 
 import glob 
 
-import regtools as rt
+import regtricks as rt
 import nibabel as nb
 import numpy as np
 from fsl.wrappers import fslmaths
@@ -348,7 +348,7 @@ def main():
     # print(first_asl_call)
     sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
-    print("Running regtools bit")
+    print("Running regtricks bit")
     t1_spc = rt.ImageSpace(t1)
     asl_spc = rt.ImageSpace(asl_v1)
     t1_spc_asl = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
