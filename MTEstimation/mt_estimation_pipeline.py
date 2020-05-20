@@ -58,7 +58,7 @@ subject_dirs = []
 for subject in subjects:
     subject_dirs.append(hcp_dir / subject)
 
-rois = ['wm', 'gm']
+rois = ['wm', 'gm', 'csf']
 
 setup_call = partial(setup_mtestimation, rois=rois)
 with multiprocessing.Pool(multiprocessing.cpu_count()-2) as pool:

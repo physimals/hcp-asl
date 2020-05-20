@@ -15,6 +15,16 @@ T1_VALS = {
     'gm': 1.3,
     'csf': 4.3
 }
+BAND_RANGE = {
+    'wm': range(1, 5),
+    'gm': range(1, 5),
+    'csf': [3, ]
+}
+PLOT_LIMS = {
+    'wm': 1000,
+    'gm': 1000,
+    'csf': 1500
+}
 
 def estimate_mt(subject_dirs, rois=['wm', ]):
     # scan parameters
@@ -56,7 +66,7 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
         X = np.arange(0, 10, 1).reshape(-1, 1)
         scaling_factors = np.ones((86, 86, 60))
         y_pred = np.zeros((40000, 1))
-        for band in range(1, 5):
+        for band in BAND_RANGE[tissue]:
             y = slice_means[10*band: 10*band+10]
             model = LinearRegression()
             model.fit(X, y)
@@ -69,9 +79,16 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
         plt.figure(figsize=(8, 4.5))
         plt.scatter(slice_numbers, slice_means)
         plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten(), color='k', s=0.1)
-        plt.ylim([0, 1000])
+        plt.ylim([0, PLOT_LIMS[tissue]])
+        plt.xlim([0, 60])
+        plt.title(f'Mean signal per slice in {tissue} across 47 subjects.')
+        plt.xlabel('Slice number')
+        plt.ylabel('Mean signal')
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
+        # save plot
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice.png'
+        plt.savefig(plt_name)
 
         # save scaling factors
         for subject_dir in subject_dirs:
@@ -84,5 +101,4 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
             create_dirs([scaling_dir, ])
             scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}.nii.gz'
             scaling_img.save(scaling_name)
-            figure_name = scaling_dir / f'MTcorr_SFs_{tissue}.png'
-            plt.savefig(figure_name)
+            

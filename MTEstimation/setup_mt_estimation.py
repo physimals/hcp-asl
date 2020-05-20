@@ -5,11 +5,14 @@ and running fsl_anat on the structural image.
 """
 
 from pathlib import Path
+import os
 from fsl.wrappers.misc import fslroi
 from fsl.wrappers.fsl_anat import fsl_anat
 from fsl.wrappers.flirt import applyxfm
+from fsl.wrappers.fnirt import applywarp
 from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
+from fsl.data import atlases
 import json
 from initial_bookkeeping import create_dirs
 import subprocess
@@ -18,6 +21,11 @@ PVE_NAMES = {
     'csf': 'T1_fast_pve_0.nii.gz',
     'gm': 'T1_fast_pve_1.nii.gz',
     'wm': 'T1_fast_pve_2.nii.gz'
+}
+PVE_THRESHOLDS = {
+    'csf': 0.9,
+    'gm': 0.7,
+    'wm': 0.9
 }
 
 def setup_mtestimation(subject_dir, rois=['wm',]):
@@ -74,6 +82,30 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
     fsl_anat_dir = fsl_anat_dir.parent / f'{fsl_anat_dir.stem}.anat'
     t1_name = fsl_anat_dir / 'T1_biascorr.nii.gz'
     t1_brain_name = fsl_anat_dir / 'T1_biascorr_brain.nii.gz'
+
+    # get ventricles mask if csf
+    if 'csf' in rois:
+        # initialise atlas list
+        atlases.rescanAtlases()
+        harv_ox_prob_2mm = atlases.loadAtlas(
+            'harvardoxford-subcortical', 
+            resolution=2.0
+        )
+        vent_img = Image(
+            harv_ox_prob_2mm.data[:, :, :, 2] + harv_ox_prob_2mm.data[:, :, :, 13],
+            header=harv_ox_prob_2mm.header
+        )
+        vent_img = fslmaths(vent_img).thr(0.1).bin().ero().run(LOAD)
+        # we already have registration from T1 to MNI
+        struc2mni_warp = fsl_anat_dir / 'MNI_to_T1_nonlin_field.nii.gz'
+        # apply warp to ventricles image
+        vent_t1_name = fsl_anat_dir / 'ventricles_mask.nii.gz'
+        applywarp(vent_img, str(t1_brain_name), str(vent_t1_name), warp=str(struc2mni_warp))
+        # re-threshold
+        vent_t1 = fslmaths(str(vent_t1_name)).thr(PVE_THRESHOLDS['csf']).bin().run(LOAD)
+        # mask pve estimate by ventricles mask
+        fslmaths(str(fsl_anat_dir / PVE_NAMES['csf'])).mas(vent_t1).run(str(vent_t1_name))
+
     # bias-field correction
     for calib_name in (calib0_name, calib1_name):
         calib_name_stem = calib_name.stem.split('.')[0]
@@ -109,11 +141,14 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
         subprocess.run(" ".join(cmd), shell=True)
         # apply transformation to the pve map
         for tissue in rois:
-            roi_dir = mask_dir / roi
+            roi_dir = mask_dir / tissue
             create_dirs([roi_dir, ])
-            pve_struct_name = fsl_anat_dir / PVE_NAMES[tissue]
-            pve_asl_name = roi_dir / 'struct2asl.mat'
-            struct2asl_name = roi_dir / 'struct2asl.mat'
+            if tissue == 'csf':
+                pve_struct_name = vent_t1_name
+            else:
+                pve_struct_name = fsl_anat_dir / PVE_NAMES[tissue]
+            pve_asl_name = roi_dir / f'pve_{tissue}.nii.gz'
+            struct2asl_name = mask_dir / 'struct2asl.mat'
             applyxfm(
                 str(pve_struct_name),
                 str(biascorr_name),
@@ -122,7 +157,7 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
             )
             # threshold and binarise the ASL-space pve map
             mask_name = roi_dir / f'{tissue}_mask.nii.gz'
-            fslmaths(str(pve_asl_name)).thr(0.9).bin().run(str(mask_name))
+            fslmaths(str(pve_asl_name)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(mask_name))
             # apply the mask to the calibration image
             masked_name = mask_dir / f'{tissue}_masked.nii.gz'
             fslmaths(str(biascorr_name)).mul(str(mask_name)).run(str(masked_name))
