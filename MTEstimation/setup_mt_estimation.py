@@ -14,7 +14,7 @@ from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
 from fsl.data import atlases
 import json
-from initial_bookkeeping import create_dirs
+from hcpasl.initial_bookkeeping import create_dirs
 import subprocess
 
 PVE_NAMES = {
