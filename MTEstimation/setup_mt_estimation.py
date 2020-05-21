@@ -25,7 +25,8 @@ PVE_NAMES = {
 PVE_THRESHOLDS = {
     'csf': 0.9,
     'gm': 0.7,
-    'wm': 0.9
+    'wm': 0.9,
+    'combined': 0.7
 }
 
 def setup_mtestimation(subject_dir, rois=['wm',]):
@@ -143,29 +144,52 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
         for tissue in rois:
             roi_dir = mask_dir / tissue
             create_dirs([roi_dir, ])
-            if tissue == 'csf':
-                pve_struct_name = vent_t1_name
+            if tissue == 'combined':
+                # check that gm and wm pves already exist
+                gm_pve = mask_dir / 'gm/pve_gm.nii.gz'
+                wm_pve = mask_dir / 'wm/pve_wm.nii.gz'
+                if not (gm_pve.exists() and wm_pve.exists()):
+                    raise Exception("WM and GM PVEs don't exist.")
+                gm_mask_name = roi_dir / 'gm_mask.nii.gz'
+                wm_mask_name = roi_dir / 'wm_mask.nii.gz'
+                fslmaths(str(gm_pve)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(gm_mask_name))
+                fslmaths(str(wm_pve)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(wm_mask_name))
+                gm_masked_name = roi_dir / f'{calib_name_stem}_gm_masked'
+                wm_masked_name = roi_dir / f'{calib_name_stem}_wm_masked'
+                fslmaths(str(biascorr_name)).mul(str(gm_mask_name)).run(str(gm_masked_name))
+                fslmaths(str(biascorr_name)).mul(str(wm_mask_name)).run(str(wm_masked_name))
+                # update dictionary
+                new_dict = {
+                    f'{calib_name_stem}_{tissue}_masked': [
+                        str(gm_masked_name), 
+                        str(wm_masked_name)
+                    ]
+                }
             else:
-                pve_struct_name = fsl_anat_dir / PVE_NAMES[tissue]
-            pve_asl_name = roi_dir / f'pve_{tissue}.nii.gz'
-            struct2asl_name = mask_dir / 'struct2asl.mat'
-            applyxfm(
-                str(pve_struct_name),
-                str(biascorr_name),
-                str(struct2asl_name),
-                str(pve_asl_name)
-            )
-            # threshold and binarise the ASL-space pve map
-            mask_name = roi_dir / f'{tissue}_mask.nii.gz'
-            fslmaths(str(pve_asl_name)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(mask_name))
-            # apply the mask to the calibration image
-            masked_name = mask_dir / f'{tissue}_masked.nii.gz'
-            fslmaths(str(biascorr_name)).mul(str(mask_name)).run(str(masked_name))
-            # update dictionary
-            new_dict = {
-                f'{calib_name_stem}_{tissue}_masked': str(masked_name)
-            }
+                if tissue == 'csf':
+                    pve_struct_name = vent_t1_name
+                else:
+                    pve_struct_name = fsl_anat_dir / PVE_NAMES[tissue]
+                pve_asl_name = roi_dir / f'pve_{tissue}.nii.gz'
+                struct2asl_name = mask_dir / 'struct2asl.mat'
+                applyxfm(
+                    str(pve_struct_name),
+                    str(biascorr_name),
+                    str(struct2asl_name),
+                    str(pve_asl_name)
+                )
+                # threshold and binarise the ASL-space pve map
+                mask_name = roi_dir / f'{tissue}_mask.nii.gz'
+                fslmaths(str(pve_asl_name)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(mask_name))
+                # apply the mask to the calibration image
+                masked_name = mask_dir / f'{tissue}_masked.nii.gz'
+                fslmaths(str(biascorr_name)).mul(str(mask_name)).run(str(masked_name))
+                # update dictionary
+                new_dict = {
+                    f'{calib_name_stem}_{tissue}_masked': str(masked_name)
+                }
             important_dict.update(new_dict)
+
     # save json
     with open(json_name, 'w') as fp:
         json.dump(important_dict, fp, sort_keys=True, indent=4)

@@ -18,21 +18,31 @@ T1_VALS = {
 BAND_RANGE = {
     'wm': range(1, 5),
     'gm': range(1, 5),
-    'csf': [3, ]
+    'csf': [3, ],
+    'combined': range(1, 5)
 }
 PLOT_LIMS = {
     'wm': 1000,
     'gm': 1000,
-    'csf': 1500
+    'csf': 1500,
+    'combined': 1000
 }
+# scan parameters
+slice_in_band = np.tile(np.arange(0, 10), 6).reshape(1, 1, -1)
+slicedt = 0.059
+TI = 8
+def slicetime_correction(image, tissue, ti):
+    """
+    Rescale data to account for T1 relaxation.
+    """
+    slice_times = ti + (slice_in_band * slicedt)
+    denominator = 1 - np.exp(-slice_times/T1_VALS[tissue])
+    numerator = 1 - np.exp(-ti/T1_VALS[tissue])
+    rescaled_image = image * (numerator / denominator)
+    return rescaled_image
 
 def estimate_mt(subject_dirs, rois=['wm', ]):
-    # scan parameters
-    slice_in_band = np.tile(np.arange(0, 10), 6).reshape(1, 1, -1)
-    slicedt = 0.059
-    delayed_times = 8 + (slice_in_band * slicedt)
     for tissue in rois:
-        t1 = T1_VALS[tissue]
         # initialise array to store image-level means
         mean_array = np.zeros((60, 2*len(subject_dirs)))
         # iterate over subjects
@@ -46,12 +56,26 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
                 json_dict[f'calib1_{tissue}_masked']
             )
             for n2, masked_name in enumerate(masked_names):
-                # load masked calibration data
-                masked_data = Image(masked_name).data
-                # correct for timing
-                denominator = 1 - np.exp(-delayed_times / t1)
-                numerator = 1 - np.exp(-8/t1)
-                masked_data = masked_data * (numerator / denominator)
+                if tissue == 'combined':
+                    gm_masked, wm_masked = masked_name
+                    gm_masked_data = slicetime_correction(
+                        image=Image(gm_masked).data, 
+                        tissue='gm',
+                        ti=TI
+                    )
+                    wm_masked_data = slicetime_correction(
+                        image=Image(wm_masked).data, 
+                        tissue='wm',
+                        ti=TI
+                    )
+                    masked_data = gm_masked_data + wm_masked_data
+                else:
+                    # load masked calibration data
+                    masked_data = slicetime_correction(
+                        image=Image(masked_name).data,
+                        tissue=tissue,
+                        ti=TI
+                    )
                 # find zero indices
                 masked_data[masked_data==0] = np.nan
                 # calculate slicewise summary stats
@@ -87,7 +111,7 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_{TI}.png'
         plt.savefig(plt_name)
 
         # save scaling factors
@@ -99,6 +123,6 @@ def estimate_mt(subject_dirs, rois=['wm', ]):
             scaling_img = Image(scaling_factors, header=calib_img.header)
             scaling_dir = Path(json_dict['calib_dir']) / 'MTEstimation'
             create_dirs([scaling_dir, ])
-            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}.nii.gz'
+            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}_{TI}.nii.gz'
             scaling_img.save(scaling_name)
             
