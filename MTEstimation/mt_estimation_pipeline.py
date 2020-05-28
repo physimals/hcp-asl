@@ -4,6 +4,7 @@ from estimate_MT import estimate_mt
 import multiprocessing
 from functools import partial
 
+TR = 8
 hcp_dir = Path().home() / 'Documents/Data/HCP_data/Aging'
 subjects = [
     'HCA7025253',
@@ -58,11 +59,11 @@ subject_dirs = []
 for subject in subjects:
     subject_dirs.append(hcp_dir / subject)
 
-rois = ['wm', 'gm', 'csf']
+rois = ['wm', 'gm', 'csf', 'combined']
 
 setup_call = partial(setup_mtestimation, rois=rois)
 with multiprocessing.Pool(multiprocessing.cpu_count()-2) as pool:
     results = pool.map(setup_call, subject_dirs)
 for result in results:
     print(result)
-estimate_mt(subject_dirs, rois)
+estimate_mt(subject_dirs, rois, TR)
