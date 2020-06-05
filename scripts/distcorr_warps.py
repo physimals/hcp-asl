@@ -103,7 +103,7 @@ def gen_initial_trans(regfrom, outdir, struct, struct_brain):
     """
     reg_call = ("asl_reg -i " + regfrom + " -o " + outdir + " -s " + struct +
                 " --sbet=" + struct_brain + " --mainonly")
-    # print(reg_call)
+    print(reg_call)
     sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
@@ -322,7 +322,7 @@ def main():
     sub_num = args.sub_number
     grad_coeffs = args.grads
 
-    oph = (study_dir + "/" + sub_num + "/ASL/TIs/DistCorr")
+    oph = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/DistCorr")
     outdir = (study_dir + "/" + sub_num + "/T1w/ASL/reg")
     pve_path = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs")
     T1w_oph = (study_dir + "/" + sub_num + "/T1w/ASL/TIs/DistCorr")
@@ -340,10 +340,10 @@ def main():
     t1 = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore.nii.gz")
     t1_brain = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore_brain.nii.gz")
 
-    asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr.nii.gz") 
+    asl = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/STCorr2/tis_stcorr.nii.gz") 
     t1_asl_res = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz")
 
-    asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
+    asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/STCorr2/tis_stcorr_vol1.nii.gz")
     first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
     # print(first_asl_call)
     sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
@@ -382,7 +382,7 @@ def main():
                 fmap_rads, fmapmag, fmapmagbrain)
     
     # Calculate initial linear transformation from ASL-space to T1w-space
-    asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1_brain.nii.gz")
+    asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/STCorr2/tis_stcorr_vol1_brain.nii.gz")
     bet_regfrom_call = ("bet " + asl_v1 + " " + asl_v1_brain)
     # print(bet_regfrom_call)
     sp.run(bet_regfrom_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
@@ -433,7 +433,7 @@ def main():
     # ASL-gridded T1w-aligned space
     
     asl_distcorr = (T1w_oph + "/tis_distcorr.nii.gz")
-    moco_xfms = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2asl0.mat") #will this work?
+    moco_xfms = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/MoCo/asln2asl0.mat") #will this work?
     concat_xfms = str(Path(moco_xfms).parent / f'{Path(moco_xfms).stem}.cat')
     # concatenate xfms like in oxford_asl
     concat_call = f'cat {moco_xfms}/MAT* > {concat_xfms}'
@@ -441,10 +441,10 @@ def main():
     # only correcting and transforming the 1st of the calibration images at the moment
     calib_orig = (study_dir + "/" + sub_num + "/ASL/Calib/Calib0/MTCorr/calib0_mtcorr.nii.gz")
     calib_distcorr = (study_dir + "/" + sub_num + "/T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz")
-    calib_inv_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2m0.mat/MAT_0000")
-    calib_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/calibTOasl1.mat")
+    calib_inv_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/MoCo/asln2m0.mat/MAT_0000")
+    calib_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/MoCo/calibTOasl1.mat")
 
-    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/combined_scaling_factors.nii.gz")
+    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/SecondPass/STCorr2/combined_scaling_factors.nii.gz")
     sfacs_distcorr = (T1w_oph + "/combined_scaling_factors.nii.gz")
 
     invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
