@@ -6,3 +6,4 @@ regtricks
 toblerone
 gradunwarp
 requests
+regtricks

@@ -19,8 +19,9 @@ from hcpasl.projection import project_to_surface
 from pathlib import Path
 import subprocess
 import argparse
+from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, gradients=None):
+def process_subject(subject_dir, mt_factors, cores, order, gradients=None):
     """
     Run pipeline for individual subject specified by 
     `subject_dir`.
@@ -29,7 +30,7 @@ def process_subject(subject_dir, mt_factors, gradients=None):
     mt_factors = Path(mt_factors)
     initial_processing(subject_dir)
     correct_M0(subject_dir, mt_factors)
-    hcp_asl_moco(subject_dir, mt_factors)
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
     dist_corr_call = [
         "hcp_asl_distcorr",
         str(subject_dir.parent),
@@ -45,7 +46,9 @@ def process_subject(subject_dir, mt_factors, gradients=None):
 
 def main():
     # argument handling
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="This script performs the minimal processing for the "
+                    + "HCP-Aging ASL data.")
     parser.add_argument(
         "subject_dir",
         help="The directory of the subject you wish to process."
@@ -62,6 +65,19 @@ def main():
             + "distortion correction (optional)."
     )
     parser.add_argument(
+        "-c",
+        "--cores",
+        help="Number of cores to use for registration operations. "
+            + f"Your PC has {cpu_count()}. Default is 1.",
+        default=1
+    )
+    parser.add_argument(
+        "-i",
+        "--interpolation",
+        help="Interpolation order for registrations. Default is 3.",
+        default=3
+    )
+    parser.add_argument(
         "--fabberdir",
         help="User Fabber executable in <fabberdir>/bin/ for users"
             + "with FSL < 6.0.4"
@@ -70,6 +86,8 @@ def main():
     args = parser.parse_args()
     mt_name = args.scaling_factors
     subject_dir = args.subject_dir
+    cores = args.cores
+    order = args.interpolation
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
             print("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
@@ -86,10 +104,10 @@ def main():
     print(f"Processing subject {subject_dir}.")
     if args.grads:
         print("Including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, args.grads)
+        process_subject(subject_dir, mt_name, cores, order, args.grads)
     else:
         print("Not including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name)
+        process_subject(subject_dir, mt_name, cores, order)
 
 if __name__ == '__main__':
     main()

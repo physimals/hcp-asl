@@ -40,6 +40,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import numpy as np
+import regtricks as rt
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
     """
     Runs fabber's saturation recovery model on the given sequence 
@@ -289,7 +290,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors):
+def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
     """
     This function performs the full motion-correction pipeline for 
     the HCP ASL data. The steps of the pipeline include:
@@ -356,6 +357,16 @@ def hcp_asl_moco(subject_dir, mt_factors):
             # register bias field to ASL series
             reg_bias_name = bcorr_dir / 'bias_reg.nii.gz'
             _register_param(bias_name, old_m02asl, bias_name, reg_bias_name)
+            old_m02asl = rt.MotionCorrection(old_m02asl)
+            Image(
+                old_m02asl.apply_to_image(
+                    bias_name,
+                    bias_name,
+                    superlevel=superlevel,
+                    cores=cores,
+                    order=order
+                )
+            ).save(str(reg_bias_name))
             bias_name = reg_bias_name
         fslmaths(str(asl_name)).div(str(bias_name)).run(str(bcorr_img))
         # apply MT scaling factors to the bias-corrected ASL series
@@ -392,15 +403,17 @@ def hcp_asl_moco(subject_dir, mt_factors):
             np.savetxt(asl02asln_name / xform.stem, inv_xform)
     # register pre-ST-correction ASLn to ASL0
     temp_reg_mtcorr = moco_dir / 'temp_reg_tis_mtcorr.nii.gz'
-    cmd = [
-        "applyxfm4D",
-        str(mtcorr_name),
+    asln2m0_moco = rt.MotionCorrection(asln2m0_name)
+    asln2asl0 = rt.chain(asln2m0_moco, asln2m0_moco.transforms[0].inverse())
+    reg_mtcorr = Image(asln2asl0.apply_to_image(
+        str(mtcorr_name), 
         json_dict['calib0_mc'],
-        str(temp_reg_mtcorr),
-        str(asln2asl0_name),
-        "-fourdigit"
-    ]
-    subprocess.run(cmd, check=True)
+        superlevel=superlevel,
+        cores=cores,
+        order=order
+    ))
+    reg_mtcorr.save(str(temp_reg_mtcorr))
+
     # estimate satrecov model on motion-corrected data
     satrecov_dir = iteration / 'SatRecov2'
     stcorr_dir = iteration / 'STCorr2'
@@ -409,7 +422,16 @@ def hcp_asl_moco(subject_dir, mt_factors):
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
     # apply asl0 to asln registrations to new t1 map
     reg_t1_filt_name = t1_filt_name.parent / f'{t1_filt_name.stem.split(".")[0]}_reg.nii.gz'
-    _register_param(t1_filt_name, asl02asln_name, json_dict['calib0_mc'], reg_t1_filt_name)
+    reg_t1_filt = Image(
+        asln2asl0.inverse().apply_to_image(
+            str(t1_filt_name),
+            json_dict['calib0_mc'],
+            superlevel=superlevel,
+            cores=cores,
+            order=order
+        )
+    )
+    reg_t1_filt.save(str(reg_t1_filt_name))
     # perform slice-time correction using estimated tissue params
     stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, reg_t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
     # save images
