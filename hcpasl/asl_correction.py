@@ -356,7 +356,6 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
         if n == 1:
             # register bias field to ASL series
             reg_bias_name = bcorr_dir / 'bias_reg.nii.gz'
-            _register_param(bias_name, old_m02asl, bias_name, reg_bias_name)
             old_m02asl = rt.MotionCorrection(old_m02asl)
             Image(
                 old_m02asl.apply_to_image(
