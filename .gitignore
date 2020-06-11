@@ -6,3 +6,4 @@ hcpasl.egg-info
 *.nii.gz
 *.log
 .DS_Store
+HCP_asl_min_req/*
