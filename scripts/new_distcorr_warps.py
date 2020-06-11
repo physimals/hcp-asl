@@ -197,6 +197,7 @@ def main(study_dir, sub_id, grad_coefficients):
     # Input, output and intermediate directories
     # Create if they do not already exist. 
     sub_base = op.abspath(op.join(study_dir, sub_id))
+    grad_coefficients = op.abspath(grad_coefficients)
     pvs_dir = op.join(sub_base, "T1w", "ASL", "PVEs")
     t1_asl_dir = op.join(sub_base, "T1w", "ASL")
     distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
