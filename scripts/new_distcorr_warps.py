@@ -314,11 +314,10 @@ def main(study_dir, sub_id, grad_coefficients):
 
 if __name__  == '__main__':
 
-    study_dir = 'HCP_asl_min_req'
-    sub_number = 'HCA6002236'
-    grad_coefficients = op.abspath('HCP_asl_min_req/coeff_AS82_Prisma.grad')
-
-    sys.argv[1:] = ('%s %s -g %s' % (study_dir, sub_number, grad_coefficients)).split()
+    # study_dir = 'HCP_asl_min_req'
+    # sub_number = 'HCA6002236'
+    # grad_coefficients = op.abspath('HCP_asl_min_req/coeff_AS82_Prisma.grad')
+    # sys.argv[1:] = ('%s %s -g %s' % (study_dir, sub_number, grad_coefficients)).split()
 
     # argument handling
     parser = argparse.ArgumentParser()
