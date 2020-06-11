@@ -246,7 +246,7 @@ def main(study_dir, sub_id, grad_coefficients):
             asl_vol0, intensity_correct=True, constrain_jac=True)
 
     # Stack the cblipped images together for use with topup 
-    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_number)
+    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_id)
     pa_ap_sefms = op.join(distcorr_dir, 'merged_sefms.nii.gz')
     if not op.exists(pa_ap_sefms) or force_refresh:
         rt.ImageSpace.save_like(pa_sefm, np.stack((
