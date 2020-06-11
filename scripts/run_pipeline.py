@@ -69,13 +69,15 @@ def main():
         "--cores",
         help="Number of cores to use for registration operations. "
             + f"Your PC has {cpu_count()}. Default is 1.",
-        default=1
+        default=1,
+        type=int
     )
     parser.add_argument(
         "-i",
         "--interpolation",
         help="Interpolation order for registrations. Default is 3.",
-        default=3
+        default=3,
+        type=int
     )
     parser.add_argument(
         "--fabberdir",

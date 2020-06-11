@@ -34,6 +34,7 @@ from .m0_mt_correction import load_json, update_json
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 from fsl.data.image import Image
+import nibabel as nib
 from fabber import Fabber, percent_progress
 import sys
 from pathlib import Path
@@ -356,16 +357,18 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
         if n == 1:
             # register bias field to ASL series
             reg_bias_name = bcorr_dir / 'bias_reg.nii.gz'
-            old_m02asl = rt.MotionCorrection(old_m02asl)
-            Image(
-                old_m02asl.apply_to_image(
+            old_m02asl = rt.MotionCorrection.from_mcflirt(
+                str(old_m02asl),
+                bias_name,
+                bias_name
+            )
+            nib.save(old_m02asl.apply_to_image(
                     bias_name,
                     bias_name,
                     superlevel=superlevel,
                     cores=cores,
                     order=order
-                )
-            ).save(str(reg_bias_name))
+            ), str(reg_bias_name))
             bias_name = reg_bias_name
         fslmaths(str(asl_name)).div(str(bias_name)).run(str(bcorr_img))
         # apply MT scaling factors to the bias-corrected ASL series
@@ -402,7 +405,11 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
             np.savetxt(asl02asln_name / xform.stem, inv_xform)
     # register pre-ST-correction ASLn to ASL0
     temp_reg_mtcorr = moco_dir / 'temp_reg_tis_mtcorr.nii.gz'
-    asln2m0_moco = rt.MotionCorrection(asln2m0_name)
+    asln2m0_moco = rt.MotionCorrection.from_mcflirt(
+        str(asln2m0_name),
+        str(mtcorr_name),
+        json_dict['calib0_mc']
+    )
     asln2asl0 = rt.chain(asln2m0_moco, asln2m0_moco.transforms[0].inverse())
     reg_mtcorr = Image(asln2asl0.apply_to_image(
         str(mtcorr_name), 
