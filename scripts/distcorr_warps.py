@@ -18,7 +18,10 @@ import glob
 import regtricks as rt
 import nibabel as nb
 import numpy as np
-from fsl.wrappers import fslmaths
+from fsl.wrappers import fslmaths, fsl_anat, LOAD
+from fsl.wrappers.fnirt import applywarp, invwarp
+from fsl.data.image import Image
+from fsl.data import atlases
 
 sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
 
@@ -181,6 +184,32 @@ def gen_wm_mask(pvwm, tissseg):
     # print(maths_call)
     sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
+def gen_vent_csf_mask(pvcsf, t1, outname):
+    # threshold and binarise the CSF PVE at 0.9
+    csf_mask = fslmaths(pvcsf).thr(0.9).bin().run(LOAD)
+    # get registration from MNI to T1 using fsl_anat
+    anat_results = fsl_anat(t1, LOAD, nobias=True, noseg=True, nosubcortseg=True)
+    warpMNI2T1 = invwarp(
+        warp=anat_results['out.anat/T1_to_MNI_nonlin_coeff'], 
+        out=LOAD, 
+        ref=t1
+    )['out']
+    # load the MNI152 probabilistic ventricles
+    atlases.rescanAtlases()
+    harv_ox_prob_2mm = atlases.loadAtlas('harvardoxford-subcortical', resolution=2.0)
+    vent_img = Image(
+        harv_ox_prob_2mm.data[:, :, :, 2] + harv_ox_prob_2mm.data[:, :, :, 13],
+        header=harv_ox_prob_2mm.header
+    )
+    vent_img = fslmaths(vent_img).thr(0.1).bin().run(LOAD)
+    # transform MNI152 ventricles mask into T1 space
+    t1_vent_img = applywarp(vent_img, t1, LOAD, warp=warpMNI2T1)['out']
+    # threshold transformed mask at 0.9
+    # resample the ventricles mask in ASL-gridded T1 space
+    r = rt.Registration.identity()
+    aslt1_spc = rt.ImageSpace(pvcsf)
+    aslt1_vent_img = r.apply_to_image(t1_vent_img, aslt1_spc)
+    fslmaths(aslt1_vent_img).thr(0.9).bin().mul(csf_mask).run(outname)
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
                         asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
@@ -417,6 +446,10 @@ def main():
     tissseg = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/wm_mask.nii.gz")
     gen_wm_mask(pvwm, tissseg)
     
+    # generate CSF mask
+    pvcsf = pve_files + "_CSF.nii.gz"
+    csf_mask_name = pve_files + "vent_csf_mask.nii.gz"
+    gen_vent_csf_mask(pvcsf, t1, csf_mask_name)
 
     # Calculate the overall distortion correction warp
     asl2str_trans = (outdir + "/asl2struct.mat")
