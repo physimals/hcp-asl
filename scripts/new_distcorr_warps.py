@@ -4,6 +4,7 @@ import sys
 import os.path as op 
 import glob 
 import tempfile 
+from pathlib import Path
 
 import regtricks as rt
 import nibabel as nb
@@ -22,17 +23,16 @@ def find_field_maps(study_dir, subject_number):
     function assumes that the mbPCASL field maps are the final 2 
     field map directories in the session.
     """
-    scan_dir = op.join(study_dir, subject_number, f'{subject_number}_V1_B', 'scans')
-    fm_dirs = sorted(glob.glob(op.join(scan_dir, '*-FieldMap_SE_EPI')))[-2:]
-    if op.exists(op.join(fm_dirs[0], 
-        f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz')):
+    scan_dir = Path(study_dir) / subject_number / f'{subject_number}_V1_B/scans'
+    fm_dirs = sorted(scan_dir.glob('**/*-FieldMap_SE_EPI'))[-2:]
+    if (fm_dirs[0] / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz').exists():
         pa_dir, ap_dir = fm_dirs
-    elif op.exists(op.join(fm_dirs[1], 
-        f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz')):
+    elif (fm_dirs[1] / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz').exists():
         ap_dir, pa_dir = fm_dirs
-    pa_sefm = op.join(pa_dir, f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz')
-    ap_sefm = op.join(ap_dir, f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz')
+    pa_sefm = pa_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz'
+    ap_sefm = ap_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz'
     return str(pa_sefm), str(ap_sefm)
+
 
 def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
     """
