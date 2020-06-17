@@ -17,6 +17,7 @@ import glob
 
 import regtricks as rt
 import nibabel as nb
+import scipy.ndimage
 import numpy as np
 from fsl.wrappers import fslmaths, fsl_anat, LOAD
 from fsl.wrappers.fnirt import applywarp, invwarp
@@ -184,32 +185,23 @@ def gen_wm_mask(pvwm, tissseg):
     # print(maths_call)
     sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
-def gen_vent_csf_mask(pvcsf, t1, outname):
-    # threshold and binarise the CSF PVE at 0.9
-    csf_mask = fslmaths(pvcsf).thr(0.9).bin().run(LOAD)
-    # get registration from MNI to T1 using fsl_anat
-    anat_results = fsl_anat(t1, LOAD, nobias=True, noseg=True, nosubcortseg=True)
-    warpMNI2T1 = invwarp(
-        warp=anat_results['out.anat/T1_to_MNI_nonlin_coeff'], 
-        out=LOAD, 
-        ref=t1
-    )['out']
-    # load the MNI152 probabilistic ventricles
-    atlases.rescanAtlases()
-    harv_ox_prob_2mm = atlases.loadAtlas('harvardoxford-subcortical', resolution=2.0)
-    vent_img = Image(
-        harv_ox_prob_2mm.data[:, :, :, 2] + harv_ox_prob_2mm.data[:, :, :, 13],
-        header=harv_ox_prob_2mm.header
+def gen_vent_csf_mask(aparc_aseg, outname, target_img):
+    # get ventricles mask from aparc+aseg image
+    aparc_aseg = Image(aparc_aseg)
+    vent_mask = (
+        np.where(aparc_aseg.data == 43, 1, 0) # left ventricle mask
+      + np.where(aparc_aseg.data == 4, 1, 0) # right ventricle mask
     )
-    vent_img = fslmaths(vent_img).thr(0.1).bin().run(LOAD)
-    # transform MNI152 ventricles mask into T1 space
-    t1_vent_img = applywarp(vent_img, t1, LOAD, warp=warpMNI2T1)['out']
-    # threshold transformed mask at 0.9
-    # resample the ventricles mask in ASL-gridded T1 space
+    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask).astype(aparc_aseg.data.dtype)
+    vent_mask = Image(vent_mask, header=aparc_aseg.header)
+    # downsample to target space
     r = rt.Registration.identity()
-    aslt1_spc = rt.ImageSpace(pvcsf)
-    aslt1_vent_img = r.apply_to_image(t1_vent_img, aslt1_spc)
-    fslmaths(aslt1_vent_img).thr(0.9).bin().mul(csf_mask).run(outname)
+    aslt1_vent_mask = r.apply_to_image(vent_mask, target_img)
+    # re-threshold
+    aslt1_vent_mask_data = np.where(aslt1_vent_mask.data>=0.5, 1, 0)
+    # save to outname
+    aslt1_vent_mask = Image(aslt1_vent_mask_data, header=aslt1_vent_mask.header)
+    aslt1_vent_mask.save(outname)
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
                         asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
@@ -351,6 +343,7 @@ def main():
     sub_num = args.sub_number
     grad_coeffs = args.grads
 
+    t1_dir = (study_dir + "/" + sub_num + "/T1w")
     oph = (study_dir + "/" + sub_num + "/ASL/TIs/DistCorr")
     outdir = (study_dir + "/" + sub_num + "/T1w/ASL/reg")
     pve_path = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs")
@@ -447,9 +440,8 @@ def main():
     gen_wm_mask(pvwm, tissseg)
     
     # generate CSF mask
-    pvcsf = pve_files + "_CSF.nii.gz"
     csf_mask_name = pve_files + "vent_csf_mask.nii.gz"
-    gen_vent_csf_mask(pvcsf, t1, csf_mask_name)
+    gen_vent_csf_mask(aparc_aseg, csf_mask_name, t1_asl_mask_name)
 
     # Calculate the overall distortion correction warp
     asl2str_trans = (outdir + "/asl2struct.mat")
