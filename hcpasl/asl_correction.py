@@ -373,7 +373,12 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
         fslmaths(str(asl_name)).div(str(bias_name)).run(str(bcorr_img))
         # apply MT scaling factors to the bias-corrected ASL series
         mtcorr_name = mtcorr_dir / 'tis_mtcorr.nii.gz'
-        fslmaths(str(bcorr_img)).mul(str(mt_factors)).run(str(mtcorr_name))
+        # load mt factors
+        mt_sfs = np.loadtxt(mt_factors)
+        biascorr_img = Image(str(bcorr_img))
+        assert (len(mt_sfs) == biascorr_img.shape[2])
+        mtcorr_img = Image(biascorr_img.data*mt_sfs.reshape(1, 1, -1, 1), header=biascorr_img.header)
+        mtcorr_img.save(str(mtcorr_name))
         # estimate satrecov model on bias and MT corrected ASL series
         t1_name = _saturation_recovery(mtcorr_name, satrecov_dir, ntis, iaf, ibf, tis, rpts)
         t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
@@ -447,7 +452,8 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
     stfactors_img.save(str(stfactors_name))
     # combined MT and ST scaling factors
     combined_factors_name = stcorr_dir / 'combined_scaling_factors.nii.gz'
-    fslmaths(str(stfactors_name)).mul(str(mt_factors)).run(str(combined_factors_name))
+    combined_factors_img = Image(stfactors_img.data*mt_sfs.reshape(1, 1, -1, 1), header=stfactors_img.header)
+    combined_factors_img.save(str(combined_factors_name))
     # save locations of important files in the json
     important_names = {
         'ASL_stcorr': str(stcorr_name),
