@@ -185,7 +185,7 @@ def gen_wm_mask(pvwm, tissseg):
     # print(maths_call)
     sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
-def gen_vent_csf_mask(aparc_aseg, outname, target_img):
+def gen_vent_csf_mask(aparc_aseg, csf_pve, outname, target_img):
     # get ventricles mask from aparc+aseg image
     aparc_aseg = Image(aparc_aseg)
     vent_mask = (
@@ -199,9 +199,14 @@ def gen_vent_csf_mask(aparc_aseg, outname, target_img):
     aslt1_vent_mask = r.apply_to_image(vent_mask, target_img)
     # re-threshold
     aslt1_vent_mask_data = np.where(aslt1_vent_mask.data>=0.5, 1, 0)
+    # load csf pve
+    csf_pve_img = Image(csf_pve)
+    csf_mask = np.where(csf_pve_img.data>=0.9, 1, 0)
+    # multiply masks
+    vent_csf_mask = csf_mask * aslt1_vent_mask_data
     # save to outname
-    aslt1_vent_mask = Image(aslt1_vent_mask_data, header=aslt1_vent_mask.header)
-    aslt1_vent_mask.save(outname)
+    aslt1_vent_csf_mask = Image(vent_csf_mask, header=aslt1_vent_mask.header)
+    aslt1_vent_csf_mask.save(outname)
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
                         asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
@@ -440,8 +445,9 @@ def main():
     gen_wm_mask(pvwm, tissseg)
     
     # generate CSF mask
+    csfpve = (pve_files + "_CSF.nii.gz")
     csf_mask_name = pve_files + "vent_csf_mask.nii.gz"
-    gen_vent_csf_mask(aparc_aseg, csf_mask_name, t1_asl_mask_name)
+    gen_vent_csf_mask(aparc_aseg, csfpve, csf_mask_name, t1_asl_mask_name)
 
     # Calculate the overall distortion correction warp
     asl2str_trans = (outdir + "/asl2struct.mat")
