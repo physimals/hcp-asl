@@ -12,6 +12,7 @@ import nibabel as nb
 import scipy.ndimage
 import numpy as np
 from fsl.wrappers import fslmaths, bet
+from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
 
