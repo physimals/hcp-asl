@@ -15,7 +15,7 @@ setup(
     python_requires='>=3.6',
     install_requires=[
         'numpy',
-        'fslpy',
+        'fslpy>=3.1.0',
         'pyfab',
         'nibabel',
         'regtricks',

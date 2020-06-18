@@ -10,8 +10,8 @@ def project_to_surface(subject_dir):
     json_dict = load_json(subject_dir)
 
     # perfusion calib and variance calib
-    pc_name = Path(json_dict['oxford_asl']) / 'struct_space/perfusion_calib.nii.gz'
-    vc_name = Path(json_dict['oxford_asl']) / 'struct_space/perfusion_var_calib.nii.gz'
+    pc_name = Path(json_dict['oxford_asl']) / 'native_space/perfusion_calib.nii.gz'
+    vc_name = Path(json_dict['oxford_asl']) / 'native_space/perfusion_var_calib.nii.gz'
     names = (pc_name, vc_name)
 
     # create directory for surface results

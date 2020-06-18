@@ -17,8 +17,12 @@ import glob
 
 import regtricks as rt
 import nibabel as nb
+import scipy.ndimage
 import numpy as np
-from fsl.wrappers import fslmaths
+from fsl.wrappers import fslmaths, fsl_anat, LOAD
+from fsl.wrappers.fnirt import applywarp, invwarp
+from fsl.data.image import Image
+from fsl.data import atlases
 
 sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
 
@@ -181,6 +185,28 @@ def gen_wm_mask(pvwm, tissseg):
     # print(maths_call)
     sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
     
+def gen_vent_csf_mask(aparc_aseg, csf_pve, outname, target_img):
+    # get ventricles mask from aparc+aseg image
+    aparc_aseg = Image(aparc_aseg)
+    vent_mask = (
+        np.where(aparc_aseg.data == 43, 1, 0) # left ventricle mask
+      + np.where(aparc_aseg.data == 4, 1, 0) # right ventricle mask
+    )
+    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask).astype(aparc_aseg.data.dtype)
+    vent_mask = Image(vent_mask, header=aparc_aseg.header)
+    # downsample to target space
+    r = rt.Registration.identity()
+    aslt1_vent_mask = r.apply_to_image(vent_mask, target_img)
+    # re-threshold
+    aslt1_vent_mask_data = np.where(aslt1_vent_mask.data>=0.5, 1, 0)
+    # load csf pve
+    csf_pve_img = Image(csf_pve)
+    csf_mask = np.where(csf_pve_img.data>=0.9, 1, 0)
+    # multiply masks
+    vent_csf_mask = csf_mask * aslt1_vent_mask_data
+    # save to outname
+    aslt1_vent_csf_mask = Image(vent_csf_mask, header=aslt1_vent_mask.header)
+    aslt1_vent_csf_mask.save(outname)
 
 def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
                         asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
@@ -417,6 +443,10 @@ def main():
     tissseg = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/wm_mask.nii.gz")
     gen_wm_mask(pvwm, tissseg)
     
+    # generate CSF mask
+    csfpve = (pve_files + "_CSF.nii.gz")
+    csf_mask_name = pve_files + "vent_csf_mask.nii.gz"
+    gen_vent_csf_mask(aparc_aseg, csfpve, csf_mask_name, t1_asl_mask_name)
 
     # Calculate the overall distortion correction warp
     asl2str_trans = (outdir + "/asl2struct.mat")
