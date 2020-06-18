@@ -13,6 +13,7 @@ def run_oxford_asl(subject_dir):
     oxford_dir = structasl_dir / 'TIs/OxfordASL'
     pvgm_name = structasl_dir / 'PVEs/pve_GM.nii.gz'
     pvwm_name = structasl_dir / 'PVEs/pve_WM.nii.gz'
+    csf_mask_name = structasl_dir / 'PVEs/pvevent_csf_mask.nii.gz'
     calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
     brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
     cmd = [
@@ -29,6 +30,7 @@ def run_oxford_asl(subject_dir):
         "--pvcorr",
         f"-c {str(calib_name)}",
         "--cmethod=single",
+        f"--csf={csf_mask_name}",
         f"-m {str(brain_mask)}",
         f"--pvgm={str(pvgm_name)}",
         f"--pvwm={str(pvwm_name)}",
@@ -36,8 +38,6 @@ def run_oxford_asl(subject_dir):
         "--debug",
         "--spatial=off",
         "--slicedt=0.059",
-        f"-s {json_dict['T1w_acpc']}",
-        f"--sbrain={json_dict['T1w_acpc_brain']}",
         "--sliceband=10"
     ]
     print(" ".join(cmd))

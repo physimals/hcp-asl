@@ -6,6 +6,8 @@ Magnetisation Transfer effect visible in the HCP data.
 import json
 from pathlib import Path
 from fsl.wrappers import fslmaths, LOAD, bet, fast
+from fsl.data.image import Image
+import numpy as np
 from .initial_bookkeeping import create_dirs
 import subprocess
 
@@ -92,9 +94,14 @@ def correct_M0(subject_dir, mt_factors):
         biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
         fslmaths(calib_name).div(str(bias_name)).run(str(biascorr_name))
 
+        # load mt factors
+        mt_sfs = np.loadtxt(mt_factors)
         # apply mt_factors to bias-corrected m0 image
         mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
-        fslmaths(str(biascorr_name)).mul(str(mt_factors)).run(str(mtcorr_name))
+        biascorr_img = Image(str(biascorr_name))
+        assert (len(mt_sfs) == biascorr_img.shape[2])
+        mtcorr_img = Image(biascorr_img.data * mt_sfs, header=biascorr_img.header)
+        mtcorr_img.save(str(mtcorr_name))
 
         # add locations of above files to the json
         important_names = {
