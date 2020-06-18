@@ -273,7 +273,7 @@ def main(study_dir, sub_id, grad_coefficients):
     # Generate the gradient distortion correction warp 
     gdc_path = op.join(distcorr_dir, 'fullWarp_abs.nii.gz')
     if not op.exists(gdc_path) or force_refresh:
-        gdc = generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir)
+        generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir)
     gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
             asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
 
