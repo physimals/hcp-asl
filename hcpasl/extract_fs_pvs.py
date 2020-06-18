@@ -73,7 +73,7 @@ def CTX_LUT(val):
     else: 
         return None 
 
-def extract_fs_pvs(aparcseg, surf_dict, t1, asl, superfactor=2, 
+def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2, 
                    cores=mp.cpu_count()): 
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
@@ -81,17 +81,14 @@ def extract_fs_pvs(aparcseg, surf_dict, t1, asl, superfactor=2,
     Args:
         aparcseg: path to aparc+aseg file
         surf_dict: dict with LWS/LPS/RWS/RPS keys, paths to those surfaces
-        t1: path to T1 file
-        asl: path to ASL file (for setting resolution)
+        ref_spc: space in which to estimate (ie, ASL-gridded T1)
         superfactor: supersampling factor for intermediate steps
         cores: number CPU cores to use 
     Returns: 
         nibabel Nifti object 
     """
 
-    asl_spc = rt.ImageSpace(asl)
-    t1_spc = rt.ImageSpace(t1)
-    ref_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
+    ref_spc = rt.ImageSpace(ref_spc)
     high_spc = ref_spc.resize_voxels(1/superfactor, 'ceil')
     aseg_spc = nib.load(aparcseg)
     aseg = aseg_spc.dataobj
