@@ -13,7 +13,6 @@ import numpy as np
 from fsl.wrappers import fslmaths, bet
 from scipy.ndimage import binary_fill_holes
 
-from hcpasl.extract_fs_pvs import extract_fs_pvs
 import argparse
 
 def find_field_maps(study_dir, subject_number):
