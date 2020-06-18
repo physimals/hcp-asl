@@ -7,3 +7,4 @@ hcpasl.egg-info
 *.log
 .DS_Store
 HCP_asl_min_req/*
+scratch.py 
