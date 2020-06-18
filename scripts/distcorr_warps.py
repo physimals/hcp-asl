@@ -1,286 +1,20 @@
-""" 
- Script for gradient and EPI ddistortion correction of HCP ASL data
-
- Script to generate gradient distortion correction, and EPI distortion
- correction warps for the HCP ASL data, then apply the warps along 
- with motion correction to the ASL-gridded T1w-space, so that all 
- transformations are done in a single interpolation step.
-
- F. A. Kennedy McConnell - April 2020
-"""
-
 import os
 import subprocess as sp
 import sys
 import os.path as op 
 import glob 
+import tempfile 
+from pathlib import Path
+import multiprocessing as mp 
 
 import regtricks as rt
 import nibabel as nb
 import numpy as np
-from fsl.wrappers import fslmaths
-
-sys.path.append("/mnt/hgfs/shared_with_vm/hcp-asl")
+from fsl.wrappers import fslmaths, bet
+from scipy.ndimage import binary_fill_holes
 
 from hcpasl.extract_fs_pvs import extract_fs_pvs
-from pathlib import Path
 import argparse
-
-# Generate gradient distortion correction warp
-def calc_gdc_warp(asldata_vol1, coeffs_loc, oph):
-    """
-    Generate warp for gradient distortion correction using siemens 
-    coefficients file.
-    """
-
-    gdc_call = ("gradient_unwarp.py " + asldata_vol1 + " gdc_corr_vol1.nii.gz " +
-                    "siemens -g " + coeffs_loc)
-
-    # print(gdc_call)
-    sp.run(gdc_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    gdc_warp_call = ("convertwarp --abs --ref=" + oph + "/gdc_corr_vol1.nii.gz " +
-                    "--warp1=" + oph + "/fullWarp_abs.nii.gz --relout --out=" + 
-                    oph + "/gdc_warp.nii.gz")
-
-    # print(gdc_warp_call)
-    sp.run(gdc_warp_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-def produce_topup_params(pars_filepath):
-    """
-    Generate a file containing the parameters used by topup to generate EPI distortion
-    correction fieldmap and output this into subject's directory. -- This could be a 
-    global/config file if that is preferable. If the .txt file already exists, delete 
-    and recreate it.
-    """
-    if os.path.isfile(pars_filepath):
-        os.remove(pars_filepath)
-    with open(pars_filepath, "a") as t_pars:
-        t_pars.write("0 1 0 0.04845" + "\n")
-        t_pars.write("0 -1 0 0.04845")
-    
-def calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, distcorr_dir, out_basename, topup_fmap, 
-                fmap_rads, fmapmag, fmapmagbrain):
-
-    """
-    Use topup to generate a fieldmap for distortion correction in asl_reg 
-    after conversion from Hz to rads/s. Topup also outputs the SEFMs 
-    corrected for EPI distortion, which are then available for use as the 
-    fieldmap magnitude image and  brain-extracted fieldmap mag image.
-    """
-    merge_sefm_call = ("fslmerge -t " + pa_ap_sefms + " " + pa_sefm + " " + ap_sefm)
-    # print(merge_sefm_call)
-    sp.run(merge_sefm_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    
-    topup_call = ("topup --imain=" + pa_ap_sefms + 
-                    " --datain=" + pars_filepath + " --config=" + cnf_file + 
-                    " --out=" + out_basename + " --fout=" +
-                    topup_fmap + " --iout=" + distcorr_dir +
-                    "/corrected_sefms.nii.gz")
-    
-    # print(topup_call)
-    sp.run(topup_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    convert_torads = ("fslmaths " + topup_fmap + 
-                        " -mul 3.14159 -mul 2 " + "/" + fmap_rads)
-    # print(convert_torads)
-    sp.run(convert_torads.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    mean_fmapmag_call = ("fslmaths " + distcorr_dir + "/corrected_sefms.nii.gz -Tmean " + 
-                            "/" + fmapmag)
-    # print(mean_fmapmag_call)
-    sp.run(mean_fmapmag_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    bet_fmapmag_call = ("bet " + "/" + fmapmag + " /" + fmapmagbrain)
-    # print(bet_fmapmag_call)
-    sp.run(bet_fmapmag_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-def gen_initial_trans(regfrom, outdir, struct, struct_brain):
-    """
-    Generate the initial linear transformation between ASL-space and T1w-space
-    using asl_reg. This is required as the initalization for the registration
-    which generates the distortion correcting warp.
-    """
-    reg_call = ("asl_reg -i " + regfrom + " -o " + outdir + " -s " + struct +
-                " --sbet=" + struct_brain + " --mainonly")
-    # print(reg_call)
-    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-def gen_asl_mask(struct_brain, struct_bet_mask, regfrom, asl2struct, asl_mask,
-                struct2asl):
-    """
-    Generate a mask of the brain in the space of the first ASL volume. The
-    make is required for use in asl_reg when it is called for the purpose
-    of generating te distortion correction warp.
-    """
-    invert_reg = ("convert_xfm -omat " + struct2asl + " -inverse " + asl2struct)
-
-    sbrain_call = ("fslmaths " + struct_brain + " -bin " + struct_bet_mask)
-    trans_call = ("flirt -in " + struct_bet_mask + " -ref " + regfrom + " -applyxfm -init " + 
-                    struct2asl + " -out " + asl_mask + " -interp trilinear -paddingsize 1")
-    fill_call = ("fslmaths " + asl_mask + " -thr 0.25 -bin -fillh " + asl_mask)
-    hdr_call = ("fslcpgeom " + regfrom + " " + asl_mask)
-
-    # print(invert_reg)
-    # print(sbrain_call)
-    # print(trans_call)
-    # print(fill_call)
-    # print(hdr_call)
-
-    sp.run(invert_reg.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(sbrain_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(trans_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(fill_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(hdr_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-def gen_pves(t1w_dir, asl, fileroot):
-    """
-    Generate partial volume estimates from freesurfer segmentations of the cortex
-    and subcortical structures.
-
-    Args: 
-        t1w_dir: path to subject's T1w directory, containing a T1w scan (eg 
-            acdc_dc_restore), aparc+aseg FS volumetric segmentation and 
-            fsaverage_32k surface directory
-        asl: path to ASL image, used for setting resolution of output 
-        fileroot: path basename for output, will add suffix GM/WM/CSF
-    """    
-
-    # Load the t1 image, aparc+aseg and surfaces from their expected 
-    # names and locations within t1w_dir 
-    surf_dict = {}
-    t1 = op.join(t1w_dir, 'T1w_acpc_dc.nii.gz')
-    aparcseg = op.join(t1w_dir, 'aparc+aseg.nii.gz')
-    for k,n in zip(['LWS', 'LPS', 'RPS', 'RWS'], 
-                   ['L.white.32k_fs_LR.surf.gii',
-                    'L.pial.32k_fs_LR.surf.gii', 
-                    'R.pial.32k_fs_LR.surf.gii', 
-                    'R.white.32k_fs_LR.surf.gii']):
-        paths = glob.glob(op.join(t1w_dir, 'fsaverage_LR32k', '*' + n))
-        assert len(paths) == 1, f'Found multiple surfaces for {k}'
-        surf_dict[k] = paths[0]
-
-    # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
-    pvs_stacked = extract_fs_pvs(aparcseg, surf_dict, t1, asl)
-
-    # Save output with tissue suffix 
-    hdr = pvs_stacked.header 
-    aff = pvs_stacked.affine 
-    for idx, suffix in enumerate(['GM', 'WM', 'CSF']):
-        p = "{}_{}.nii.gz".format(fileroot, suffix)
-        nii = nb.Nifti2Image(pvs_stacked.dataobj[...,idx], aff, header=hdr)
-        nb.save(nii, p)
-
-def gen_wm_mask(pvwm, tissseg):
-    """
-    Generate a white matter mask from the WM partial volume estimate for use in
-    asl_reg when applied for distortion correction.
-    """
-
-    maths_call = ("fslmaths " + pvwm + " -thr 0.5 -bin " + tissseg)
-    # print(maths_call)
-    sp.run(maths_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    
-
-def calc_distcorr_warp(regfrom, distcorr_dir, struct, struct_brain, mask, tissseg,
-                        asl2struct_trans, fmap_rads, fmapmag, fmapmagbrain, asl_grid_T1,
-                        gdc_warp):
-    """
-    Warp is generated from asl_reg, which performs EPI distortion correction of 
-    ASL data while transforming the data to alignment with T1w-space. This warp is
-    then merged with the gradient distortion correction warp if that is available.
-    """
-
-    ## Use asl_reg to inital EPI distcorr warp
-    reg_call = ("asl_reg -i " + regfrom + " -o " + distcorr_dir + " -s " +
-                struct + " --sbet=" + struct_brain + " -m " + mask + " --tissseg " +
-                tissseg + " --imat " + asl2struct_trans + " --finalonly --fmap=" + 
-                fmap_rads + " --fmapmag=" + fmapmag + " --fmapmagbrain=" + fmapmagbrain +
-                " --pedir=y --echospacing=0.00057")
-    # print(reg_call)
-    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    
-    # Add the gradient distortion correction warp to the EPI distortion correction warp
-    if os.path.isfile(gdc_warp):
-        merge_warp_call = ("convertwarp -r " + asl_grid_T1 + " -o " + distcorr_dir + 
-                        "/distcorr_warp -w " + distcorr_dir + "/asl2struct_warp --warp2=" + 
-                        gdc_warp + " --rel")
-        # print(merge_warp_call)
-        sp.run(merge_warp_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    else:
-        print("Gradient distortion correction not applied")
-        cp_call = ("imcp " + distcorr_dir + "/asl2struct_warp.nii.gz " + distcorr_dir +
-                    "/distcorr_warp")
-        # print(cp_call)
-        sp.run(cp_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-# calculate the jacobian of the warp for intensity correction
-def calc_warp_jacobian(distcorr_dir):
-    """
-    Calculation of the Jacobian of the combined distortion correction for subsequent 
-    Jacobian intensity scaling
-    """
-    utils_call1 = ("fnirtfileutils -i " + distcorr_dir + "/distcorr_warp -f spline -o " + 
-                    distcorr_dir + "/distcorr_warp_coeff")
-    utils_call2 = ("fnirtfileutils -i " + distcorr_dir + "/distcorr_warp_coeff -j " +
-                    distcorr_dir + "/distcorr_jacobian")
-    hdr_call = ("fslcpgeom " + distcorr_dir + "/distcorr_warp " + distcorr_dir + 
-                    "/distcorr_jacobian -d")
-
-    # print(utils_call1)
-    # print(utils_call2)
-    # print(hdr_call)
-
-    sp.run(utils_call1.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(utils_call2.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(hdr_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-# apply the combined distortion correction warp
-def apply_distcorr_warp(asldata_orig, T1space_ref, asldata_T1space, distcorr_dir,
-                        moco_xfms, calib_orig, calib_T1space, calib_xfms, sfacs_orig,
-                        sfacs_T1space):
-    """
-    Application of motion correction, and EPI and gradient distortion corrections, 
-    and transformation to T1w-space in one step. Leaving the ASL and calibration data 
-    in ASL-gridded T1w-space.
-    """
-
-    asl_apply_call = ("applywarp -i " + asldata_orig + " -r " + T1space_ref + " -o " +
-                    asldata_T1space + " --premat=" + moco_xfms + " -w " + 
-                    distcorr_dir + "/distcorr_warp" + " --rel --interp=trilinear" +
-                    " --paddingsize=1 --super --superlevel=a")
-
-    asl_jaco_call = ("fslmaths " + asldata_T1space + " -mul " + distcorr_dir + 
-                    "/distcorr_jacobian " + asldata_T1space)
-
-    calib_apply_call = ("applywarp -i " + calib_orig + " -r " + T1space_ref + " -o " +
-                    calib_T1space + " --premat=" + calib_xfms + " -w " + 
-                    distcorr_dir + "/distcorr_warp" + " --rel --interp=trilinear" +
-                    " --paddingsize=1 --super --superlevel=a")
-
-    calib_jaco_call = ("fslmaths " + calib_T1space + " -mul " + distcorr_dir + 
-                    "/distcorr_jacobian " + calib_T1space)
-
-    sfacs_apply_call = ("applywarp -i " + sfacs_orig + " -r " + T1space_ref + " -o " +
-                    sfacs_T1space + " --premat=" + moco_xfms + " -w " + 
-                    distcorr_dir + "/distcorr_warp" + " --rel --interp=trilinear" +
-                    " --paddingsize=1 --super --superlevel=a")
-
-    sfacs_jaco_call = ("fslmaths " + sfacs_T1space + " -mul " + distcorr_dir + 
-                    "/distcorr_jacobian " + sfacs_T1space)
-    # print(asl_apply_call)
-    # print(asl_jaco_call)
-    # print(calib_apply_call)
-    # print(calib_jaco_call)
-    # print(sfacs_apply_call)
-    # print(sfacs_jaco_call)
-
-    sp.run(asl_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(asl_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(calib_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(calib_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(sfacs_apply_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-    sp.run(sfacs_jaco_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
 
 def find_field_maps(study_dir, subject_number):
     """
@@ -299,8 +33,310 @@ def find_field_maps(study_dir, subject_number):
     pa_sefm = pa_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz'
     ap_sefm = ap_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz'
     return str(pa_sefm), str(ap_sefm)
+
+
+def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
+    """
+    Generate the initial linear transformation between ASL-space and T1w-space
+    using asl_reg. This is required as the initalization for the epi distortion 
+    correction warp (calculated via asl_reg later on).
     
-def main():
+    Args:
+        asl: path to ASL image 
+        outdir: path to registration directory, for output 
+        struct: path to T1 image, ac_dc_restore
+        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
+
+    Returns: 
+        n/a, file 'asl2struct.mat' will be created in the output dir 
+    """
+    reg_call = ("asl_reg -i " + asl + " -o " + outdir + " -s " + struct +
+                " --sbet=" + struct_brain + " --mainonly")
+
+    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+
+def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
+    """
+    Generate distortion correction warp via gradient_unwarp. 
+
+    Args: 
+        asl_vol0: path to first volume of ASL series
+        coeffs_path: path to coefficients file for the scanner (.grad)
+        distcorr_dir: directory in which to put output
+    
+    Returns: 
+        n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
+    """
+
+    # Need to run in the output directory to make sure files end up in the
+    # right place
+    pwd = os.getcwd()
+    os.chdir(distcorr_dir)
+    cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {}"
+            .format(asl_vol0, coeffs_path))
+    sp.run(cmd, shell=True)
+    os.chdir(pwd)
+
+def generate_wmmask(aparc_aseg):
+    """ 
+    Generate binary WM mask in space of T1 image using FS aparc+aseg
+
+    Args: 
+        aparc_aseg: path to aparc_aseg in T1 space (not FS 256 1mm space!)
+
+    Returns: 
+        np.array logical WM mask in space of T1 image 
+    """
+
+    aseg_array = nb.load(aparc_aseg).get_data()
+    wm = np.logical_or(aseg_array == 41, aseg_array == 2)
+    return wm 
+
+def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir): 
+    """
+    Generate fieldmaps via topup for use with asl_reg. 
+
+    Args: 
+        asl_vol0: path to image of stacked blipped images (ie, PEdir as vol0,
+            (oPEdir as vol1), in this case stacked as pa then ap)
+        params: path to text file for topup --datain, PE directions/times
+        config: path to text file for topup --config, other args 
+        distcorr_dir: directory in which to put output
+    
+    Returns: 
+        n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
+    """
+
+    pwd = os.getcwd()
+    os.chdir(distcorr_dir)
+
+    # Run topup to get fmap in Hz 
+    topup_fmap = op.join(distcorr_dir, 'topup_fmap_hz.nii.gz')        
+    cmd = (("topup --imain={} --datain={}".format(pa_ap_sefms, params)
+            + " --config={} --out=topup".format(config))
+            + " --fout={} --iout={}".format(topup_fmap,
+                op.join(distcorr_dir, 'corrected_sefms.nii.gz')))
+    sp.run(cmd, shell=True)
+
+    fmap, fmapmag, fmapmagbrain = [ 
+        op.join(distcorr_dir, '{}.nii.gz'.format(s)) 
+        for s in [ 'fmap', 'fmapmag', 'fmapmagbrain' ]
+    ]    
+
+    # Convert fmap from Hz to rad/s
+    fmap_spc = rt.ImageSpace(topup_fmap)
+    fmap_arr_hz = nb.load(topup_fmap).get_data()
+    fmap_arr = fmap_arr_hz * 2 * np.pi
+    fmap_spc.save_image(fmap_arr, fmap)
+
+    # Mean across volumes of corrected sefms to get fmapmag
+    fmapmag_arr = nb.load(op.join(
+                    distcorr_dir, "corrected_sefms.nii.gz")).get_data()
+    fmapmag_arr = fmapmag_arr.mean(-1)
+    fmap_spc.save_image(fmapmag_arr, fmapmag)
+
+    # Run BET on fmapmag to get brain only version 
+    bet(fmap_spc.make_nifti(fmapmag_arr), output=fmapmagbrain)
+
+    os.chdir(pwd)
+
+def generate_asl_mask(struct_brain, asl, asl2struct):
+    """
+    Generate brain mask in ASL space 
+
+    Args: 
+        struct_brain: path to T1 brain-extracted, ac_dc_restore_brain
+        asl: path to ASL image 
+        asl2struct: regtricks.Registration for asl to structural 
+
+    Returns: 
+        np.array, logical mask. 
+    """
+
+    brain_mask = (nb.load(struct_brain).get_data() > 0).astype(np.float32)
+    asl_mask = asl2struct.inverse().apply_to_array(brain_mask, struct_brain, asl)
+    asl_mask = binary_fill_holes(asl_mask > 0.25)
+    return asl_mask
+
+def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
+                       wmmask, asl2struct, fmap, fmapmag, fmapmagbrain, 
+                       distcorr_dir):
+    """
+    Generate EPI distortion correction warp via asl_reg. 
+
+    Args: 
+        asl_vol0_brain: path to first volume of ASL series, brain-extracted
+        struct: path to T1 image, ac_dc_restore
+        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
+        asl_mask: path to brain mask in ASL space 
+        wmmask: path to WM mask in T1 space 
+        asl2struct: regtricks.Registration for asl to structural
+        fmap: path to topup's field map in rad/s
+        fmapmag: path to topup's field map magnitude 
+        fmapmagbrain: path to topup's field map magnitude, brain only
+        distcorr_dir: path to directory in which to place output 
+
+    Returns: 
+        n/a, file 'asl2struct_warp.nii.gz' is created in output directory 
+    """
+
+    a2s_fsl = op.join(distcorr_dir, 'asl2struct.mat')
+    asl2struct.save_fsl(a2s_fsl, asl_vol0_brain, struct)
+    cmd = ("asl_reg -i {} -o {} ".format(asl_vol0_brain, distcorr_dir)
+           + "-s {} --sbet={} -m {} ".format(struct, struct_brain, asl_mask)
+           + "--tissseg={} --imat={} --finalonly ".format(wmmask, a2s_fsl)
+           + "--fmap={} --fmapmag={} ".format(fmap, fmapmag)
+           + "--fmapmagbrain={} --pedir=y --echospacing=0.00057 ".format(fmapmagbrain))
+    sp.run(cmd, shell=True)
+
+
+def main(study_dir, sub_id, grad_coefficients):
+
+    # For debug, re-use existing intermediate files 
+    force_refresh = True
+
+    # Input, output and intermediate directories
+    # Create if they do not already exist. 
+    sub_base = op.abspath(op.join(study_dir, sub_id))
+    grad_coefficients = op.abspath(grad_coefficients)
+    pvs_dir = op.join(sub_base, "T1w", "ASL", "PVEs")
+    t1_asl_dir = op.join(sub_base, "T1w", "ASL")
+    distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
+    reg_dir = op.join(sub_base, 'T1w', 'ASL', 'reg')
+    t1_dir = op.join(sub_base, "T1w")
+    asl_dir = op.join(sub_base, "ASL", "TIs", "STCorr", "SecondPass")
+    asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
+    calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr")
+    [ os.makedirs(d, exist_ok=True) 
+        for d in [pvs_dir, t1_asl_dir, distcorr_dir, reg_dir, 
+                  asl_out_dir, calib_out_dir] ]
+        
+    # Images required for processing 
+    asl = op.join(asl_dir, "tis_stcorr.nii.gz")
+    struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
+    struct_brain = op.join(t1_dir, "T1w_acpc_dc_restore_brain.nii.gz")
+    struct_brain_mask = op.join(t1_dir, "T1w_acpc_dc_restore_brain_mask.nii.gz")
+    asl_vol0 = op.join(asl_dir, "tis_stcorr_vol1.nii.gz")
+    if not op.exists(asl_vol0) or force_refresh:
+        cmd = "fslroi {} {} 0 1".format(asl, asl_vol0)
+
+    # Create ASL-gridded version of T1 image 
+    t1_asl_grid = op.join(t1_dir, "ASL", "reg", 
+                          "ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    if not op.exists(t1_asl_grid) or force_refresh:
+        asl_spc = rt.ImageSpace(asl)
+        t1_spc = rt.ImageSpace(struct)
+        t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
+        nb.save(
+            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
+            t1_asl_grid)
+
+    # MCFLIRT ASL using the calibration as reference 
+    calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'calib0.nii.gz')
+    asl = op.join(sub_base, 'ASL', 'TIs', 'tis.nii.gz')
+    mcdir = op.join(sub_base, 'ASL', 'TIs', 'MoCo', 'asl2calib.mat')
+    if not op.exists(mcdir) or force_refresh:
+        asl2calib_mc = rt.mcflirt(asl, reffile=calib)
+        asl2calib_mc.save_fsl(mcdir, asl, calib)
+    else: 
+        asl2calib_mc = rt.MotionCorrection.from_mcflirt(mcdir, asl, calib)
+
+    # Rebase the motion correction to target volume 0 of ASL 
+    # The first registration in the series gives us ASL-calibration transform
+    calib2asl0 = asl2calib_mc[0].inverse()
+    asl_mc = rt.chain(asl2calib_mc, calib2asl0)
+
+    # Generate the gradient distortion correction warp 
+    gdc_path = op.join(distcorr_dir, 'fullWarp_abs.nii.gz')
+    if not op.exists(gdc_path) or force_refresh:
+        gdc = generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir)
+    gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
+            asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
+
+    # Stack the cblipped images together for use with topup 
+    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_id)
+    pa_ap_sefms = op.join(distcorr_dir, 'merged_sefms.nii.gz')
+    if not op.exists(pa_ap_sefms) or force_refresh:
+        rt.ImageSpace.save_like(pa_sefm, np.stack((
+                                nb.load(pa_sefm).get_data(), 
+                                nb.load(ap_sefm).get_data()), 
+                                axis=-1), 
+                                pa_ap_sefms)
+    topup_params = op.join(distcorr_dir, 'topup_params.txt')
+    topup_config = "b02b0.cnf"  # Note this file doesn't exist in scope, 
+                                # but topup knows where to find it 
+
+    # Generate fieldmaps for use with asl_reg (via topup)
+    fmap, fmapmag, fmapmagbrain = [ 
+        op.join(distcorr_dir, '{}.nii.gz'.format(s)) 
+        for s in [ 'fmap', 'fmapmag', 'fmapmagbrain' ]
+    ]          
+    if ((not all([ op.exists(p) for p in [fmap, fmapmag, fmapmagbrain] ]))
+         or force_refresh or True):                  
+        generate_fmaps(pa_ap_sefms, topup_params, topup_config, distcorr_dir)
+
+    # Initial (linear) asl to structural registration, via first round of asl_reg
+    asl2struct_initial_path = op.join(reg_dir, 'asl2struct.mat')
+    if not op.exists(asl2struct_initial_path) or force_refresh:
+        generate_asl2struct_initial(asl_vol0, reg_dir, struct, struct_brain)
+    asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
+                                                    src=asl, ref=struct)
+
+    # Get brain mask in asl space
+    asl_mask_path = op.join(reg_dir, "asl_vol1_mask.nii.gz")
+    if not op.exists(asl_mask_path) or force_refresh:
+        asl_mask = generate_asl_mask(struct_brain, asl_vol0, asl2struct_initial)
+        rt.ImageSpace.save_like(asl, asl_mask, asl_mask_path)
+        asl_mask = asl_mask_path
+
+    # Brain extract volume 0 of asl series 
+    asl_vol0_brain = op.join(sub_base, "ASL", "TIs", "STCorr", 
+                             "SecondPass", "tis_stcorr_vol1.nii.gz")
+    if not op.exists(asl_vol0_brain) or force_refresh:
+        bet(asl_vol0, asl_vol0_brain)
+
+    # Generate a binary WM mask in the space of the T1 (using FS' aparc+aseg)
+    wmmask = op.join(sub_base, "T1w", "wmmask.nii.gz")
+    if not op.exists(wmmask) or force_refresh:
+        aparc_seg = op.join(t1_dir, "aparc+aseg.nii.gz")
+        wmmask_img = generate_wmmask(aparc_seg)
+        rt.ImageSpace.save_like(struct, wmmask_img, wmmask)
+
+    # Generate the EPI distortion correction warp via asl_reg --final
+    epi_dc_path = op.join(distcorr_dir, 'asl2struct_warp.nii.gz')
+    if not op.exists(epi_dc_path) or force_refresh:
+        generate_epidc_warp(asl_vol0_brain, struct, struct_brain, 
+                            asl_mask_path, wmmask, asl2struct_initial, fmap, 
+                            fmapmag, fmapmagbrain, distcorr_dir)
+    epi_dc = rt.NonLinearRegistration.from_fnirt(epi_dc_path, 
+                asl_mask_path, struct, intensity_correct=True, 
+                constrain_jac=(0.01,100))
+
+    # Final ASL transforms: moco, grad dc, 
+    # epi dc (incorporating asl->struct reg)
+    asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
+    asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl_vol0, 
+                                                    ref=t1_asl_grid, 
+                                                    cores=mp.cpu_count())
+    asl_outpath = op.join(asl_out_dir, "tis_distcorr.nii.gz")
+    nb.save(asl_corrected, asl_outpath)
+
+    # Final calibration transforms: calib->asl, grad dc, 
+    # epi dc (incorporating asl->struct reg)
+    calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
+    calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
+                                                     ref=t1_asl_grid)
+    calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
+    nb.save(calib_corrected, calib_outpath)
+
+
+if __name__  == '__main__':
+
+    # study_dir = 'HCP_asl_min_req'
+    # sub_number = 'HCA6002236'
+    # grad_coefficients = 'HCP_asl_min_req/coeff_AS82_Prisma.grad'
+    # sys.argv[1:] = ('%s %s -g %s' % (study_dir, sub_number, grad_coefficients)).split()
+
     # argument handling
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -317,146 +353,6 @@ def main():
         help="Filename of the gradient coefficients for gradient"
             + "distortion correction (optional)."
     )
+
     args = parser.parse_args()
-    study_dir = args.study_dir
-    sub_num = args.sub_number
-    grad_coeffs = args.grads
-
-    oph = (study_dir + "/" + sub_num + "/ASL/TIs/DistCorr")
-    outdir = (study_dir + "/" + sub_num + "/T1w/ASL/reg")
-    pve_path = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs")
-    T1w_oph = (study_dir + "/" + sub_num + "/T1w/ASL/TIs/DistCorr")
-    T1w_cal_oph  = (study_dir + "/" + sub_num + "/T1w/ASL/Calib/Calib0/DistCorr")
-    need_dirs = [oph, outdir, pve_path, T1w_oph, T1w_cal_oph]
-    for req_dir in need_dirs:
-        Path(req_dir).mkdir(parents=True, exist_ok=True)
-
-    initial_wd = os.getcwd()
-    print("Pre-distortion correction working directory was: " + initial_wd)
-    print("Changing working directory to: " + oph)
-    os.chdir(oph)
-
-    # Generate ASL-gridded T1-aligned T1w image for use as a reg reference
-    t1 = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore.nii.gz")
-    t1_brain = (study_dir + "/" + sub_num + "/T1w/T1w_acpc_dc_restore_brain.nii.gz")
-
-    asl = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr.nii.gz") 
-    t1_asl_res = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz")
-
-    asl_v1 = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1.nii.gz")
-    first_asl_call = ("fslroi " + asl + " " + asl_v1 + " 0 1")
-    # print(first_asl_call)
-    sp.run(first_asl_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    print("Running regtricks bit")
-    t1_spc = rt.ImageSpace(t1)
-    asl_spc = rt.ImageSpace(asl_v1)
-    t1_spc_asl = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
-    r = rt.Registration.identity()
-    t1_asl = r.apply_to_image(t1, t1_spc_asl)
-    nb.save(t1_asl, t1_asl_res)
-    # Check .grad coefficients are available and call function to generate 
-    # GDC warp if they are:
-    if os.path.isfile(grad_coeffs):
-        calc_gdc_warp(asl_v1, grad_coeffs, oph)
-    else:
-        print("Gradient coefficients not available")
-
-    print("Changing back to original working directory: " + initial_wd)
-    os.chdir(initial_wd)
-
-    # output file of topup parameters to subject's distortion correction dir
-    pars_filepath = (oph + "/topup_params.txt")
-    produce_topup_params(pars_filepath)
-
-    # generate EPI distortion correction fieldmaps for use in asl_reg
-    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_num)
-    pa_ap_sefms = (oph + "/merged_sefms.nii.gz")
-    cnf_file = "b02b0.cnf"
-    out_basename = (oph + "/topup_result")
-    topup_fmap = (oph + "/topup_result_fmap_hz.nii.gz")
-    fmap_rads = (oph + "/fmap_rads.nii.gz")
-    fmapmag = (oph + "/fmapmag.nii.gz")
-    fmapmagbrain = (oph + "/fmapmag_brain.nii.gz")
-    calc_fmaps(pa_sefm, ap_sefm, pa_ap_sefms, pars_filepath, cnf_file, oph, out_basename, topup_fmap, 
-                fmap_rads, fmapmag, fmapmagbrain)
-    
-    # Calculate initial linear transformation from ASL-space to T1w-space
-    asl_v1_brain = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/tis_stcorr_vol1_brain.nii.gz")
-    bet_regfrom_call = ("bet " + asl_v1 + " " + asl_v1_brain)
-    # print(bet_regfrom_call)
-    sp.run(bet_regfrom_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    gen_initial_trans(asl_v1_brain, outdir, t1, t1_brain)
-
-    # Generate a brain mask in the space of the 1st ASL volume
-    asl2struct = (outdir + "/asl2struct.mat")
-    t1_brain_mask = (outdir + "/T1w_acpc_dc_restore_brain_mask.nii.gz")
-    asl_mask = (outdir + "/asl_vol1_mask.nii.gz")
-    struct2asl = (outdir + "/struct2asl.mat")
-
-    gen_asl_mask(t1_brain, t1_brain_mask, asl_v1_brain, asl2struct, asl_mask,
-                struct2asl)
-
-    # brain mask
-    t1_mask = (study_dir + "/" + sub_num + "/T1w/ASL/reg/T1w_acpc_dc_restore_brain_mask.nii.gz")
-    t1_asl_mask_name = (study_dir + "/" + sub_num + "/T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
-    t1_mask_spc = rt.ImageSpace(t1_mask)
-    t1_mask_spc_asl = t1_mask_spc.resize_voxels(asl_spc.vox_size / t1_mask_spc.vox_size)
-    r = rt.Registration.identity()
-    t1_mask_asl = r.apply_to_image(t1_mask, t1_mask_spc_asl)
-    fslmaths(t1_mask_asl).thr(0.5).bin().run(t1_asl_mask_name)
-    
-    # Generate PVEs
-    aparc_aseg = (study_dir + "/" + sub_num + "/T1w/aparc+aseg.nii.gz")
-    pve_files = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/pve")
-    gen_pves(Path(t1).parent, asl, pve_files)
-
-    # Generate WM mask
-    pvwm = (pve_files + "_WM.nii.gz")
-    tissseg = (study_dir + "/" + sub_num + "/T1w/ASL/PVEs/wm_mask.nii.gz")
-    gen_wm_mask(pvwm, tissseg)
-    
-
-    # Calculate the overall distortion correction warp
-    asl2str_trans = (outdir + "/asl2struct.mat")
-    gdc_warp = (oph + "/gdc_warp.nii.gz")
-    calc_distcorr_warp(asl_v1_brain, oph, t1, t1_brain, asl_mask, tissseg,
-                        asl2str_trans, fmap_rads, fmapmag, fmapmagbrain, t1_asl_res,
-                        gdc_warp)
-
-    # Calculate the Jacobian of the distortion correction warp 
-    calc_warp_jacobian(oph)
-
-    # apply the combined distortion correction warp with motion correction
-    # to move asl data, calibrationn images, and scaling factors into 
-    # ASL-gridded T1w-aligned space
-    
-    asl_distcorr = (T1w_oph + "/tis_distcorr.nii.gz")
-    moco_xfms = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2asl0.mat") #will this work?
-    concat_xfms = str(Path(moco_xfms).parent / f'{Path(moco_xfms).stem}.cat')
-    # concatenate xfms like in oxford_asl
-    concat_call = f'cat {moco_xfms}/MAT* > {concat_xfms}'
-    sp.run(concat_call, shell=True)
-    # only correcting and transforming the 1st of the calibration images at the moment
-    calib_orig = (study_dir + "/" + sub_num + "/ASL/Calib/Calib0/MTCorr/calib0_mtcorr.nii.gz")
-    calib_distcorr = (study_dir + "/" + sub_num + "/T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz")
-    calib_inv_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/asln2m0.mat/MAT_0000")
-    calib_xfm = (study_dir + "/" + sub_num + "/ASL/TIs/MoCo/calibTOasl1.mat")
-
-    sfacs_orig = (study_dir + "/" + sub_num + "/ASL/TIs/STCorr/SecondPass/combined_scaling_factors.nii.gz")
-    sfacs_distcorr = (T1w_oph + "/combined_scaling_factors.nii.gz")
-
-    invert_call = ("convert_xfm -omat " + calib_xfm + " -inverse " + calib_inv_xfm)
-    # print(invert_call)
-    sp.run(invert_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
-
-    apply_distcorr_warp(asl, t1_asl_res, asl_distcorr, oph,
-                        concat_xfms, calib_orig, calib_distcorr, calib_xfm, sfacs_orig,
-                        sfacs_distcorr)
-
-    
-
-
-if __name__ == "__main__":
-    main()
+    main(args.study_dir, args.sub_number, args.grads)
