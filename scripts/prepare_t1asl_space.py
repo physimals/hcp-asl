@@ -29,9 +29,8 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
         aseg == 4   # right ventricle 
     ) 
 
-    # 2 rounds of erosion in t1 space for safety 
-    for _ in range(1):
-        vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
+    # erosion in t1 space for safety 
+    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
 
     # Resample to target space, re-threshold
     output = rt.Registration.identity().apply_to_array(
