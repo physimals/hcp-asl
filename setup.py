@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'hcp_asl = scripts.run_pipeline:main',
             'hcp_asl_distcorr = scripts.distcorr_warps:main',
+            'pv_est = scripts.prepare_t1asl_space:main',
             'get_updated_fabber = scripts.get_updated_fabber:main',
         ]
     }

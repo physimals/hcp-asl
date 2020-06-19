@@ -6,6 +6,7 @@ import glob
 import tempfile 
 from pathlib import Path
 import multiprocessing as mp 
+import argparse
 
 import regtricks as rt
 import nibabel as nb
@@ -15,8 +16,6 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
-
-import argparse
 
 def find_field_maps(study_dir, subject_number):
     """
@@ -92,29 +91,6 @@ def generate_wmmask(aparc_aseg):
     aseg_array = nb.load(aparc_aseg).get_data()
     wm = np.logical_or(aseg_array == 41, aseg_array == 2)
     return wm 
-  
-def gen_vent_csf_mask(aparc_aseg, csf_pve, outname, target_img):
-    # get ventricles mask from aparc+aseg image
-    aparc_aseg = Image(aparc_aseg)
-    vent_mask = (
-        np.where(aparc_aseg.data == 43, 1, 0) # left ventricle mask
-      + np.where(aparc_aseg.data == 4, 1, 0) # right ventricle mask
-    )
-    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask).astype(aparc_aseg.data.dtype)
-    vent_mask = Image(vent_mask, header=aparc_aseg.header)
-    # downsample to target space
-    r = rt.Registration.identity()
-    aslt1_vent_mask = r.apply_to_image(vent_mask, target_img)
-    # re-threshold
-    aslt1_vent_mask_data = np.where(aslt1_vent_mask.data>=0.5, 1, 0)
-    # load csf pve
-    csf_pve_img = Image(csf_pve)
-    csf_mask = np.where(csf_pve_img.data>=0.9, 1, 0)
-    # multiply masks
-    vent_csf_mask = csf_mask * aslt1_vent_mask_data
-    # save to outname
-    aslt1_vent_csf_mask = Image(vent_csf_mask, header=aslt1_vent_mask.header)
-    aslt1_vent_csf_mask.save(outname)  
 
 def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir): 
     """
