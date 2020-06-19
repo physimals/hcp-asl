@@ -225,10 +225,10 @@ def main(study_dir, sub_id, grad_coefficients):
     grad_coefficients = op.abspath(grad_coefficients)
     pvs_dir = op.join(sub_base, "T1w", "ASL", "PVEs")
     t1_asl_dir = op.join(sub_base, "T1w", "ASL")
-    distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
+    distcorr_dir = op.join(sub_base, "ASL", "TIs", "SecondPass", "DistCorr")
     reg_dir = op.join(sub_base, 'T1w', 'ASL', 'reg')
     t1_dir = op.join(sub_base, "T1w")
-    asl_dir = op.join(sub_base, "ASL", "TIs", "STCorr", "SecondPass")
+    asl_dir = op.join(sub_base, "ASL", "TIs", "SecondPass", "STCorr2")
     asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
     calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr")
     [ os.makedirs(d, exist_ok=True) 
@@ -258,7 +258,7 @@ def main(study_dir, sub_id, grad_coefficients):
     # MCFLIRT ASL using the calibration as reference 
     calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'calib0.nii.gz')
     asl = op.join(sub_base, 'ASL', 'TIs', 'tis.nii.gz')
-    mcdir = op.join(sub_base, 'ASL', 'TIs', 'MoCo', 'asl2calib.mat')
+    mcdir = op.join(sub_base, 'ASL', 'TIs', 'SecondPass', 'MoCo', 'asln2m0.mat')
     if not op.exists(mcdir) or force_refresh:
         asl2calib_mc = rt.mcflirt(asl, reffile=calib)
         asl2calib_mc.save_fsl(mcdir, asl, calib)
@@ -314,8 +314,8 @@ def main(study_dir, sub_id, grad_coefficients):
         asl_mask = asl_mask_path
 
     # Brain extract volume 0 of asl series 
-    asl_vol0_brain = op.join(sub_base, "ASL", "TIs", "STCorr", 
-                             "SecondPass", "tis_stcorr_vol1.nii.gz")
+    asl_vol0_brain = op.join(sub_base, "ASL", "TIs", "SecondPass", 
+                            "STCorr2", "tis_stcorr_vol1.nii.gz")
     if not op.exists(asl_vol0_brain) or force_refresh:
         bet(asl_vol0, asl_vol0_brain)
 
