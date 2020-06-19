@@ -5,7 +5,7 @@ import os.path as op
 import glob 
 import tempfile 
 from pathlib import Path
-import multiprocessing as mp 
+import multiprocessing as mp
 import argparse
 
 import regtricks as rt
@@ -190,7 +190,29 @@ def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
     sp.run(cmd, shell=True)
 
 
-def main(study_dir, sub_id, grad_coefficients):
+def main():
+
+    # argument handling
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "study_dir",
+        help="Path of the base study directory."
+    )
+    parser.add_argument(
+        "sub_number",
+        help="Subject number."
+    )
+    parser.add_argument(
+        "-g",
+        "--grads",
+        help="Filename of the gradient coefficients for gradient"
+            + "distortion correction (optional)."
+    )
+
+    args = parser.parse_args()
+    study_dir = args.study_dir
+    sub_id = args.sub_number
+    grad_coefficients = args.grads
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -219,6 +241,7 @@ def main(study_dir, sub_id, grad_coefficients):
     asl_vol0 = op.join(asl_dir, "tis_stcorr_vol1.nii.gz")
     if not op.exists(asl_vol0) or force_refresh:
         cmd = "fslroi {} {} 0 1".format(asl, asl_vol0)
+        sp.run(cmd.split(" "), check=True)
 
     # Create ASL-gridded version of T1 image 
     t1_asl_grid = op.join(t1_dir, "ASL", "reg", 
@@ -336,23 +359,4 @@ if __name__  == '__main__':
     # sub_number = 'HCA6002236'
     # grad_coefficients = 'HCP_asl_min_req/coeff_AS82_Prisma.grad'
     # sys.argv[1:] = ('%s %s -g %s' % (study_dir, sub_number, grad_coefficients)).split()
-
-    # argument handling
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "study_dir",
-        help="Path of the base study directory."
-    )
-    parser.add_argument(
-        "sub_number",
-        help="Subject number."
-    )
-    parser.add_argument(
-        "-g",
-        "--grads",
-        help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
-    )
-
-    args = parser.parse_args()
-    main(args.study_dir, args.sub_number, args.grads)
+    main()

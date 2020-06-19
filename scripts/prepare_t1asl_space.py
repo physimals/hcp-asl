@@ -29,9 +29,8 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
         aseg == 4   # right ventricle 
     ) 
 
-    # 2 rounds of erosion in t1 space for safety 
-    for _ in range(1):
-        vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
+    # erosion in t1 space for safety 
+    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
 
     # Resample to target space, re-threshold
     output = rt.Registration.identity().apply_to_array(
@@ -73,7 +72,22 @@ def estimate_pvs(t1_dir, t1_asl):
     return pvs_stacked
 
 
-def main(study_dir, sub_id):
+def main():
+
+    # argument handling
+    parser = argparse.ArgumentParser(description="Create T1-ASL space, estimate PVs, generate CSF ventricle mask")
+    parser.add_argument(
+        "study_dir",
+        help="Path of the base study directory."
+    )
+    parser.add_argument(
+        "sub_number",
+        help="Subject number."
+    )
+
+    args = parser.parse_args()
+    study_dir = args.study_dir
+    sub_id = args.sub_number
 
     # for debug, re-use intermediate results
     force_refresh = True 
@@ -120,17 +134,4 @@ if __name__ == "__main__":
     # study_dir = 'HCP_asl_min_req'
     # sub_number = 'HCA6002236'
     # sys.argv[1:] = ('%s %s' % (study_dir, sub_number)).split()
-
-    # argument handling
-    parser = argparse.ArgumentParser(description="Create T1-ASL space, estimate PVs, generate CSF ventricle mask")
-    parser.add_argument(
-        "study_dir",
-        help="Path of the base study directory."
-    )
-    parser.add_argument(
-        "sub_number",
-        help="Subject number."
-    )
-
-    args = parser.parse_args()
-    main(args.study_dir, args.sub_number)
+    main()
