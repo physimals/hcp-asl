@@ -40,6 +40,12 @@ def process_subject(subject_dir, mt_factors, cores, order, gradients=None):
         dist_corr_call.append('--grads')
         dist_corr_call.append(gradients)
     subprocess.run(dist_corr_call, check=True)
+    pv_est_call = [
+        "pv_est",
+        str(subject_dir.parent),
+        subject_dir.stem
+    ]
+    subprocess.run(pv_est_call, check=True)
     tag_control_differencing(subject_dir)
     run_oxford_asl(subject_dir)
     project_to_surface(subject_dir)
