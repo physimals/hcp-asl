@@ -90,7 +90,7 @@ def main(study_dir, sub_id):
         asl_spc = rt.ImageSpace(asl)
         t1_spc = rt.ImageSpace(struct)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
-        nb.save(
+        nib.save(
             rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
             t1_asl_grid)
 
