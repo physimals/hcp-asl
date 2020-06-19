@@ -227,7 +227,7 @@ def main():
     reg_dir = op.join(sub_base, 'T1w', 'ASL', 'reg')
     t1_dir = op.join(sub_base, "T1w")
     asl_dir = op.join(sub_base, "ASL", "TIs", "SecondPass", "STCorr2")
-    asl_out_dir = op.join(t1_asl_dir, "TIs", "SecondPass", "DistCorr")
+    asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
     calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr")
     [ os.makedirs(d, exist_ok=True) 
         for d in [pvs_dir, t1_asl_dir, distcorr_dir, reg_dir, 
