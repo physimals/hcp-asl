@@ -5,7 +5,7 @@ import os.path as op
 import glob 
 import tempfile 
 from pathlib import Path
-import multiprocessing as mp 
+import multiprocessing as mp
 import argparse
 
 import regtricks as rt
@@ -219,6 +219,7 @@ def main(study_dir, sub_id, grad_coefficients):
     asl_vol0 = op.join(asl_dir, "tis_stcorr_vol1.nii.gz")
     if not op.exists(asl_vol0) or force_refresh:
         cmd = "fslroi {} {} 0 1".format(asl, asl_vol0)
+        sp.run(cmd.split(" "), check=True)
 
     # Create ASL-gridded version of T1 image 
     t1_asl_grid = op.join(t1_dir, "ASL", "reg", 
