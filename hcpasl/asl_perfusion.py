@@ -13,7 +13,7 @@ def run_oxford_asl(subject_dir):
     oxford_dir = structasl_dir / 'TIs/OxfordASL'
     pvgm_name = structasl_dir / 'PVEs/pve_GM.nii.gz'
     pvwm_name = structasl_dir / 'PVEs/pve_WM.nii.gz'
-    csf_mask_name = structasl_dir / 'PVEs/pvevent_csf_mask.nii.gz'
+    csf_mask_name = structasl_dir / 'PVEs/vent_csf_mask.nii.gz'
     calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
     brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
     cmd = [
