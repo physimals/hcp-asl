@@ -92,6 +92,16 @@ def generate_wmmask(aparc_aseg):
     wm = np.logical_or(aseg_array == 41, aseg_array == 2)
     return wm 
 
+def generate_topup_params(pars_filepath):
+    """
+    Generate a file containing the parameters used by topup
+    """
+    if os.path.isfile(pars_filepath):
+        os.remove(pars_filepath)
+    with open(pars_filepath, "a") as t_pars:
+        t_pars.write("0 1 0 0.04845" + "\n")
+        t_pars.write("0 -1 0 0.04845")
+
 def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir): 
     """
     Generate fieldmaps via topup for use with asl_reg. 
@@ -189,6 +199,20 @@ def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
            + "--fmapmagbrain={} --pedir=y --echospacing=0.00057 ".format(fmapmagbrain))
     sp.run(cmd, shell=True)
 
+def binarise_image(image, threshold=0):
+    """
+    Binarise image above a threshold if given.
+
+    Args:
+        image: path to the image to be binarised
+        threshold: voxels with a value below this will be zero and above will be one
+    
+    Returns:
+        np.array, logical mask
+    """
+    image = Image(image)
+    mask = (image.data>0).astype(np.float32)
+    return mask
 
 def main():
 
@@ -253,9 +277,24 @@ def main():
         nb.save(
             rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
             t1_asl_grid)
+    
+    # Create ASL-gridded version of T1 image
+    t1_asl_grid_mask = op.join(reg_dir, "ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
+    if not op.exists(t1_asl_grid_mask) or force_refresh:
+        asl_spc = rt.ImageSpace(asl)
+        t1_spc = rt.ImageSpace(struct_brain)
+        t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
+        t1_mask = binarise_image(struct_brain)
+        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
+                                                        t1_spc, t1_asl_grid_spc)
+        # re-binarise downsampled mask and save
+        t1_mask_asl_grid = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
+        t1_asl_header = Image(t1_asl_grid).header
+        t1_asl_grid_mask_img = Image(t1_mask_asl_grid, header=t1_asl_header)
+        t1_asl_grid_mask_img.save(t1_asl_grid_mask)
 
     # MCFLIRT ASL using the calibration as reference 
-    calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'calib0.nii.gz')
+    calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
     asl = op.join(sub_base, 'ASL', 'TIs', 'tis.nii.gz')
     mcdir = op.join(sub_base, 'ASL', 'TIs', 'SecondPass', 'MoCo', 'asln2m0.mat')
     if not op.exists(mcdir) or force_refresh:
@@ -286,6 +325,7 @@ def main():
                                 axis=-1), 
                                 pa_ap_sefms)
     topup_params = op.join(distcorr_dir, 'topup_params.txt')
+    generate_topup_params(topup_params)
     topup_config = "b02b0.cnf"  # Note this file doesn't exist in scope, 
                                 # but topup knows where to find it 
 
@@ -337,8 +377,9 @@ def main():
 
     # Final ASL transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
+    asl = op.join(asl_dir, "tis_stcorr.nii.gz")
     asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
-    asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl_vol0, 
+    asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl, 
                                                     ref=t1_asl_grid, 
                                                     cores=mp.cpu_count())
     asl_outpath = op.join(asl_out_dir, "tis_distcorr.nii.gz")
@@ -351,6 +392,15 @@ def main():
                                                      ref=t1_asl_grid)
     calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
     nb.save(calib_corrected, calib_outpath)
+
+    # Final scaling factors transforms: moco, grad dc, 
+    # epi dc (incorporating asl->struct reg)
+    sfs_name = op.join(asl_dir, "combined_scaling_factors.nii.gz")
+    sfs_corrected = asl2struct_mc_dc.apply_to_image(src=sfs_name, 
+                                                    ref=t1_asl_grid, 
+                                                    cores=mp.cpu_count())
+    sfs_outpath = op.join(asl_out_dir, "combined_scaling_factors.nii.gz")
+    nb.save(sfs_corrected, sfs_outpath)
 
 
 if __name__  == '__main__':
