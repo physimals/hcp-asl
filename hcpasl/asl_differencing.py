@@ -17,12 +17,15 @@ from pathlib import Path
 import subprocess
 import numpy as np
 
-def tag_control_differencing(subject_dir):
+def tag_control_differencing(subject_dir, target='structural'):
     # load subject's json
     json_dict = load_json(subject_dir)
 
     # load motion- and distortion- corrected data, Y_moco
-    distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
+    if target == 'asl':
+        distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
+    else:
+        distcorr_dir = Path(json_dict['TIs_dir']) / 'SecondPass/DistCorr'
     Y_moco_name = distcorr_dir / 'tis_distcorr.nii.gz'
     Y_moco = Image(str(Y_moco_name))
 
@@ -46,7 +49,7 @@ def tag_control_differencing(subject_dir):
     B_baseline = (X_odd*Y_even - X_even*Y_odd) / (X_odd - X_even)
 
     # save both images
-    beta_dir_name = Path(json_dict['structasl']) / 'TIs/Betas'
+    beta_dir_name = distcorr_dir.parent / 'Betas'
     create_dirs([beta_dir_name, ])
     B_perf_name = beta_dir_name / 'beta_perf.nii.gz'
     B_perf_img = Image(B_perf, header=Y_moco.header)
