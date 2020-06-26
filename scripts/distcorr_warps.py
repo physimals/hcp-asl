@@ -232,14 +232,30 @@ def main():
         help="Filename of the gradient coefficients for gradient"
             + "distortion correction (optional)."
     )
+    parser.add_argument(
+        "-t",
+        "--target",
+        help="Which space we want to register to. Can be either 'asl' for "
+            + "registration to the first volume of the ASL series or "
+            + "'structural' for registration to the T1w image. Default "
+            + " is 'structural.",
+        default="structural"
+    )
 
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_number
     grad_coefficients = args.grads
+    target = args.target
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
+
+    # need to refresh files first iteration, i.e. when target='asl'
+    if target == 'asl':
+        force_refresh = True
+    elif target == 'structural':
+        force_refresh = False
 
     # Input, output and intermediate directories
     # Create if they do not already exist. 
@@ -338,25 +354,43 @@ def main():
          or force_refresh or True):                  
         generate_fmaps(pa_ap_sefms, topup_params, topup_config, distcorr_dir)
 
+    # get linear registration from asl to structural
+    if target == 'asl':
+        unreg_img = asl_vol0
+    elif target == 'structural':
+        # register perfusion-weighted image to structural instead of asl 0
+        unreg_img = op.join(distcorr_dir, "OxfordASL", "native_space", 
+                            "perfusion.nii.gz")
+    
     # Initial (linear) asl to structural registration, via first round of asl_reg
     asl2struct_initial_path = op.join(reg_dir, 'asl2struct.mat')
     if not op.exists(asl2struct_initial_path) or force_refresh:
-        generate_asl2struct_initial(asl_vol0, reg_dir, struct, struct_brain)
+        generate_asl2struct_initial(unreg_img, reg_dir, struct, struct_brain)
     asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
                                                     src=asl, ref=struct)
+    # rename linear .mat so it isn't overwritten
+    os.replace(
+        asl2struct_initial_path,
+        op.join(reg_dir, 'asl2struct_init.mat' if target=='asl' else 'asl2struct_final.mat')
+    )
 
     # Get brain mask in asl space
-    asl_mask_path = op.join(reg_dir, "asl_vol1_mask.nii.gz")
-    if not op.exists(asl_mask_path) or force_refresh:
+    if target == 'asl':
+        mask_name = op.join(reg_dir, "asl_vol1_mask_init.nii.gz")
+    else:
+        mask_name = op.join(reg_dir, "asl_vol1_mask_final.nii.gz")
+    if not op.exists(mask_name) or force_refresh:
         asl_mask = generate_asl_mask(struct_brain, asl_vol0, asl2struct_initial)
-        rt.ImageSpace.save_like(asl, asl_mask, asl_mask_path)
-        asl_mask = asl_mask_path
+        rt.ImageSpace.save_like(asl, asl_mask, mask_name)
 
     # Brain extract volume 0 of asl series 
-    asl_vol0_brain = op.join(sub_base, "ASL", "TIs", "SecondPass", 
-                            "STCorr2", "tis_stcorr_vol1.nii.gz")
-    if not op.exists(asl_vol0_brain) or force_refresh:
-        bet(asl_vol0, asl_vol0_brain)
+    if target == 'asl':
+        unreg_img_brain = op.join(sub_base, "ASL", "TIs", "SecondPass", 
+                                "STCorr2", "tis_stcorr_vol1.nii.gz")
+        if not op.exists(unreg_img_brain) or force_refresh:
+            bet(asl_vol0, unreg_img_brain)
+    else:
+        unreg_img_brain = unreg_img
 
     # Generate a binary WM mask in the space of the T1 (using FS' aparc+aseg)
     wmmask = op.join(sub_base, "T1w", "wmmask.nii.gz")
@@ -368,30 +402,34 @@ def main():
     # Generate the EPI distortion correction warp via asl_reg --final
     epi_dc_path = op.join(distcorr_dir, 'asl2struct_warp.nii.gz')
     if not op.exists(epi_dc_path) or force_refresh:
-        generate_epidc_warp(asl_vol0_brain, struct, struct_brain, 
-                            asl_mask_path, wmmask, asl2struct_initial, fmap, 
+        generate_epidc_warp(unreg_img_brain, struct, struct_brain, 
+                            mask_name, wmmask, asl2struct_initial, fmap, 
                             fmapmag, fmapmagbrain, distcorr_dir)
     epi_dc = rt.NonLinearRegistration.from_fnirt(epi_dc_path, 
-                asl_mask_path, struct, intensity_correct=True, 
+                mask_name, struct, intensity_correct=True, 
                 constrain_jac=(0.01,100))
+    if target == 'asl':
+        epi_dc = rt.chain(epi_dc, asl2struct_initial.inverse())
 
     # Final ASL transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
+    distcorr_out_dir = asl_out_dir if target=='structural' else distcorr_dir
     asl = op.join(asl_dir, "tis_stcorr.nii.gz")
     asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
     asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl, 
                                                     ref=t1_asl_grid, 
                                                     cores=mp.cpu_count())
-    asl_outpath = op.join(asl_out_dir, "tis_distcorr.nii.gz")
+    asl_outpath = op.join(distcorr_out_dir, "tis_distcorr.nii.gz")
     nb.save(asl_corrected, asl_outpath)
 
     # Final calibration transforms: calib->asl, grad dc, 
     # epi dc (incorporating asl->struct reg)
-    calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
-    calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
-                                                     ref=t1_asl_grid)
-    calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
-    nb.save(calib_corrected, calib_outpath)
+    if target == 'structural':
+        calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
+        calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
+                                                        ref=t1_asl_grid)
+        calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
+        nb.save(calib_corrected, calib_outpath)
 
     # Final scaling factors transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
@@ -399,7 +437,7 @@ def main():
     sfs_corrected = asl2struct_mc_dc.apply_to_image(src=sfs_name, 
                                                     ref=t1_asl_grid, 
                                                     cores=mp.cpu_count())
-    sfs_outpath = op.join(asl_out_dir, "combined_scaling_factors.nii.gz")
+    sfs_outpath = op.join(distcorr_out_dir, "combined_scaling_factors.nii.gz")
     nb.save(sfs_corrected, sfs_outpath)
 
 
