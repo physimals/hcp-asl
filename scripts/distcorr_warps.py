@@ -287,11 +287,9 @@ def main():
         t1_mask = binarise_image(struct_brain)
         t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
                                                         t1_spc, t1_asl_grid_spc)
-        # re-binarise downsampled mask and save
-        t1_mask_asl_grid = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
-        t1_asl_header = Image(t1_asl_grid).header
-        t1_asl_grid_mask_img = Image(t1_mask_asl_grid, header=t1_asl_header)
-        t1_asl_grid_mask_img.save(t1_asl_grid_mask)
+        # Re-binarise downsampled mask and save
+        t1_asl_grid_mask_array = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
+        t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
 
     # MCFLIRT ASL using the calibration as reference 
     calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
