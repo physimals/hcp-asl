@@ -22,7 +22,7 @@ def tag_control_differencing(subject_dir, target='structural'):
     json_dict = load_json(subject_dir)
 
     # load motion- and distortion- corrected data, Y_moco
-    if target == 'asl':
+    if target == 'structural':
         distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
     else:
         distcorr_dir = Path(json_dict['TIs_dir']) / 'SecondPass/DistCorr'

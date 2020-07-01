@@ -31,24 +31,28 @@ def process_subject(subject_dir, mt_factors, cores, order, gradients=None):
     initial_processing(subject_dir)
     correct_M0(subject_dir, mt_factors)
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
-    dist_corr_call = [
-        "hcp_asl_distcorr",
-        str(subject_dir.parent),
-        subject_dir.stem
-    ]
-    if gradients:
-        dist_corr_call.append('--grads')
-        dist_corr_call.append(gradients)
-    subprocess.run(dist_corr_call, check=True)
-    pv_est_call = [
-        "pv_est",
-        str(subject_dir.parent),
-        subject_dir.stem
-    ]
-    subprocess.run(pv_est_call, check=True)
-    tag_control_differencing(subject_dir)
-    run_oxford_asl(subject_dir)
-    project_to_surface(subject_dir)
+    for target in ('asl', 'structural'):
+        dist_corr_call = [
+            "hcp_asl_distcorr",
+            str(subject_dir.parent),
+            subject_dir.stem,
+            "--target",
+            target
+        ]
+        if gradients:
+            dist_corr_call.append('--grads')
+            dist_corr_call.append(gradients)
+        subprocess.run(dist_corr_call, check=True)
+        if target == 'structural':
+            pv_est_call = [
+                "pv_est",
+                str(subject_dir.parent),
+                subject_dir.stem
+            ]
+            subprocess.run(pv_est_call, check=True)
+        tag_control_differencing(subject_dir, target=target)
+        run_oxford_asl(subject_dir, target=target)
+        project_to_surface(subject_dir, target=target)
 
 def main():
     # argument handling
