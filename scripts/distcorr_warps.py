@@ -214,6 +214,29 @@ def binarise_image(image, threshold=0):
     mask = (image.data>0).astype(np.float32)
     return mask
 
+def create_ti_image(asl, tis, sliceband, slicedt, outname):
+    """
+    Create a 4D series of actual TIs at each voxel.
+
+    Args:
+        asl: path to image in the space we wish to create the TI series
+        tis: list of TIs in the acquisition
+        sliceband: number of slices per band in the acquisition
+        slicedt: time taken to acquire each slice
+        outname: path to which the ti image is saved
+    
+    Returns:
+        n/a, file outname is created in output directory
+    """
+
+    asl_spc = rt.ImageSpace(asl)
+    n_slice = asl_spc.size[2]
+    slice_in_band = np.tile(np.arange(0, sliceband), 
+                            n_slice//sliceband).reshape(1, 1, n_slice, 1)
+    ti_array = np.array([np.tile(x, asl_spc.size) for x in tis]).transpose(1, 2, 3, 0)
+    ti_array = ti_array + (slice_in_band * slicedt)
+    rt.ImageSpace.save_like(asl, ti_array, outname)
+
 def main():
 
     # argument handling
@@ -455,6 +478,24 @@ def main():
                                                         cores=mp.cpu_count())
         nb.save(sfs_corrected, sfs_outpath)
 
+    # create ti image in asl space
+    slicedt = 0.059
+    tis = [1.7, 2.2, 2.7, 3.2, 3.7]
+    sliceband = 10
+    ti_asl = op.join(sub_base, "ASL", "TIs", "timing_img.nii.gz")
+    if (not op.exists(ti_asl) or force_refresh) and target=='asl':
+        create_ti_image(asl, tis, sliceband, slicedt, ti_asl)
+    
+    # transform ti image into t1 space
+    ti_t1 = op.join(t1_asl_dir, "timing_img.nii.gz")
+    if (not op.exists(ti_t1) or force_refresh) and target=='structural':
+        asl2struct = op.join(distcorr_dir, "asl2struct.mat")
+        asl2struct = rt.Registration.from_flirt(asl2struct,
+                                                src=asl,
+                                                ref=struct)
+        ti_t1_img = asl2struct.apply_to_image(src=ti_asl,
+                                              ref=reference)
+        nb.save(ti_t1_img, ti_t1)
 
 if __name__  == '__main__':
 
