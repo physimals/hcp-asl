@@ -361,16 +361,16 @@ def main():
         nb.save(gdc_tis_vol1, unreg_img)
 
     # Initial (linear) asl to structural registration, via first round of asl_reg
-    asl2struct_initial_path = op.join(reg_dir, 'asl2struct.mat')
-    asl2struct_initial_path
-    generate_asl2struct_initial(unreg_img, reg_dir, struct, struct_brain)
+    asl2struct_initial_path = op.join(
+        reg_dir, 
+        'asl2struct_init.mat' if target=='asl' else 'asl2struct_final.mat'
+    )
+    if not op.exists(asl2struct_initial_path) or force_refresh:
+        generate_asl2struct_initial(unreg_img, reg_dir, struct, struct_brain)
+        asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct.mat')
+        os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
     asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
                                                     src=unreg_img, ref=struct)
-    # rename linear .mat so it isn't overwritten
-    os.replace(
-        asl2struct_initial_path,
-        op.join(reg_dir, 'asl2struct_init.mat' if target=='asl' else 'asl2struct_final.mat')
-    )
 
     # Get brain mask in asl space
     if target == 'asl':
