@@ -42,6 +42,7 @@ import shutil
 import subprocess
 import numpy as np
 import regtricks as rt
+import multiprocessing as mp
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
     """
     Runs fabber's saturation recovery model on the given sequence 
@@ -291,7 +292,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=1, order=3):
+def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), order=3):
     """
     This function performs the full motion-correction pipeline for 
     the HCP ASL data. The steps of the pipeline include:
