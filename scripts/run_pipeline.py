@@ -14,7 +14,7 @@ from hcpasl.initial_bookkeeping import initial_processing
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.asl_perfusion import run_oxford_asl
+from hcpasl.asl_perfusion import run_fabber_asl, run_oxford_asl
 from hcpasl.projection import project_to_surface
 from pathlib import Path
 import subprocess
@@ -51,7 +51,10 @@ def process_subject(subject_dir, mt_factors, cores, order, gradients=None):
             ]
             subprocess.run(pv_est_call, check=True)
         tag_control_differencing(subject_dir, target=target)
-        run_oxford_asl(subject_dir, target=target)
+        if target == 'asl':
+            run_oxford_asl(subject_dir, target=target)
+        else:
+            run_fabber_asl(subject_dir, target=target)
         project_to_surface(subject_dir, target=target)
 
 def main():
