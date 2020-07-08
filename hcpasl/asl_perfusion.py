@@ -100,23 +100,24 @@ def run_oxford_asl(subject_dir, target='structural'):
         "--casl",
         "--ibf=tis",
         "--iaf=diff",
-        "--tis=1.7,2.2,2.7,3.2,3.7",
         "--rpts=6,6,6,10,15",
         "--fixbolus",
         "--bolus=1.5",
         "--te=19",
         "--debug",
-        "--spatial=off",
-        "--slicedt=0.059",
-        "--sliceband=10"
+        "--spatial=off"
     ]
-    # directory for oxford_asl results
+
+    # additional run-specific options
     if target == 'asl':
         oxford_dir = Path(json_dict['TIs_dir']) / 'SecondPass/OxfordASL'
         brain_mask = Path(json_dict['structasl']) / 'reg/asl_vol1_mask_init.nii.gz'
         extra_args = [
             f"-o {str(oxford_dir)}",
-            f"-m {str(brain_mask)}"
+            f"-m {str(brain_mask)}",
+            "--tis=1.7,2.2,2.7,3.2,3.7",
+            "--slicedt=0.059",
+            "--sliceband=10"
         ]
     else:
         structasl_dir = Path(json_dict['structasl'])
@@ -126,16 +127,17 @@ def run_oxford_asl(subject_dir, target='structural'):
         csf_mask_name = structasl_dir / 'PVEs/vent_csf_mask.nii.gz'
         calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
         brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+        timing_image = structasl_dir / 'timing_img.nii.gz'
         extra_args = [
             f"-o {str(oxford_dir)}",
             f"--pvgm={str(pvgm_name)}",
             f"--pvwm={str(pvwm_name)}",
             f"--csf={str(csf_mask_name)}",
             f"-c {str(calib_name)}",
-            f"-m {str(brain_mask)}"
+            f"-m {str(brain_mask)}",
+            f"--tiimg={timing_image}"
             ]
-    for extra_arg in extra_args:
-        cmd.append(extra_arg)
+    cmd = cmd + extra_args
     print(" ".join(cmd))
     subprocess.run(" ".join(cmd), shell=True)
 

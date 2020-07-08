@@ -14,12 +14,8 @@ def project_to_surface(subject_dir, target='structural'):
 
     # perfusion calib and variance calib
     oxasl_dir = Path(json_dict['oxford_asl'])
-    if target == 'structural':
-        pc_name = oxasl_dir / 'mean_ftiss.nii.gz'
-        # vc_name = oxasl_dir / 'native_space/perfusion_var_calib.nii.gz'
-    else:
-        pc_name = oxasl_dir / 'native_space/perfusion.nii.gz'
-        # vc_name = oxasl_dir / 'native_space/perfusion_var.nii.gz'
+    pc_name = oxasl_dir / 'native_space/perfusion.nii.gz'
+    vc_name = oxasl_dir / 'native_space/perfusion_var.nii.gz'
 
     # if in ASL space, need to register to T1w
     if target == 'asl':
@@ -38,16 +34,16 @@ def project_to_surface(subject_dir, target='structural'):
         )
         pc_name = pc_name.parent/"asl_t1_perfusion.nii.gz"
         nb.save(t1_pc, str(pc_name))
-        # t1_vc = asl2struct.apply_to_image(
-        #     src=str(vc_name),
-        #     ref=str(ref),
-        #     order=3,
-        #     cores=mp.cpu_count()
-        # )
-        # vc_name = vc_name.parent/"asl_t1_perfusion_var.nii.gz"
-        # nb.save(t1_vc, str(vc_name))
+        t1_vc = asl2struct.apply_to_image(
+            src=str(vc_name),
+            ref=str(ref),
+            order=3,
+            cores=mp.cpu_count()
+        )
+        vc_name = vc_name.parent/"asl_t1_perfusion_var.nii.gz"
+        nb.save(t1_vc, str(vc_name))
 
-    names = (pc_name, )#vc_name)
+    names = (pc_name, vc_name)
 
     # create directory for surface results
     projection_dir = oxasl_dir / 'SurfaceResults32k'
