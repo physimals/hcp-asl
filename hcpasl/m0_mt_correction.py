@@ -70,7 +70,7 @@ def correct_M0(subject_dir, mt_factors):
         calib_name_stem = calib_path.stem.split('.')[0]
 
         # run BET on m0 image
-        betted_m0 = bet(calib_name, LOAD)
+        betted_m0 = bet(calib_name, LOAD, g=0.2, f=0.2)
 
         # create directories to store results
         fast_dir = calib_dir / 'FAST'

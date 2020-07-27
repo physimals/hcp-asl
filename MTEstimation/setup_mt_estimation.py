@@ -9,7 +9,7 @@ import os
 from fsl.wrappers.misc import fslroi
 from fsl.wrappers.fsl_anat import fsl_anat
 from fsl.wrappers.flirt import applyxfm
-from fsl.wrappers.fnirt import applywarp
+from fsl.wrappers.fnirt import applywarp, invwarp
 from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
 from fsl.data import atlases
@@ -79,7 +79,9 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
     create_dirs([calib0struct_dir, calib1struct_dir])
 
     # run fsl_anat
-    fsl_anat(str(struc_name), str(fsl_anat_dir), clobber=True, nosubcortseg=True)
+    if not fsl_anat_dir.with_suffix('.anat').exists():
+        print(f"{fsl_anat_dir.with_suffix('.anat')} exists: {fsl_anat_dir.exists()}")
+        fsl_anat(str(struc_name), str(fsl_anat_dir), clobber=True, nosubcortseg=True)
     fsl_anat_dir = fsl_anat_dir.parent / f'{fsl_anat_dir.stem}.anat'
     t1_name = fsl_anat_dir / 'T1_biascorr.nii.gz'
     t1_brain_name = fsl_anat_dir / 'T1_biascorr_brain.nii.gz'
@@ -98,10 +100,12 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
         )
         vent_img = fslmaths(vent_img).thr(0.1).bin().ero().run(LOAD)
         # we already have registration from T1 to MNI
-        struc2mni_warp = fsl_anat_dir / 'MNI_to_T1_nonlin_field.nii.gz'
+        struc2mni_coeff = fsl_anat_dir / 'T1_to_MNI_nonlin_coeff.nii.gz'
+        mni2struc_coeff = fsl_anat_dir / 'MNI_to_T1_nonlin_coeff.nii.gz'
+        invwarp(str(struc2mni_coeff), str(t1_brain_name), str(mni2struc_coeff))
         # apply warp to ventricles image
         vent_t1_name = fsl_anat_dir / 'ventricles_mask.nii.gz'
-        applywarp(vent_img, str(t1_brain_name), str(vent_t1_name), warp=str(struc2mni_warp))
+        applywarp(vent_img, str(t1_brain_name), str(vent_t1_name), warp=str(mni2struc_coeff))
         # re-threshold
         vent_t1 = fslmaths(str(vent_t1_name)).thr(PVE_THRESHOLDS['csf']).bin().run(LOAD)
         # mask pve estimate by ventricles mask
@@ -111,7 +115,7 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
     for calib_name in (calib0_name, calib1_name):
         calib_name_stem = calib_name.stem.split('.')[0]
         # run bet
-        betted_m0 = bet(str(calib_name), LOAD)
+        betted_m0 = bet(str(calib_name), LOAD, g=0.2, f=0.2, m=True)
         # create directories to save results
         fast_dir = calib_name.parent / 'FAST'
         biascorr_dir = calib_name.parent / 'BiasCorr'
@@ -156,8 +160,8 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
                 fslmaths(str(wm_pve)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(wm_mask_name))
                 gm_masked_name = roi_dir / f'{calib_name_stem}_gm_masked'
                 wm_masked_name = roi_dir / f'{calib_name_stem}_wm_masked'
-                fslmaths(str(biascorr_name)).mul(str(gm_mask_name)).run(str(gm_masked_name))
-                fslmaths(str(biascorr_name)).mul(str(wm_mask_name)).run(str(wm_masked_name))
+                fslmaths(str(biascorr_name)).mul(str(gm_mask_name)).mul(betted_m0['output_mask']).run(str(gm_masked_name))
+                fslmaths(str(biascorr_name)).mul(str(wm_mask_name)).mul(betted_m0['output_mask']).run(str(wm_masked_name))
                 # update dictionary
                 new_dict = {
                     f'{calib_name_stem}_{tissue}_masked': [

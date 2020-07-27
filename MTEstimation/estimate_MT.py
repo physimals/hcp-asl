@@ -55,6 +55,10 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
         X_pred = np.arange(0, 10, 10/resolution).reshape(-1, 1)
         for band in range(1, 5):
             y = slice_means[10*band : 10*band+10]
+            if np.isnan(y).any():
+                scaling_factors[:, :, 10*band : 10*(band+1)] = 1
+                y_pred[resolution*band : resolution*(band+1), 0] = 0
+                continue
             model = LinearRegression()
             model.fit(X, y)
             scaling_factors[:, :, 10*band : 10*(band+1)] = model.intercept_ / model.predict(X)
@@ -124,6 +128,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
 
         # calculate non-zero slicewise mean of mean_array
         slice_means = np.nanmean(mean_array, axis=1)
+        slice_std = np.nanstd(mean_array, axis=1)
 
         # calculate slicewise mean of tissue type counts
         count_means = np.nanmean(count_array, axis=1)
@@ -136,16 +141,39 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         x_coords = np.arange(0, 60, 10)
         plt.figure(figsize=(8, 4.5))
         plt.scatter(slice_numbers, slice_means)
-        plt.scatter(np.arange(0, 60, 0.001), y_pred.flatten(), color='k', s=0.1)
+        plt.errorbar(slice_numbers, slice_means, slice_std, linestyle='None', capsize=3)
+        plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
-        plt.title(f'Mean signal per slice in {tissue} across 47 subjects.')
+        if tissue == 'combined':
+            plt.title(f'Mean signal per slice in GM and WM across 47 subjects.')
+        else:
+            plt.title(f'Mean signal per slice in {tissue} across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean signal')
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
         plt_name = Path().cwd() / f'{tissue}_mean_per_slice.png'
+        plt.savefig(plt_name)
+
+        # plot rescaled slice-means
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        rescaled_means = slice_means * scaling_factors[0, 0, :]
+        plt.scatter(slice_numbers, rescaled_means)
+        plt.ylim([0, PLOT_LIMS[tissue]])
+        plt.xlim([0, 60])
+        if tissue == 'combined':
+            plt.title(f'Rescaled mean signal per slice in GM and WM across 47 subjects.')
+        else:
+            plt.title(f'Rescaled mean signal per slice in {tissue} across 47 subjects.')
+        plt.xlabel('Slice number')
+        plt.ylabel('Rescaled mean signal')
+        for x_coord in x_coords:
+            plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
+        # raise Exception
+        # save plot
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
