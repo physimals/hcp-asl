@@ -272,7 +272,7 @@ def main():
     target = args.target
 
     # For debug, re-use existing intermediate files 
-    force_refresh = True
+    force_refresh = False
 
     # Input, output and intermediate directories
     # Create if they do not already exist. 
@@ -477,6 +477,16 @@ def main():
                                                         ref=reference, 
                                                         cores=mp.cpu_count())
         nb.save(sfs_corrected, sfs_outpath)
+    
+    # apply registrations to satrecov-estimated T1 image for use with oxford_asl
+    est_t1_name = op.join(sub_base, "ASL", "TIs", "SecondPass",
+                    "SatRecov2", "spatial", "mean_T1t_filt.nii.gz")
+    reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
+    if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
+        asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
+        reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
+                                                  ref=reference)
+        nb.save(reg_est_t1, reg_est_t1_name)
 
     # create ti image in asl space
     slicedt = 0.059
