@@ -174,10 +174,27 @@ def main():
     print(f"Processing subject {subject_dir}.")
     if args.grads:
         print("Including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces, fmaps=fmaps)
+        process_subject(subject_dir=subject_dir,
+                        mt_factors=mt_name,
+                        cores=cores,
+                        order=order,
+                        gradients=args.grads,
+                        mbpcasl=mbpcasl,
+                        structural=structural,
+                        surfaces=surfaces,
+                        fmaps=fmaps
+                        )
     else:
         print("Not including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces, fmaps=fmaps)
+        process_subject(subject_dir=subject_dir,
+                        mt_factors=mt_name,
+                        cores=cores,
+                        order=order,
+                        mbpcasl=mbpcasl,
+                        structural=structural,
+                        surfaces=surfaces,
+                        fmaps=fmaps
+                        )
 
 if __name__ == '__main__':
     main()
