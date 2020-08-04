@@ -21,7 +21,7 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, gradients=None):
+def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None):
     """
     Run pipeline for individual subject specified by 
     `subject_dir`.
@@ -37,7 +37,11 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
             str(subject_dir.parent),
             subject_dir.stem,
             "--target",
-            target
+            target,
+            "--fmap_ap",
+            fmaps['AP'],
+            "--fmap_pa",
+            fmaps['PA']
         ]
         if gradients:
             dist_corr_call.append('--grads')
@@ -171,10 +175,10 @@ def main():
     print(f"Processing subject {subject_dir}.")
     if args.grads:
         print("Including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces, fmaps=fmaps)
     else:
         print("Not including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces, fmaps=fmaps)
 
 if __name__ == '__main__':
     main()
