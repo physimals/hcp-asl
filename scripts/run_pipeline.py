@@ -21,14 +21,14 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, gradients=None):
+def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, gradients=None):
     """
     Run pipeline for individual subject specified by 
     `subject_dir`.
     """
     subject_dir = Path(subject_dir)
     mt_factors = Path(mt_factors)
-    initial_processing(subject_dir, mbpcasl=mbpcasl)
+    initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
     correct_M0(subject_dir, mt_factors)
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
     for target in ('asl', 'structural'):
@@ -147,9 +147,9 @@ def main():
     subject_dir = args.subject_dir
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
     surfaces = {
-        'lmid': args.lmid, 'rmid': args.rmid,
-        'lwhite': args.lwhite, 'rwhite':args.rwhite,
-        'lpial': args.lpial, 'rpial': args.rpial
+        'L_mid': args.lmid, 'R_mid': args.rmid,
+        'L_white': args.lwhite, 'R_white':args.rwhite,
+        'L_pial': args.lpial, 'R_pial': args.rpial
     }
     mbpcasl = args.input
     fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
@@ -171,10 +171,10 @@ def main():
     print(f"Processing subject {subject_dir}.")
     if args.grads:
         print("Including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl)
+        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
     else:
         print("Not including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl)
+        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
 
 if __name__ == '__main__':
     main()

@@ -39,7 +39,7 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
 
-def initial_processing(subject_dir, mbpcasl):
+def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     """
     Perform initial processing for the subject directory provided.
     These initial processing includes:
@@ -72,8 +72,8 @@ def initial_processing(subject_dir, mbpcasl):
     # find sub-directories
     # structural
     t1_dir = subject_dir / 'T1w'
-    t1_name = t1_dir / 'T1w_acpc_dc_restore.nii.gz'
-    t1_brain_name = t1_dir / 'T1w_acpc_dc_restore_brain.nii.gz'
+    t1_name = structural['struct']
+    t1_brain_name = structural['sbrain']
     
     # output names
     tis_name = tis_dir / 'tis.nii.gz'
@@ -84,15 +84,6 @@ def initial_processing(subject_dir, mbpcasl):
     # get calibration images
     fslroi(str(mbpcasl), calib0_name, 88, 1)
     fslroi(str(mbpcasl), calib1_name, 89, 1)
-
-    # get surface names
-    surfaces_dir = t1_dir / 'fsaverage_LR32k'
-    L_mid = surfaces_dir / f'{subject_name}_V1_MR.L.midthickness.32k_fs_LR.surf.gii'
-    R_mid = surfaces_dir / f'{subject_name}_V1_MR.R.midthickness.32k_fs_LR.surf.gii'
-    L_pial = surfaces_dir / f'{subject_name}_V1_MR.L.pial.32k_fs_LR.surf.gii'
-    R_pial = surfaces_dir / f'{subject_name}_V1_MR.R.pial.32k_fs_LR.surf.gii'
-    L_white = surfaces_dir / f'{subject_name}_V1_MR.L.white.32k_fs_LR.surf.gii'
-    R_white = surfaces_dir / f'{subject_name}_V1_MR.R.white.32k_fs_LR.surf.gii'
 
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'
@@ -130,12 +121,12 @@ def initial_processing(subject_dir, mbpcasl):
         calib1_dir,
         calib0_name,
         calib1_name,
-        L_mid,
-        R_mid,
-        L_pial,
-        R_pial,
-        L_white,
-        R_white,
+        surfaces['L_mid'],
+        surfaces['R_mid'],
+        surfaces['L_pial'],
+        surfaces['R_pial'],
+        surfaces['L_white'],
+        surfaces['R_white'],
         json_name
     ]
     names_dict = {}
