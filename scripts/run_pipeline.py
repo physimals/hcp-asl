@@ -134,7 +134,6 @@ def main():
         type=int
     )
     parser.add_argument(
-        "-i",
         "--interpolation",
         help="Interpolation order for registrations. Default is 3.",
         default=3,
