@@ -39,7 +39,7 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
 
-def initial_processing(subject_dir):
+def initial_processing(subject_dir, mbpcasl):
     """
     Perform initial processing for the subject directory provided.
     These initial processing includes:
@@ -74,15 +74,6 @@ def initial_processing(subject_dir):
     t1_dir = subject_dir / 'T1w'
     t1_name = t1_dir / 'T1w_acpc_dc_restore.nii.gz'
     t1_brain_name = t1_dir / 'T1w_acpc_dc_restore_brain.nii.gz'
-
-    # asl
-    b_dir = subject_dir / f'{subject_name}_V1_B'
-    try:
-        mbpcasl_dir = list(b_dir.glob('**/scans/*mbPCASLhr'))[0]
-    # if no files match this format, it throws an IndexError
-    except IndexError as e:
-        print(e)
-    mbpcasl = mbpcasl_dir / 'resources/NIFTI/files' / f'{subject_name}_V1_B_mbPCASLhr_PA.nii.gz'
     
     # output names
     tis_name = tis_dir / 'tis.nii.gz'

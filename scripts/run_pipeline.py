@@ -21,14 +21,14 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, gradients=None):
+def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, gradients=None):
     """
     Run pipeline for individual subject specified by 
     `subject_dir`.
     """
     subject_dir = Path(subject_dir)
     mt_factors = Path(mt_factors)
-    initial_processing(subject_dir)
+    initial_processing(subject_dir, mbpcasl=mbpcasl)
     correct_M0(subject_dir, mt_factors)
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
     for target in ('asl', 'structural'):
@@ -171,10 +171,10 @@ def main():
     print(f"Processing subject {subject_dir}.")
     if args.grads:
         print("Including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order, args.grads)
+        process_subject(subject_dir, mt_name, cores, order, args.grads, mbpcasl=mbpcasl)
     else:
         print("Not including gradient distortion correction step.")
-        process_subject(subject_dir, mt_name, cores, order)
+        process_subject(subject_dir, mt_name, cores, order, mbpcasl=mbpcasl)
 
 if __name__ == '__main__':
     main()
