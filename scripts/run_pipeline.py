@@ -75,6 +75,53 @@ def main():
             + "distortion correction (optional)."
     )
     parser.add_argument(
+        "-s",
+        "--struct",
+        help="Filename for the acpc-aligned, dc-restored structural image."
+    )
+    parser.add_argument(
+        "--sbrain",
+        help="Filename for the brain-extracted acpc-aligned, "
+            + "dc-restored structural image."
+    )
+    parser.add_argument(
+        "--lmid",
+        help="Filename for the left mid surface."
+    )
+    parser.add_argument(
+        "--rmid",
+        help="Filename for the right mid surface."
+    )
+    parser.add_argument(
+        "--lwhite",
+        help="Filename for the left white surface."
+    )
+    parser.add_argument(
+        "--rwhite",
+        help="Filename for the right white surface."
+    )
+    parser.add_argument(
+        "--lpial",
+        help="Filename for the left pial surface."
+    )
+    parser.add_argument(
+        "--rpial",
+        help="Filename for the right pial surface."
+    )
+    parser.add_argument(
+        "-i",
+        "--input",
+        help="Filename for the mbPCASLhr acquisition."
+    )
+    parser.add_argument(
+        "--fmap_ap",
+        help="Filename for the AP fieldmap for use in distortion correction"
+    )
+    parser.add_argument(
+        "--fmap_pa",
+        help="Filename for the PA fieldmap for use in distortion correction"
+    )
+    parser.add_argument(
         "-c",
         "--cores",
         help="Number of cores to use for registration operations. "
@@ -98,6 +145,14 @@ def main():
     args = parser.parse_args()
     mt_name = args.scaling_factors
     subject_dir = args.subject_dir
+    structural = {'struct': args.struct, 'sbrain': args.sbrain}
+    surfaces = {
+        'lmid': args.lmid, 'rmid': args.rmid,
+        'lwhite': args.lwhite, 'rwhite':args.rwhite,
+        'lpial': args.lpial, 'rpial': args.rpial
+    }
+    mbpcasl = args.input
+    fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
     cores = args.cores
     order = args.interpolation
     if args.fabberdir:
