@@ -16,6 +16,16 @@ def load_json(subject_dir):
     Load json but with some error-checking to make sure it exists.
     If it doesn't exist, instruct user to run the first part of 
     the pipeline first.
+
+    Parameters
+    ----------
+    subject_dir : pathlib.Path
+        Path to subject's base directory.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing important file paths.
     """
     json_name = subject_dir / 'ASL/ASL.json'
     if json_name.exists():
@@ -28,16 +38,20 @@ def load_json(subject_dir):
 
 def update_json(new_dict, old_dict):
     """
-    Adds the key-value pairs in `new_dict` to the `old_dict` 
+    Add key-value pairs to the dictionary.
+
+    Add the key-value pairs in `new_dict` to `old_dict` 
     and save the resulting dictionary to the json found in 
     `old_dict['json_name']`.
 
-    Inputs:
-        - `new_dict` = dictionary containing new key-value 
-            pairs to add to the json of important file 
-            names
-        - `old_dict` = dictionary to be updated, also 
-            has a field containing the location of the json.
+    Parameters
+    ----------
+    new_dict : dict
+        New key-value pairs to add to the json of important 
+        file names.
+    old_dict : dict
+        Dictionary to be updated. Also has a field containing 
+        the location of the json to update.
     """
     old_dict.update(new_dict)
     with open(Path(old_dict['json_name']), 'w') as fp:
@@ -45,18 +59,21 @@ def update_json(new_dict, old_dict):
 
 def correct_M0(subject_dir, mt_factors):
     """
-    Correct the M0 images for a particular subject whose data 
-    is stored in `subject_dir`. The corrections to be 
-    performed include:
-        - Bias-field correction
-        - Magnetisation Transfer correction
+    Correct the M0 images.
     
-    Inputs
-        - `subject_dir` = pathlib.Path object specifying the 
-            subject's base directory
-        - `mt_factors` = pathlib.Path object specifying the 
-            location of empirically estimated MT correction 
-            scaling factors
+    For each of the subject's two calibration images:
+    #. Use BET on the image;
+    #. Use FAST on the brain-extracted image to obtain the bias-field;
+    #. Perform bias correction;
+    #. Multiply by the provided 'mt_factors' for MT-effect correction.
+    
+    Parameters
+    ----------
+    subject_dir : pathlib.Path
+        Path to the subject's base directory.
+    mt_factors : pathlib.Path
+        Path to the empirically estimated MT correction 
+        scaling factors.
     """
     # load json containing info on where files are stored
     json_dict = load_json(subject_dir)

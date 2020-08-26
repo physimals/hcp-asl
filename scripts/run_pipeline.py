@@ -23,8 +23,37 @@ from multiprocessing import cpu_count
 
 def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None):
     """
-    Run pipeline for individual subject specified by 
-    `subject_dir`.
+    Run the hcp-asl pipeline for a given subject.
+
+    Parameters
+    ----------
+    subject_dir : str
+        Path to the subject's base directory.
+    mt_factors : str
+        Path to a .txt file of pre-calculated MT correction 
+        factors.
+    cores : int
+        Number of cores to use.
+        When applying motion correction, this is the number 
+        of cores that will be used by regtricks.
+    order : int
+        The interpolation order to use for registrations.
+        Regtricks passes this on to scipy's map_coordinates. 
+        The meaning of the value can be found in the scipy 
+        documentation.
+    mbpcasl : str
+        Path to the subject's mbPCASL sequence.
+    structural : dict
+        Contains the locations of important structural files.
+    surfaces : dict
+        Contains the locations of the surfaces needed for the 
+        pipeline.
+    fmaps : dict
+        Contains the locations of the fieldmaps needed for 
+        distortion correction.
+    gradients : str, optional
+        Path to a gradient coefficients file for use in 
+        gradient distortion correction.
     """
     subject_dir = Path(subject_dir)
     mt_factors = Path(mt_factors)
@@ -59,6 +88,9 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
         project_to_surface(subject_dir, target=target)
 
 def main():
+    """
+    Main entry point for the hcp-asl pipeline.
+    """
     # argument handling
     parser = argparse.ArgumentParser(
         description="This script performs the minimal processing for the "

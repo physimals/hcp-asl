@@ -17,24 +17,24 @@ import json
 
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """
-    Given a list of pathlib.Path directories, `dir_list`, create 
-    these directories.
+    Creates directories in a list.
 
     Default behaviour is to create parent directories if these 
-    don't yet exist and to not throw an error if a directory 
+    don't yet exist and not throw an error if a directory 
     already exists.
 
-    Inputs:
-        - `dir_list` = list of pathlib.Path objects which are 
-            the directories you wish to create
-        - `parents` = Path.mkdir() argument which, if `True`, will 
-            create parent directories if they do not yet exist. 
-            See pathlib.Path.mkdir() for more details. Default 
-            here is `True`.
-        - `exist_ok` = Path.mkdir() argument which, if `True`, 
-            doesn't throw an error if the directory already exists.
-            See pathlib.Path.mkdir() for more details. Default 
-            here is `True`.
+    Parameters
+    ----------
+    dir_list : list of pathlib.Path objects
+        The directories to be created.
+    parents : bool
+        Create parent directories if they do not yet exist. 
+        See pathlib.Path.mkdir() for more details. Default 
+        here is `True`.
+    exist_ok : bool
+        Don't throw an error if the directory already exists.
+        See pathlib.Path.mkdir() for more details. Default 
+        here is `True`.
     """
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
@@ -42,19 +42,24 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
 def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     """
     Perform initial processing for the subject directory provided.
-    These initial processing includes:
-
+    
+    These initial processing steps include:
     - Creating ASL sub-directories in the subject's directory
-    - Finding T1w, fieldmap and mbPCASL directories and scans
     - Splitting mbPCASL sequence into its components of tis, 
-        and calibration images
-    - Run fsl_anat on the subject's structural image
+    and calibration images
     - Creating a json to keep track of import files and 
         directories
     
-    Input:
-        - `subject_dir` = a pathlib.Path object for the subject's
-            data directory
+    Parameters
+    ----------
+    subject_dir : pathlib.Path
+        Path to the subject's base directory.
+    mbpcasl : str
+        Path to the subject's mbPCASL sequence.
+    structural : dict
+        Dictionary containing paths to important structural files.
+    surfaces : dict
+        Dictionary containing paths to important surface files.
     """
     # get subject name
     subject_name = subject_dir.parts[-1]
