@@ -87,7 +87,7 @@ def correct_M0(subject_dir, mt_factors):
         calib_name_stem = calib_path.stem.split('.')[0]
 
         # run BET on m0 image
-        betted_m0 = bet(calib_name, LOAD, g=0.2, f=0.2)
+        betted_m0 = bet(calib_name, LOAD, g=0.2, f=0.2, m=True)
 
         # create directories to store results
         fast_dir = calib_dir / 'FAST'
@@ -96,17 +96,22 @@ def correct_M0(subject_dir, mt_factors):
         create_dirs([fast_dir, biascorr_dir, mtcorr_dir])
 
         # estimate bias field on brain-extracted m0 image
-            # run FAST, storing results in directory
-        fast_base = fast_dir / calib_name_stem
-        fast(
+        fast_results = fast(
             betted_m0['output'], # output of bet
-            out=str(fast_base), 
+            out=LOAD, 
             type=3, # image type, 3=PD image
             b=True, # output estimated bias field
             nopve=True # don't need pv estimates
         )
+        # use fslmath's -dilall for dilation of FAST's bias field
         bias_name = fast_dir / f'{calib_name_stem}_bias.nii.gz'
-
+        masked_bias = Image(
+            betted_m0['output_mask'].get_data()*fast_results['out_bias'].get_data(), 
+            header=betted_m0['output_mask'].header
+        )
+        masked_bias.save(str(bias_name))
+        subprocess.run(['fslmaths', bias_name, '-dilall', bias_name])
+        
         # apply bias field to original m0 image (i.e. not BETted)
         biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
         fslmaths(calib_name).div(str(bias_name)).run(str(biascorr_name))

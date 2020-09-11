@@ -43,7 +43,7 @@ def tag_control_differencing(subject_dir, target='structural'):
     if target == 'structural':
         distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
     else:
-        distcorr_dir = Path(json_dict['TIs_dir']) / 'SecondPass/DistCorr'
+        distcorr_dir = Path(json_dict['TIs_dir']) / 'DistCorr'
     Y_moco_name = distcorr_dir / 'tis_distcorr.nii.gz'
     Y_moco = Image(str(Y_moco_name))
 
