@@ -90,6 +90,9 @@ def run_fabber_asl(subject_dir, target='structural'):
     update_json(important_names, json_dict)
 
 def run_oxford_asl(subject_dir, target='structural'):
+    """
+    Run oxford_asl on the HCP's ASL data.
+    """
     # load subject's json
     json_dict = load_json(subject_dir)
 

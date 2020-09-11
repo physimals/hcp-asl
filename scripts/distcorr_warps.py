@@ -16,26 +16,6 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
-
-def find_field_maps(study_dir, subject_number):
-    """
-    Find the mbPCASL field maps in the subject's directory.
-    The field maps are found in the subject's B session directory. 
-    Multiple pairs of field maps are taken in the B session; this 
-    function assumes that the mbPCASL field maps are the final 2 
-    field map directories in the session.
-    """
-    scan_dir = Path(study_dir) / subject_number / f'{subject_number}_V1_B/scans'
-    fm_dirs = sorted(scan_dir.glob('**/*-FieldMap_SE_EPI'))[-2:]
-    if (fm_dirs[0] / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz').exists():
-        pa_dir, ap_dir = fm_dirs
-    elif (fm_dirs[1] / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz').exists():
-        ap_dir, pa_dir = fm_dirs
-    pa_sefm = pa_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_PA.nii.gz'
-    ap_sefm = ap_dir / f'resources/NIFTI/files/{subject_number}_V1_B_PCASLhr_SpinEchoFieldMap_AP.nii.gz'
-    return str(pa_sefm), str(ap_sefm)
-
-
 def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
     """
     Generate the initial linear transformation between ASL-space and T1w-space
@@ -264,12 +244,22 @@ def main():
             + " is 'asl'.",
         default="asl"
     )
+    parser.add_argument(
+        "--fmap_ap",
+        help="Filename for the AP fieldmap for use in distortion correction"
+    )
+    parser.add_argument(
+        "--fmap_pa",
+        help="Filename for the PA fieldmap for use in distortion correction"
+    )
 
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_number
     grad_coefficients = args.grads
     target = args.target
+    pa_sefm = args.fmap_pa
+    ap_sefm = args.fmap_ap
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -342,8 +332,7 @@ def main():
     gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
             asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
 
-    # Stack the cblipped images together for use with topup 
-    pa_sefm, ap_sefm = find_field_maps(study_dir, sub_id)
+    # Stack the cblipped images together for use with topup
     pa_ap_sefms = op.join(distcorr_dir, 'merged_sefms.nii.gz')
     if (not op.exists(pa_ap_sefms) or force_refresh) and target=='asl':
         rt.ImageSpace.save_like(pa_sefm, np.stack((
