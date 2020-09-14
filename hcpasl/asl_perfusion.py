@@ -113,9 +113,9 @@ def run_oxford_asl(subject_dir, target='structural'):
 
     # additional run-specific options
     if target == 'asl':
-        oxford_dir = Path(json_dict['TIs_dir']) / 'SecondPass/OxfordASL'
+        oxford_dir = Path(json_dict['TIs_dir']) / 'OxfordASL'
         brain_mask = Path(json_dict['structasl']) / 'reg/asl_vol1_mask_init.nii.gz'
-        est_t1 = Path(json_dict['TIs_dir']) / 'SecondPass/SatRecov2/spatial/mean_T1t_filt.nii.gz'
+        est_t1 = Path(json_dict['TIs_dir']) / 'SatRecov2/spatial/mean_T1t_filt.nii.gz'
         extra_args = [
             f"-o {str(oxford_dir)}",
             f"-m {str(brain_mask)}",

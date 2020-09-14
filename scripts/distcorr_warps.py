@@ -270,10 +270,10 @@ def main():
     grad_coefficients = op.abspath(grad_coefficients)
     pvs_dir = op.join(sub_base, "T1w", "ASL", "PVEs")
     t1_asl_dir = op.join(sub_base, "T1w", "ASL")
-    distcorr_dir = op.join(sub_base, "ASL", "TIs", "SecondPass", "DistCorr")
+    distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
     reg_dir = op.join(sub_base, 'T1w', 'ASL', 'reg')
     t1_dir = op.join(sub_base, "T1w")
-    asl_dir = op.join(sub_base, "ASL", "TIs", "SecondPass", "STCorr2")
+    asl_dir = op.join(sub_base, "ASL", "TIs", "STCorr2")
     asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
     calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr")
     [ os.makedirs(d, exist_ok=True) 
@@ -317,7 +317,7 @@ def main():
     # MCFLIRT ASL using the calibration as reference 
     calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
     asl = op.join(sub_base, 'ASL', 'TIs', 'tis.nii.gz')
-    mcdir = op.join(sub_base, 'ASL', 'TIs', 'SecondPass', 'MoCo', 'asln2m0.mat')
+    mcdir = op.join(sub_base, 'ASL', 'TIs', 'MoCo', 'asln2m0.mat')
     asl2calib_mc = rt.MotionCorrection.from_mcflirt(mcdir, asl, calib)
 
     # Rebase the motion correction to target volume 0 of ASL 
@@ -359,7 +359,7 @@ def main():
         unreg_img = asl_vol0
     elif target == 'structural':
         # register perfusion-weighted image to structural instead of asl 0
-        unreg_img = op.join(sub_base, "ASL", "TIs", "SecondPass", "OxfordASL", 
+        unreg_img = op.join(sub_base, "ASL", "TIs", "OxfordASL", 
                             "native_space", "perfusion.nii.gz")
     
     # apply gdc to unreg_img before getting registration to structural
@@ -394,7 +394,7 @@ def main():
         rt.ImageSpace.save_like(unreg_img, asl_mask, mask_name)
 
     # Brain extract volume 0 of asl series
-    gdc_unreg_img_brain = op.join(sub_base, "ASL", "TIs", "SecondPass", 
+    gdc_unreg_img_brain = op.join(sub_base, "ASL", "TIs", 
                             "DistCorr", "gdc_tis_vol1_brain.nii.gz")
     if (not op.exists(gdc_unreg_img_brain) or force_refresh) and target=='asl':
         bet(unreg_img, gdc_unreg_img_brain)
@@ -468,8 +468,8 @@ def main():
         nb.save(sfs_corrected, sfs_outpath)
     
     # apply registrations to satrecov-estimated T1 image for use with oxford_asl
-    est_t1_name = op.join(sub_base, "ASL", "TIs", "SecondPass",
-                    "SatRecov2", "spatial", "mean_T1t_filt.nii.gz")
+    est_t1_name = op.join(sub_base, "ASL", "TIs", "SatRecov2", 
+                            "spatial", "mean_T1t_filt.nii.gz")
     reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
     if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
         asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
