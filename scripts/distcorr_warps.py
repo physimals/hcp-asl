@@ -16,24 +16,50 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
-def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
+
+def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     """
     Generate the initial linear transformation between ASL-space and T1w-space
-    using asl_reg. This is required as the initalization for the epi distortion 
-    correction warp (calculated via asl_reg later on).
+    using FS bbregister. This is further refined later on using asl_reg. Note
+    that struct is required only for saving the output in the right convention, 
+    it is not actually used by bbregister. 
     
     Args:
-        asl: path to ASL image 
-        outdir: path to registration directory, for output 
-        struct: path to T1 image, ac_dc_restore
-        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
+        asl_vol0: path to first volume of ASL 
+        struct: path to T1w image (eg T1w_acdc_restore.nii.gz)
+        fsdir: path to subject's FreeSurfer output directory 
+        reg_dir: path to registration directory, for output 
 
     Returns: 
-        n/a, file 'asl2struct.mat' will be created in the output dir 
+        n/a, file 'asl2struct_initial_bbr_fsl.mat' will be saved in reg_dir
     """
-    reg_call = ("asl_reg -i " + asl + " -o " + outdir + " -s " + struct +
-                " --sbet=" + struct_brain + " --mainonly")
-    sp.run(reg_call.split(), check=True, stderr=sp.PIPE, stdout=sp.PIPE)
+
+    # We need to do some hacky stuff to get bbregister to work...
+    # Split the path to the FS directory into a fake $SUBJECTS_DIR
+    # and subject_id. We temporarily set the environment variable
+    # before making the call, and then revert back afterwards  
+    new_sd, sid = op.split(fsdir)
+    old_sd = os.environ.get('SUBJECTS_DIR')
+    pwd = os.getcwd()
+    orig_mgz = op.join(fsdir, 'mri', 'orig.mgz')
+
+    # Run inside the regdir. Save the output in fsl format, by default 
+    # this targets the orig.mgz, NOT THE T1 IMAGE ITSELF! 
+    os.chdir(reg_dir)
+    omat_path = op.join(reg_dir, "asl2orig_mgz_initial_bbr_fsl.mat")
+    cmd = os.environ['SUBJECTS_DIR'] = new_sd
+    cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t1 "
+    cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path}"
+    sp.run(cmd, shell=True)
+    asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
+
+    # Return to original working directory, and flip the FSL matrix to target
+    # asl -> T1, not orig.mgz. Save output. 
+    os.chdir(pwd)
+    if old_sd:
+        os.environ['SUBJECTS_DIR'] = old_sd
+    asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
+    np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
 
 def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
     """
@@ -375,11 +401,12 @@ def main():
     # Initial (linear) asl to structural registration, via first round of asl_reg
     asl2struct_initial_path = op.join(
         reg_dir, 
-        'asl2struct_init.mat' if target=='asl' else 'asl2struct_final.mat'
+        'asl2struct_initial_bbr_fsl.mat' if target=='asl' else 'asl2struct_final_bbr_fsl.mat'
     )
     if not op.exists(asl2struct_initial_path) or force_refresh:
-        generate_asl2struct_initial(unreg_img, reg_dir, struct, struct_brain)
-        asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct.mat')
+        asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat')
+        fsdir = op.join(t1_dir, f'{sub_id}_V1_MR')
+        generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir)
         os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
     asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
                                                     src=unreg_img, ref=struct)
