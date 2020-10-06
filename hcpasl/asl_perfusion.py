@@ -89,7 +89,7 @@ def run_fabber_asl(subject_dir, target='structural'):
     }
     update_json(important_names, json_dict)
 
-def run_oxford_asl(subject_dir, target='structural'):
+def run_oxford_asl(subject_dir, target='structural', use_t1=False):
     """
     Run oxford_asl on the HCP's ASL data.
     """
@@ -115,12 +115,14 @@ def run_oxford_asl(subject_dir, target='structural'):
     if target == 'asl':
         oxford_dir = Path(json_dict['TIs_dir']) / 'OxfordASL'
         brain_mask = Path(json_dict['structasl']) / 'reg/asl_vol1_mask_init.nii.gz'
+        est_t1 = Path(json_dict['TIs_dir']) / 'SatRecov2/spatial/mean_T1t_filt.nii.gz'
         extra_args = [
             f"-o {str(oxford_dir)}",
             f"-m {str(brain_mask)}",
             "--tis=1.7,2.2,2.7,3.2,3.7",
             "--slicedt=0.059",
-            "--sliceband=10"
+            "--sliceband=10",
+            f"--t1im {str(est_t1)}"
         ]
     else:
         structasl_dir = Path(json_dict['structasl'])
@@ -140,6 +142,9 @@ def run_oxford_asl(subject_dir, target='structural'):
             f"-m {str(brain_mask)}",
             f"--tiimg={timing_image}"
             ]
+        if use_t1:
+            est_t1 = structasl_dir / 'reg/mean_T1t_filt.nii.gz'
+            extra_args.append(f"--t1im {str(est_t1)}")
     cmd = cmd + extra_args
     print(" ".join(cmd))
     subprocess.run(" ".join(cmd), shell=True)
