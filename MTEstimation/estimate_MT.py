@@ -49,19 +49,19 @@ def undo_st_correction(rescaled_image, tissue, ti):
 
 def fit_linear_model(slice_means, method='separate', resolution=10000):
     X = np.arange(0, 10, 1).reshape(-1, 1)
-    scaling_factors = np.ones((86, 86, 60))
+    scaling_factors = np.ones((6, 10))
     y_pred = np.zeros(shape=(resolution*6, 1))
     if method == 'separate':
         X_pred = np.arange(0, 10, 10/resolution).reshape(-1, 1)
         for band in range(1, 5):
             y = slice_means[10*band : 10*band+10]
             if np.isnan(y).any():
-                scaling_factors[:, :, 10*band : 10*(band+1)] = 1
+                scaling_factors[band, :] = 1
                 y_pred[resolution*band : resolution*(band+1), 0] = 0
                 continue
             model = LinearRegression()
             model.fit(X, y)
-            scaling_factors[:, :, 10*band : 10*(band+1)] = model.intercept_ / model.predict(X)
+            scaling_factors[band, :] = model.intercept_ / model.predict(X)
             y_pred[resolution*band : resolution*(band+1), 0] = model.predict(X_pred)
     elif method=='together':
         X_pred = np.tile(np.arange(0, 10, 10/resolution), 4)[..., np.newaxis]
@@ -69,8 +69,10 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
         y_train = y_train.mean(axis=0).reshape(-1, 1)
         model = LinearRegression()
         model.fit(X, y_train)
-        scaling_factors[:, :, 10:50] = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
+        scaling_factors[band, :] = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
         y_pred[resolution : resolution*5] = model.predict(X_pred)
+    scaling_factors[[0, 5], :] = scaling_factors[1:5, :].mean(axis=0)
+    scaling_factors = scaling_factors.flatten()
     return scaling_factors, X_pred, y_pred
 
 def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
@@ -142,7 +144,6 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         plt.figure(figsize=(8, 4.5))
         plt.scatter(slice_numbers, slice_means)
         plt.errorbar(slice_numbers, slice_means, slice_std, linestyle='None', capsize=3)
-        plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
         if tissue == 'combined':
@@ -154,12 +155,16 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_1709.png'
+        plt.savefig(plt_name)
+        # add linear models on top
+        plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_with_lin_1709.png'
         plt.savefig(plt_name)
 
         # plot rescaled slice-means
         fig, ax = plt.subplots(figsize=(8, 4.5))
-        rescaled_means = slice_means * scaling_factors[0, 0, :]
+        rescaled_means = slice_means * scaling_factors
         plt.scatter(slice_numbers, rescaled_means)
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
@@ -171,9 +176,8 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         plt.ylabel('Rescaled mean signal')
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
-        # raise Exception
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled_1709.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
@@ -187,7 +191,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
                 ' PVE $\geqslant$ 70% across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
-        plt_name = Path().cwd() / 'mean_voxel_count.png'
+        plt_name = Path().cwd() / 'mean_voxel_count_1709.png'
         plt.savefig(plt_name)
 
         # # the scaling factors have been estimated on images which have been 
@@ -196,14 +200,29 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         # # which haven't had this correction
         # scaling_factors = undo_st_correction(scaling_factors, tissue, tr)
 
+        # save scaling factors as a .txt file
+        sfs_savename = f'{method}_scaling_factors_1709.txt'
+        np.savetxt(sfs_savename, scaling_factors, fmt='%.5f')
+        # create array from scaling_factors
+        scaling_factors = np.tile(scaling_factors, (86, 86, 1))
         for subject_dir in subject_dirs:
             json_dict = load_json(subject_dir)
             # load calibration image
             calib_img = Image(json_dict['calib0_img'])
             # create and save scaling factors image
             scaling_img = Image(scaling_factors, header=calib_img.header)
-            scaling_dir = Path(json_dict['calib_dir']) / 'MTEstimation'
-            create_dirs([scaling_dir, ])
-            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}.nii.gz'
+            scaling_dir = Path(json_dict['calib_dir']).parent / 'MTEstimation'
+            mtcorr_dir = Path(json_dict['calib0_img']).parent / 'MTCorr'
+            create_dirs([scaling_dir, mtcorr_dir])
+            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}_1709.nii.gz'
             scaling_img.save(scaling_name)
             
+            # apply scaling factors to image to perform MT correction
+            bcorr_name = Path(json_dict['calib0_img']).parent / 'BiasCorr/calib0_restore.nii.gz'
+            mtcorr_name = mtcorr_dir / 'calib0_mtcorr.nii.gz'
+            bcorr_img = Image(str(bcorr_name))
+            mtcorr_img = Image(
+                bcorr_img.data * scaling_factors,
+                header=bcorr_img.header
+            )
+            mtcorr_img.save(str(mtcorr_name))
