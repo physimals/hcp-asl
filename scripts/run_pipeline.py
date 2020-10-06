@@ -21,7 +21,7 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None):
+def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None, use_t1=False):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -54,6 +54,9 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
     gradients : str, optional
         Path to a gradient coefficients file for use in 
         gradient distortion correction.
+    use_t1 : bool, optional
+        Whether or not to use the estimated T1 map in the 
+        oxford_asl run in structural space.
     """
     subject_dir = Path(subject_dir)
     mt_factors = Path(mt_factors)
@@ -75,6 +78,8 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
         if gradients:
             dist_corr_call.append('--grads')
             dist_corr_call.append(gradients)
+        if use_t1 and (target=='structural'):
+            dist_corr_call.append('--use_t1')
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             pv_est_call = [
@@ -84,7 +89,7 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
             ]
             subprocess.run(pv_est_call, check=True)
         tag_control_differencing(subject_dir, target=target)
-        run_oxford_asl(subject_dir, target=target)
+        run_oxford_asl(subject_dir, target=target, use_t1=use_t1)
         project_to_surface(subject_dir, target=target)
 
 def main():
@@ -158,6 +163,13 @@ def main():
         help="Filename for the PA fieldmap for use in distortion correction"
     )
     parser.add_argument(
+        '--use_t1',
+        help="If this flag is provided, the T1 estimates from the satrecov "
+            + "will also be registered to ASL-gridded T1 space for use in "
+            + "perfusion estimation via oxford_asl.",
+        action='store_true'
+    )
+    parser.add_argument(
         "-c",
         "--cores",
         help="Number of cores to use for registration operations. "
@@ -188,6 +200,7 @@ def main():
     }
     mbpcasl = args.input
     fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
+    use_t1 = args.use_t1
     cores = args.cores
     order = args.interpolation
     if args.fabberdir:
@@ -214,7 +227,8 @@ def main():
                         mbpcasl=mbpcasl,
                         structural=structural,
                         surfaces=surfaces,
-                        fmaps=fmaps
+                        fmaps=fmaps,
+                        use_t1=use_t1
                         )
     else:
         print("Not including gradient distortion correction step.")
@@ -225,7 +239,8 @@ def main():
                         mbpcasl=mbpcasl,
                         structural=structural,
                         surfaces=surfaces,
-                        fmaps=fmaps
+                        fmaps=fmaps,
+                        use_t1=use_t1
                         )
 
 if __name__ == '__main__':

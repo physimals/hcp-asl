@@ -252,7 +252,13 @@ def main():
         "--fmap_pa",
         help="Filename for the PA fieldmap for use in distortion correction"
     )
-
+    parser.add_argument(
+        '--use_t1',
+        help="If this flag is provided, the T1 estimates from the satrecov "
+            + "will also be registered to ASL-gridded T1 space for use in "
+            + "perfusion estimation via oxford_asl.",
+        action='store_true'
+    )
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_number
@@ -260,6 +266,7 @@ def main():
     target = args.target
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
+    use_t1 = args.use_t1
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -468,14 +475,15 @@ def main():
         nb.save(sfs_corrected, sfs_outpath)
     
     # apply registrations to satrecov-estimated T1 image for use with oxford_asl
-    est_t1_name = op.join(sub_base, "ASL", "TIs", "SatRecov2", 
-                            "spatial", "mean_T1t_filt.nii.gz")
-    reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
-    if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
-        asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
-        reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
-                                                  ref=reference)
-        nb.save(reg_est_t1, reg_est_t1_name)
+    if use_t1:
+        est_t1_name = op.join(sub_base, "ASL", "TIs", "SatRecov2", 
+                                "spatial", "mean_T1t_filt.nii.gz")
+        reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
+        if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
+            asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
+            reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
+                                                    ref=reference)
+            nb.save(reg_est_t1, reg_est_t1_name)
 
     # create ti image in asl space
     slicedt = 0.059
