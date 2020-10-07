@@ -89,7 +89,7 @@ def run_fabber_asl(subject_dir, target='structural'):
     }
     update_json(important_names, json_dict)
 
-def run_oxford_asl(subject_dir, target='structural', use_t1=False):
+def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False):
     """
     Run oxford_asl on the HCP's ASL data.
     """
@@ -142,10 +142,12 @@ def run_oxford_asl(subject_dir, target='structural', use_t1=False):
             f"-c {str(calib_name)}",
             f"-m {str(brain_mask)}",
             f"--tiimg={timing_image}"
-            ]
+        ]
         if use_t1:
             est_t1 = structasl_dir / 'reg/mean_T1t_filt.nii.gz'
             extra_args.append(f"--t1im {str(est_t1)}")
+        if pvcorr:
+            extra_args.append("--pvcorr")
     cmd = cmd + extra_args
     print(" ".join(cmd))
     subprocess.run(" ".join(cmd), shell=True)
