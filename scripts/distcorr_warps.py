@@ -16,12 +16,8 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
-<<<<<<< HEAD
 
 def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
-=======
-def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
->>>>>>> t1img
     """
     Generate the initial linear transformation between ASL-space and T1w-space
     using FS bbregister. This is further refined later on using asl_reg. Note
