@@ -27,7 +27,8 @@ setup(
             'hcp_asl = scripts.run_pipeline:main',
             'hcp_asl_distcorr = scripts.distcorr_warps:main',
             'pv_est = scripts.prepare_t1asl_space:main',
-            'get_updated_fabber = scripts.get_updated_fabber:main',
+            'get_sebased_bias = scripts.se_based:se_based_bias_estimation',
+            'get_updated_fabber = scripts.get_updated_fabber:main'
         ]
     }
 )
