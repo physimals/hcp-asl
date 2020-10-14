@@ -16,12 +16,8 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
-<<<<<<< HEAD
 
 def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
-=======
-def generate_asl2struct_initial(asl, outdir, struct, struct_brain):
->>>>>>> t1img
     """
     Generate the initial linear transformation between ASL-space and T1w-space
     using FS bbregister. This is further refined later on using asl_reg. Note
@@ -247,6 +243,50 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname):
     ti_array = ti_array + (slice_in_band * slicedt)
     rt.ImageSpace.save_like(asl, ti_array, outname)
 
+def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
+    # create output directory
+    out_dir = Path(out_dir)
+    out_dir.mkdir(exist_ok=True)
+
+    # get schedule
+    fsldir = os.environ.get('FSLDIR')
+    schedule = Path(fsldir)/'etc/flirtsch/bbr.sch'
+
+    # set up commands
+    init_xform = out_dir/'fmapmag2struct_init.mat'
+    sec_xform = out_dir/'fmapmag2struct_sec.mat'
+    bbr_xform = out_dir/'fmapmag2struct_bbr.mat'
+    init_cmd = [
+        'flirt',
+        '-in', fmapmagbrain,
+        '-ref', sbet,
+        '-dof', '6',
+        '-omat', init_xform
+    ]
+    sec_cmd = [
+        'flirt',
+        '-in', fmapmag,
+        '-ref', s,
+        '-dof', '6',
+        '-init', init_xform,
+        '-omat', sec_xform,
+        '-nosearch'
+    ]
+    bbr_cmd = [
+        'flirt',
+        '-ref', s,
+        '-in', fmapmag,
+        '-dof', '6',
+        '-cost', 'bbr',
+        '-wmseg', wm_tissseg,
+        '-init', sec_xform,
+        '-omat', bbr_xform,
+        '-schedule', schedule
+    ]
+    for cmd in (init_cmd, sec_cmd, bbr_cmd):
+        sp.run(cmd, check=True)
+    return str(bbr_xform)
+
 def main():
 
     # argument handling
@@ -289,6 +329,21 @@ def main():
             + "perfusion estimation via oxford_asl.",
         action='store_true'
     )
+    parser.add_argument(
+        '--sebased',
+        help="If this flag is provided, the distortion warps and motion "
+            +"estimates will be applied to the MT-corrected but not bias-"
+            +"corrected calibration and ASL images. The bias-field will "
+            +"then be estimated from the calibration image using HCP's "
+            +"SE-based algorithm and applied in subsequent steps.",
+        action='store_true'
+    )
+    parser.add_argument(
+        "--mt",
+        help="Filename of the empirically estimated MT-correction"
+            + "scaling factors.",
+        default=None
+    )
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_number
@@ -297,6 +352,8 @@ def main():
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
     use_t1 = args.use_t1
+    use_sebased = args.sebased
+    mt_factors = args.mt
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -472,6 +529,15 @@ def main():
     # epi dc (incorporating asl->struct reg)
     asl = op.join(asl_dir, "tis_stcorr.nii.gz")
     reference = t1_asl_grid if target=='structural' else asl
+    if use_sebased and target=='structural':
+        asl = op.join(sub_base, "ASL", "TIs", "tis.nii.gz")
+        asl = Image(asl)
+        asl_sfs = op.join(asl_dir, "combined_scaling_factors.nii.gz")
+        asl_sfs = Image(asl_sfs)
+        asl = Image(asl.data * asl_sfs.data, header=asl.header)
+        mtcorr_name = op.join(sub_base, "ASL", "TIs", "MTCorr", "tis_mtcorr_nobc.nii.gz")
+        asl.save(mtcorr_name)
+        asl = mtcorr_name
     asl_outpath = op.join(distcorr_out_dir, "tis_distcorr.nii.gz")
     if not op.exists(asl_outpath) or force_refresh:
         asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
@@ -482,6 +548,14 @@ def main():
 
     # Final calibration transforms: calib->asl, grad dc, 
     # epi dc (incorporating asl->struct reg)
+    if use_sebased and target=='structural':
+        calib = op.join(sub_base, "ASL", "Calib", "Calib0", "calib0.nii.gz")
+        calib = Image(calib)
+        mt_sfs = np.loadtxt(mt_factors).reshape(1, 1, -1)
+        calib = Image(calib.data * mt_sfs, header=calib.header)
+        mtcorr_name = op.join(sub_base, "ASL", "Calib", "Calib0", "MTCorr", "calib0_mtcorr_nobc.nii.gz")
+        calib.save(mtcorr_name)
+        calib = mtcorr_name
     calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
     if (not op.exists(calib_outpath) or force_refresh) and target=='structural':
         calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
@@ -489,6 +563,15 @@ def main():
                                                          ref=reference)
         
         nb.save(calib_corrected, calib_outpath)
+
+    # apply distortion corrections to fmapmag.nii.gz
+    if use_sebased and target=='structural':
+        fmap_reg_dir = op.join(sub_base, "T1w", "ASL", "reg", "fmap")
+        bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
+        fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
+        fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
+        fmap_struct_name = op.join(fmap_reg_dir, "fmapmag_aslstruct.nii.gz")
+        nb.save(fmap_struct, fmap_struct_name)
 
     # Final scaling factors transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
