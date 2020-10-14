@@ -49,6 +49,10 @@ def se_based_bias_estimation():
         help="Image from which we wish to estimate the bias field."
     )
     parser.add_argument(
+        '--asl',
+        help="ASL series to which we wish to apply the bias field."
+    )
+    parser.add_argument(
         "-f",
         "--fmapmag",
         help="Fieldmap magnitude image from topup."
@@ -85,10 +89,17 @@ def se_based_bias_estimation():
             +"will be saved for inspection.",
         action='store_true'
     )
+    parser.add_argument(
+        '--wm_mask',
+        help="Filename for white matter mask to use this instead of "
+            +"a gray matter mask derived from FreeSurfer outputs.",
+        default=None
+    )
 
     args = parser.parse_args()
 
     m0_name = args.input
+    asl_name = args.asl
     sem_name = args.fmapmag
     mask_name = args.mask
     wmparc_name = args.wmparc
@@ -97,6 +108,7 @@ def se_based_bias_estimation():
     scLUT_name = args.subcortical
     outdir = Path(args.outdir)
     debug = args.debug
+    wm_mask = args.wm_mask
 
     # create output directory
     outdir.mkdir(exist_ok=True)
@@ -198,37 +210,43 @@ def se_based_bias_estimation():
         savenames = [str(outdir/f'{name}.nii.gz') for name in ('Dropouts', 'Dropouts_inv')]
         images = [Image(array, header=m0_img.header) for array in (Dropouts, Dropouts_inv)]
         [image.save(savename) for image, savename in zip(images, savenames)]
-
-    # downsample wmparc and ribbon to ASL-gridded T1 resolution
-    wmparc_aslt1, ribbon_aslt1 = [
-        rt.Registration.identity().apply_to_image(name, m0_name, order=0)
-        for name in (wmparc_name, ribbon_name)
-    ]
     
-    # parse LUTs
-    c_labels, sc_labels = [parse_LUT(lut) for lut in (cLUT_name, scLUT_name)]
-    cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
-    cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
-    for label in c_labels:
-        cgm = np.where(ribbon_aslt1.get_fdata()==label, 1, cgm)
-    for label in sc_labels:
-        scgm = np.where(wmparc_aslt1.get_fdata()==label, 1, scgm)
-    if debug:
-        savenames = [
-            str(outdir/f'{pre}GreyMatter.nii.gz') for pre in ('Cortical', 'Subcortical')
+    if wm_mask:
+        tissue_mask = rt.Registration.identity().apply_to_image(wm_mask, m0_name, order=0).get_fdata()
+        if debug:
+            savename = str(outdir/'WhiteMatter.nii.gz')
+            image = Image(tissue_mask, header=m0_img.header)
+            image.save(savename)
+    else:
+        # downsample wmparc and ribbon to ASL-gridded T1 resolution
+        wmparc_aslt1, ribbon_aslt1 = [
+            rt.Registration.identity().apply_to_image(name, m0_name, order=0)
+            for name in (wmparc_name, ribbon_name)
         ]
-        images = [Image(array, header=m0_img.header) for array in (cgm, scgm)]
-        [image.save(savename) for image, savename in zip(images, savenames)]
+        # parse LUTs
+        c_labels, sc_labels = [parse_LUT(lut) for lut in (cLUT_name, scLUT_name)]
+        cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
+        cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
+        for label in c_labels:
+            cgm = np.where(ribbon_aslt1.get_fdata()==label, 1, cgm)
+        for label in sc_labels:
+            scgm = np.where(wmparc_aslt1.get_fdata()==label, 1, scgm)
+        if debug:
+            savenames = [
+                str(outdir/f'{pre}GreyMatter.nii.gz') for pre in ('Cortical', 'Subcortical')
+            ]
+            images = [Image(array, header=m0_img.header) for array in (cgm, scgm)]
+            [image.save(savename) for image, savename in zip(images, savenames)]
+        
+        # combine masks
+        tissue_mask = np.where(np.logical_or(cgm==1, scgm==1), 1, 0)
+        if debug:
+            savename = str(outdir/'AllGreyMatter.nii.gz')
+            image = Image(tissue_mask, header=m0_img.header)
+            image.save(savename)
     
-    # combine masks
-    agm = np.where(np.logical_or(cgm==1, scgm==1), 1, 0)
-    if debug:
-        savename = str(outdir/'AllGreyMatter.nii.gz')
-        image = Image(agm, header=m0_img.header)
-        image.save(savename)
-    
-    # mask M0 image with both the AllGreyMatter and Dropouts_inv mask
-    M0_grey = np.where(np.logical_and(agm==1, Dropouts_inv==1), m0_img.data, 0).astype(np.float)
+    # mask M0 image with both the tissue mask and Dropouts_inv mask
+    M0_grey = np.where(np.logical_and(tissue_mask==1, Dropouts_inv==1), m0_img.data, 0).astype(np.float)
     M0_greyroi = np.where(M0_grey!=0, 1, 0).astype(np.float)
     M0_grey_s5, M0_greyroi_s5 = [
         scipy.ndimage.gaussian_filter(arr, sigma=sigma) for arr in (M0_grey, M0_greyroi)
@@ -241,7 +259,7 @@ def se_based_bias_estimation():
 
     # M0_bias_raw needs to undergo fslmaths' -dilall
     M0_bias_raw = np.where(
-        np.logical_and(agm!=0, M0_greyroi_s5!=0), 
+        np.logical_and(tissue_mask!=0, M0_greyroi_s5!=0), 
         M0_grey_s5/M0_greyroi_s5, 
         0
     )
@@ -289,3 +307,17 @@ def se_based_bias_estimation():
     sebased_bias_dil_name = str(outdir/'sebased_bias_dil.nii.gz')
     bias_dil_cmd = ['fslmaths', sebased_bias_name, '-dilM', '-dilM', sebased_bias_dil_name]
     subprocess.run(bias_dil_cmd, check=True)
+
+    # apply bias field to calibration and ASL images
+    sebased_bias = Image(sebased_bias_dil_name)
+    asl_img = Image(asl_name)
+    calib_bc = np.where(sebased_bias.data!=0, m0_img.data/sebased_bias.data, m0_img.data)
+    asl_bc = np.where(
+        sebased_bias.data[..., np.newaxis]!=0, 
+        asl_img.data/sebased_bias.data[..., np.newaxis], 
+        asl_img.data
+    )
+    [
+        Image(bc_arr, header=asl_img.header).save(str(outdir/f'{name}_secorr.nii.gz'))
+        for name, bc_arr in zip(('calib0', 'tis'), (calib_bc, asl_bc))
+    ]

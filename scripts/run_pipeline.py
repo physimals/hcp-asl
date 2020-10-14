@@ -21,7 +21,9 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None, use_t1=False, pvcorr=False):
+def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, 
+                    fmaps, gradients=None, use_t1=False, pvcorr=False, use_sebased=False,
+                    wmparc=None, ribbon=None, cLUT=None, scLUT=None):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -61,6 +63,10 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
+    use_sebased : bool, optional
+        Whether or not to use HCP's SE-based bias-correction 
+        to refine the bias correction obtained using FAST at 
+        the beginning of the pipeline. Default is False.
     """
     subject_dir = Path(subject_dir)
     mt_factors = Path(mt_factors)
@@ -72,18 +78,18 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
             "hcp_asl_distcorr",
             str(subject_dir.parent),
             subject_dir.stem,
-            "--target",
-            target,
-            "--fmap_ap",
-            fmaps['AP'],
-            "--fmap_pa",
-            fmaps['PA']
+            "--target", target,
+            "--fmap_ap", fmaps['AP'], 
+            "--fmap_pa", fmaps['PA'],
+            '--mt', mt_factors
         ]
         if gradients:
             dist_corr_call.append('--grads')
             dist_corr_call.append(gradients)
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
+        if use_sebased and (target=='structural'):
+            dist_corr_call.append('--sebased')
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             pv_est_call = [
@@ -92,7 +98,33 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
                 subject_dir.stem
             ]
             subprocess.run(pv_est_call, check=True)
-        tag_control_differencing(subject_dir, target=target)
+        if use_sebased and (target=='structural'):
+            calib_name = subject_dir/'T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/'T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/'T1w/ASL/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/'T1w/ASL/TIs/BiasCorr'
+            sebased_cmd = [
+                'get_sebased_bias',
+                '-i', calib_name,
+                '--asl', asl_name,
+                '-f', fmapmag_name,
+                '-m', mask_name,
+                '--wmparc', wmparc,
+                '--ribbon', ribbon,
+                '--cortical', cLUT,
+                '--subcortical', scLUT,
+                '-o', out_dir,
+                '--debug'
+            ]
+            subprocess.run(sebased_cmd, check=True)
+        if use_sebased and (target=='structural'):
+            series = subject_dir/'T1w/ASL/TIs/BiasCorr/tis_secorr.nii.gz'
+        elif target=='structural':
+            series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+        else:
+            series = subject_dir/'ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+        tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
         project_to_surface(subject_dir, target=target)
 
@@ -174,10 +206,39 @@ def main():
         action='store_true'
     )
     parser.add_argument(
+        '--sebased',
+        help="If this flag is provided, the distortion warps and motion "
+            +"estimates will be applied to the MT-corrected but not bias-"
+            +"corrected calibration and ASL images. The bias-field will "
+            +"then be estimated from the calibration image using HCP's "
+            +"SE-based algorithm and applied in subsequent steps.",
+        action='store_true'
+    )
+    parser.add_argument(
         '--pvcorr',
         help="If this flag is provided, oxford_asl will be run using the "
             + "--pvcorr flag.",
         action='store_true'
+    )
+    parser.add_argument(
+        '--wmparc',
+        help="wmparc.mgz from FreeSurfer",
+        default=None
+    )
+    parser.add_argument(
+        '--ribbon',
+        help="ribbon.mgz from FreeSurfer",
+        default=None
+    )
+    parser.add_argument(
+        "--cortical",
+        help="Filename for FreeSurfer's Cortical Lable Table",
+        default=None
+    )
+    parser.add_argument(
+        "--subcortical",
+        help="Filename for FreeSurfer's Subcortical Lable Table",
+        default=None
     )
     parser.add_argument(
         "-c",
@@ -211,7 +272,12 @@ def main():
     mbpcasl = args.input
     fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
     use_t1 = args.use_t1
+    use_sebased = args.sebased
     pvcorr = args.pvcorr
+    wmparc = args.wmparc
+    ribbon = args.ribbon
+    scLUT = args.subcortical
+    cLUT = args.cortical
     cores = args.cores
     order = args.interpolation
     if args.fabberdir:
@@ -240,7 +306,12 @@ def main():
                         surfaces=surfaces,
                         fmaps=fmaps,
                         use_t1=use_t1,
-                        pvcorr=pvcorr
+                        pvcorr=pvcorr,
+                        use_sebased=use_sebased,
+                        wmparc=wmparc,
+                        ribbon=ribbon,
+                        cLUT=cLUT,
+                        scLUT=scLUT
                         )
     else:
         print("Not including gradient distortion correction step.")
@@ -253,7 +324,12 @@ def main():
                         surfaces=surfaces,
                         fmaps=fmaps,
                         use_t1=use_t1,
-                        pvcorr=pvcorr
+                        pvcorr=pvcorr,
+                        use_sebased=use_sebased,
+                        wmparc=wmparc,
+                        ribbon=ribbon,
+                        cLUT=cLUT,
+                        scLUT=scLUT
                         )
 
 if __name__ == '__main__':
