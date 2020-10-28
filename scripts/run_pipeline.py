@@ -67,9 +67,9 @@ def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structur
         space.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
-    # initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
-    # correct_M0(subject_dir, mt_factors)
-    # hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
+    initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+    correct_M0(subject_dir, mt_factors)
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
