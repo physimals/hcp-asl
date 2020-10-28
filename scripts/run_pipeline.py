@@ -9,6 +9,7 @@ name of the MT correction scaling factors image.
 
 import sys
 import os
+from itertools import product
 
 from hcpasl.initial_bookkeeping import initial_processing
 from hcpasl.m0_mt_correction import correct_M0
@@ -21,15 +22,17 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients=None, use_t1=False, pvcorr=False):
+def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients, use_t1=False, pvcorr=False):
     """
     Run the hcp-asl pipeline for a given subject.
 
     Parameters
     ----------
-    subject_dir : str
-        Path to the subject's base directory.
-    mt_factors : str
+    studydir : pathlib.Path
+        Path to the study's base directory.
+    subid : str
+        Subject id for the subject of interest.
+    mt_factors : pathlib.Path
         Path to a .txt file of pre-calculated MT correction 
         factors.
     cores : int
@@ -41,47 +44,48 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
         Regtricks passes this on to scipy's map_coordinates. 
         The meaning of the value can be found in the scipy 
         documentation.
-    mbpcasl : str
+    mbpcasl : pathlib.Path
         Path to the subject's mbPCASL sequence.
     structural : dict
-        Contains the locations of important structural files.
+        Contains pathlib.Path locations of important structural 
+        files.
     surfaces : dict
-        Contains the locations of the surfaces needed for the 
-        pipeline.
+        Contains pathlib.Path locations of the surfaces needed 
+        for the pipeline.
     fmaps : dict
-        Contains the locations of the fieldmaps needed for 
-        distortion correction.
-    gradients : str, optional
-        Path to a gradient coefficients file for use in 
+        Contains pathlib.Path locations of the fieldmaps needed 
+        for distortion correction.
+    gradients : str
+        pathlib.Path to a gradient coefficients file for use in 
         gradient distortion correction.
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
-    use_t1 : bool, optional
+    pvcorr : bool, optional
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
     """
-    subject_dir = Path(subject_dir)
-    mt_factors = Path(mt_factors)
-    initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
-    correct_M0(subject_dir, mt_factors)
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
+    subject_dir = (studydir / subid).resolve(strict=True)
+    # initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+    # correct_M0(subject_dir, mt_factors)
+    # hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
+            "--study_dir",
             str(subject_dir.parent),
+            "--sub_id",
             subject_dir.stem,
             "--target",
             target,
             "--fmap_ap",
             fmaps['AP'],
             "--fmap_pa",
-            fmaps['PA']
+            fmaps['PA'],
+            "--grads",
+            gradients
         ]
-        if gradients:
-            dist_corr_call.append('--grads')
-            dist_corr_call.append(gradients)
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
         subprocess.run(dist_corr_call, check=True)
@@ -105,66 +109,99 @@ def main():
         description="This script performs the minimal processing for the "
                     + "HCP-Aging ASL data.")
     parser.add_argument(
-        "subject_dir",
-        help="The directory of the subject you wish to process."
+        "--studydir",
+        help="Path to the study's base directory.",
+        required=True
     )
     parser.add_argument(
-        "scaling_factors",
+        "--subid",
+        help="Subject id for the subject of interest.",
+        required=True
+    )
+    parser.add_argument(
+        "--mtname",
         help="Filename of the empirically estimated MT-correction"
-            + "scaling factors."
+            + "scaling factors.",
+        required=True
     )
     parser.add_argument(
         "-g",
         "--grads",
         help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
+            + "distortion correction.",
+        required=True
     )
     parser.add_argument(
         "-s",
         "--struct",
-        help="Filename for the acpc-aligned, dc-restored structural image."
+        help="Filename for the acpc-aligned, dc-restored structural image.",
+        required=True
     )
     parser.add_argument(
         "--sbrain",
         help="Filename for the brain-extracted acpc-aligned, "
-            + "dc-restored structural image."
+            + "dc-restored structural image.",
+        required=True
+    )
+    parser.add_argument(
+        "--surfacedir",
+        help="Directory containing the 32k surfaces. These will be used for "
+            +"the ribbon-constrained projection. If this argument is "
+            +"provided, it is assumed that the surface names follow the "
+            +"convention ${surfacedir}/{subjectid}_V1_MR.{side}.{surface}."
+            +"32k_fs_LR.surf.gii.",
+        required=False
     )
     parser.add_argument(
         "--lmid",
-        help="Filename for the left mid surface."
+        help="Filename for the 32k left mid surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rmid",
-        help="Filename for the right mid surface."
+        help="Filename for the 32k right mid surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--lwhite",
-        help="Filename for the left white surface."
+        help="Filename for the 32k left white surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rwhite",
-        help="Filename for the right white surface."
+        help="Filename for the 32k right white surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--lpial",
-        help="Filename for the left pial surface."
+        help="Filename for the 32k left pial surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rpial",
-        help="Filename for the right pial surface."
+        help="Filename for the 32k right pial surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        help="Filename for the mbPCASLhr acquisition."
+        "--mbpcasl",
+        help="Filename for the mbPCASLhr acquisition.",
+        required=True
     )
     parser.add_argument(
         "--fmap_ap",
-        help="Filename for the AP fieldmap for use in distortion correction"
+        help="Filename for the AP fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
-        help="Filename for the PA fieldmap for use in distortion correction"
+        help="Filename for the PA fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         '--use_t1',
@@ -200,16 +237,36 @@ def main():
     )
     # assign arguments to variables
     args = parser.parse_args()
-    mt_name = args.scaling_factors
-    subject_dir = args.subject_dir
+    mtname = Path(args.mtname).resolve(strict=True)
+    studydir = Path(args.studydir).resolve(strict=True)
+    subid = args.subid
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
-    surfaces = {
-        'L_mid': args.lmid, 'R_mid': args.rmid,
-        'L_white': args.lwhite, 'R_white':args.rwhite,
-        'L_pial': args.lpial, 'R_pial': args.rpial
+    mbpcasl = Path(args.mbpcasl).resolve(strict=True)
+    fmaps = {
+        'AP': Path(args.fmap_ap).resolve(strict=True), 
+        'PA': Path(args.fmap_pa).resolve(strict=True)
     }
-    mbpcasl = args.input
-    fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
+    grads = Path(args.grads).resolve(strict=True)
+    # surfaces
+    if args.surfacedir:
+        surfacedir = Path(args.surfacedir).resolve(strict=True)
+        sides = ("L", "R")
+        surfaces = ("midthickness", "pial", "white")
+        lmid, lpial, lwhite, rmid, rpial, rwhite = [
+            surfacedir / f"{subid}_V1_MR.{side}.{surf}.32k_fs_LR.surf.gii"
+            for side, surf in product(sides, surfaces)
+        ]
+    else:
+        lmid, lpial, lwhite, rmid, rpial, rwhite = [
+            Path(arg).resolve(strict=True) for arg in (args.lmid, args.lpial, args.lwhite, 
+                                            args.rmid, args.rpial, args.rwhite)
+        ]
+    surfaces = {
+        'L_mid': lmid, 'R_mid': rmid,
+        'L_white': lwhite, 'R_white':rwhite,
+        'L_pial': lpial, 'R_pial': rpial
+    }
+    # optional arguments
     use_t1 = args.use_t1
     pvcorr = args.pvcorr
     cores = args.cores
@@ -227,34 +284,21 @@ def main():
         print("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
-    print(f"Processing subject {subject_dir}.")
-    if args.grads:
-        print("Including gradient distortion correction step.")
-        process_subject(subject_dir=subject_dir,
-                        mt_factors=mt_name,
-                        cores=cores,
-                        order=order,
-                        gradients=args.grads,
-                        mbpcasl=mbpcasl,
-                        structural=structural,
-                        surfaces=surfaces,
-                        fmaps=fmaps,
-                        use_t1=use_t1,
-                        pvcorr=pvcorr
-                        )
-    else:
-        print("Not including gradient distortion correction step.")
-        process_subject(subject_dir=subject_dir,
-                        mt_factors=mt_name,
-                        cores=cores,
-                        order=order,
-                        mbpcasl=mbpcasl,
-                        structural=structural,
-                        surfaces=surfaces,
-                        fmaps=fmaps,
-                        use_t1=use_t1,
-                        pvcorr=pvcorr
-                        )
+    # process subject
+    print(f"Processing subject {studydir/subid}.")
+    process_subject(studydir=studydir,
+                    subid=subid,
+                    mt_factors=mtname,
+                    cores=cores,
+                    order=order,
+                    gradients=grads,
+                    mbpcasl=mbpcasl,
+                    structural=structural,
+                    surfaces=surfaces,
+                    fmaps=fmaps,
+                    use_t1=use_t1,
+                    pvcorr=pvcorr
+                    )
 
 if __name__ == '__main__':
     main()

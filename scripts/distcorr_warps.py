@@ -248,18 +248,21 @@ def main():
     # argument handling
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "study_dir",
-        help="Path of the base study directory."
+        "--study_dir",
+        help="Path of the base study directory.",
+        required=True
     )
     parser.add_argument(
-        "sub_number",
-        help="Subject number."
+        "--sub_id",
+        help="Subject number.",
+        required=True
     )
     parser.add_argument(
         "-g",
         "--grads",
         help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
+            + "distortion correction.",
+        required=True
     )
     parser.add_argument(
         "-t",
@@ -272,11 +275,13 @@ def main():
     )
     parser.add_argument(
         "--fmap_ap",
-        help="Filename for the AP fieldmap for use in distortion correction"
+        help="Filename for the AP fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
-        help="Filename for the PA fieldmap for use in distortion correction"
+        help="Filename for the PA fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         '--use_t1',
@@ -287,7 +292,7 @@ def main():
     )
     args = parser.parse_args()
     study_dir = args.study_dir
-    sub_id = args.sub_number
+    sub_id = args.sub_id
     grad_coefficients = args.grads
     target = args.target
     pa_sefm = args.fmap_pa
