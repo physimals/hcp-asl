@@ -228,13 +228,17 @@ def main():
             +"other potentially multi-core operations. Default is the "
             +f"number of cores your machine has ({cpu_count()}).",
         default=cpu_count(),
-        type=int
+        type=int,
+        choices=range(1, cpu_count()+1)
     )
     parser.add_argument(
         "--interpolation",
-        help="Interpolation order for registrations. Default is 3.",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
         default=3,
-        type=int
+        type=int,
+        choices=range(0, 5+1)
     )
     parser.add_argument(
         "--fabberdir",
@@ -272,8 +276,6 @@ def main():
         'L_white': lwhite, 'R_white':rwhite,
         'L_pial': lpial, 'R_pial': rpial
     }
-    assert (args.cores>0 and args.cores<=cpu_count()), f"Number of cores should be 1-{cpu_count()}."
-    assert (args.interpolation>=0 and args.interpolation<=5), "Order of interpolation should be 0-5."
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
             print("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))

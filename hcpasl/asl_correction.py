@@ -374,6 +374,8 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), in
         passed to scipy's map_coordinates. See that for more 
         information. Default is 3.
     """
+    assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
+    assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
     # asl sequence parameters
     ntis = 5
     iaf = "tc"

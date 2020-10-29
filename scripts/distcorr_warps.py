@@ -293,17 +293,21 @@ def main():
     parser.add_argument(
         "-c",
         "--cores",
-        help="Number of cores to use when applying motion correction. "
-            +"Default is the number of cores your machine has "
-            +f"({mp.cpu_count()}).",
-        default=mp.cpu_count(),
-        type=int
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({cpu_count()}).",
+        default=cpu_count(),
+        type=int,
+        choices=range(1, cpu_count()+1)
     )
     parser.add_argument(
         "--interpolation",
-        help="Interpolation order for registrations. Default is 3.",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
         default=3,
-        type=int
+        type=int,
+        choices=range(0, 5+1)
     )
     args = parser.parse_args()
     study_dir = args.study_dir
@@ -313,8 +317,6 @@ def main():
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
     use_t1 = args.use_t1
-    assert (args.cores>0 and args.cores<=mp.cpu_count()), f"Number of cores should be 1-{mp.cpu_count()}."
-    assert (args.interpolation>=0 and args.interpolation<=5), "Order of interpolation should be 0-5."
 
     # For debug, re-use existing intermediate files 
     force_refresh = True

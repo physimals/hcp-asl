@@ -89,11 +89,12 @@ def main():
     parser.add_argument(
         "-c",
         "--cores",
-        help="Number of cores to use when applying motion correction. "
-            +"Default is the number of cores your machine has "
-            +f"({mp.cpu_count()}).",
-        default=mp.cpu_count(),
-        type=int
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({cpu_count()}).",
+        default=cpu_count(),
+        type=int,
+        choices=range(1, cpu_count()+1)
     )
 
     args = parser.parse_args()
