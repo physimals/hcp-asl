@@ -74,22 +74,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
-            "--study_dir",
-            str(subject_dir.parent),
-            "--sub_id",
-            subject_dir.stem,
-            "--target",
-            target,
-            "--fmap_ap",
-            fmaps['AP'],
-            "--fmap_pa",
-            fmaps['PA'],
-            "--grads",
-            gradients,
-            "--cores",
-            str(cores),
-            "--interpolation",
-            str(interpolation)
+            "--study_dir", str(subject_dir.parent), 
+            "--sub_id", subject_dir.stem,
+            "--target", target, 
+            "--grads", gradients,
+            "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
+            "--cores", str(cores), "--interpolation", str(interpolation)
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
@@ -98,7 +88,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             pv_est_call = [
                 "pv_est",
                 str(subject_dir.parent),
-                subject_dir.stem
+                subject_dir.stem,
+                "--cores", str(cores)
             ]
             subprocess.run(pv_est_call, check=True)
         tag_control_differencing(subject_dir, target=target)
