@@ -290,6 +290,21 @@ def main():
             + "perfusion estimation via oxford_asl.",
         action='store_true'
     )
+    parser.add_argument(
+        "-c",
+        "--cores",
+        help="Number of cores to use when applying motion correction. "
+            +"Default is the number of cores your machine has "
+            +f"({mp.cpu_count()}).",
+        default=mp.cpu_count(),
+        type=int
+    )
+    parser.add_argument(
+        "--interpolation",
+        help="Interpolation order for registrations. Default is 3.",
+        default=3,
+        type=int
+    )
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_id
@@ -298,6 +313,8 @@ def main():
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
     use_t1 = args.use_t1
+    assert (args.cores>0 and args.cores<=mp.cpu_count()), f"Number of cores should be 1-{mp.cpu_count()}."
+    assert (args.interpolation>=0 and args.interpolation<=5), "Order of interpolation should be 0-5."
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -336,7 +353,7 @@ def main():
         t1_spc = rt.ImageSpace(struct)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         nb.save(
-            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
+            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc, order=args.interpolation), 
             t1_asl_grid)
     
     # Create ASL-gridded version of T1 image
@@ -346,8 +363,8 @@ def main():
         t1_spc = rt.ImageSpace(struct_brain)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         t1_mask = binarise_image(struct_brain)
-        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
-                                                        t1_spc, t1_asl_grid_spc)
+        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, t1_spc, t1_asl_grid_spc, 
+                                                                    order=args.interpolation)
         # Re-binarise downsampled mask and save
         t1_asl_grid_mask_array = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
@@ -406,7 +423,8 @@ def main():
     gdc_tis_vol1_name = op.join(distcorr_out_dir, "gdc_tis_vol1.nii.gz")
     if (not op.exists(gdc_tis_vol1_name) or force_refresh) and target=='asl':
         gdc_tis_vol1 = gdc.apply_to_image(src=unreg_img,
-                                          ref=unreg_img)
+                                          ref=unreg_img,
+                                          order=args.interpolation)
         unreg_img = gdc_tis_vol1_name
         nb.save(gdc_tis_vol1, unreg_img)
 
@@ -478,7 +496,8 @@ def main():
         asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
         asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl, 
                                                         ref=reference, 
-                                                        cores=mp.cpu_count())
+                                                        cores=args.cores,
+                                                        order=args.interpolation)
         nb.save(asl_corrected, asl_outpath)
 
     # Final calibration transforms: calib->asl, grad dc, 
@@ -487,7 +506,8 @@ def main():
     if (not op.exists(calib_outpath) or force_refresh) and target=='structural':
         calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
         calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
-                                                         ref=reference)
+                                                         ref=reference,
+                                                         order=args.interpolation)
         
         nb.save(calib_corrected, calib_outpath)
 
@@ -514,7 +534,8 @@ def main():
         if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
             asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
             reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
-                                                    ref=reference)
+                                                      ref=reference,
+                                                      order=args.interpolation)
             nb.save(reg_est_t1, reg_est_t1_name)
 
     # create ti image in asl space

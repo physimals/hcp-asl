@@ -39,7 +39,7 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
     return output 
 
 
-def estimate_pvs(t1_dir, t1_asl):
+def estimate_pvs(t1_dir, t1_asl, cores=mp.cpu_count()):
     """
     Generate partial volume estimates from freesurfer segmentations of the cortex
     and subcortical structures.
@@ -49,6 +49,8 @@ def estimate_pvs(t1_dir, t1_asl):
             fsaverage_32k surface directory
         asl: path to ASL image, used for setting resolution of output 
         fileroot: path basename for output, will add suffix GM/WM/CSF
+        cores: integer number of cores to use, default is the number of 
+            cores on your machine
     """    
 
     # Load the t1 image, aparc+aseg and surfaces from their expected 
@@ -67,7 +69,7 @@ def estimate_pvs(t1_dir, t1_asl):
 
     # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
     pvs_stacked = extract_fs_pvs(aparc_aseg, surf_dict, t1_asl, 
-        superfactor=2, cores=mp.cpu_count())
+        superfactor=2, cores=cores)
 
     return pvs_stacked
 
@@ -83,6 +85,15 @@ def main():
     parser.add_argument(
         "sub_number",
         help="Subject number."
+    )
+    parser.add_argument(
+        "-c",
+        "--cores",
+        help="Number of cores to use when applying motion correction. "
+            +"Default is the number of cores your machine has "
+            +f"({mp.cpu_count()}).",
+        default=mp.cpu_count(),
+        type=int
     )
 
     args = parser.parse_args()

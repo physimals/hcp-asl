@@ -22,7 +22,7 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structural, surfaces, fmaps, gradients, use_t1=False, pvcorr=False):
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, gradients, use_t1=False, pvcorr=False, cores=cpu_count(), interpolation=3):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -35,15 +35,6 @@ def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structur
     mt_factors : pathlib.Path
         Path to a .txt file of pre-calculated MT correction 
         factors.
-    cores : int
-        Number of cores to use.
-        When applying motion correction, this is the number 
-        of cores that will be used by regtricks.
-    order : int
-        The interpolation order to use for registrations.
-        Regtricks passes this on to scipy's map_coordinates. 
-        The meaning of the value can be found in the scipy 
-        documentation.
     mbpcasl : pathlib.Path
         Path to the subject's mbPCASL sequence.
     structural : dict
@@ -65,11 +56,21 @@ def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structur
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
+    cores : int, optional
+        Number of cores to use.
+        When applying motion correction, this is the number 
+        of cores that will be used by regtricks. Default is 
+        the number of cores on your machine.
+    interpolation : int, optional
+        The interpolation order to use for registrations.
+        Regtricks passes this on to scipy's map_coordinates. 
+        The meaning of the value can be found in the scipy 
+        documentation. Default is 3.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
     initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
     correct_M0(subject_dir, mt_factors)
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
@@ -84,7 +85,11 @@ def process_subject(studydir, subid, mt_factors, cores, order, mbpcasl, structur
             "--fmap_pa",
             fmaps['PA'],
             "--grads",
-            gradients
+            gradients,
+            "--cores",
+            str(cores),
+            "--interpolation",
+            str(interpolation)
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
@@ -219,9 +224,10 @@ def main():
     parser.add_argument(
         "-c",
         "--cores",
-        help="Number of cores to use for registration operations. "
-            + f"Your PC has {cpu_count()}. Default is 1.",
-        default=1,
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({cpu_count()}).",
+        default=cpu_count(),
         type=int
     )
     parser.add_argument(
@@ -259,18 +265,15 @@ def main():
     else:
         lmid, lpial, lwhite, rmid, rpial, rwhite = [
             Path(arg).resolve(strict=True) for arg in (args.lmid, args.lpial, args.lwhite, 
-                                            args.rmid, args.rpial, args.rwhite)
+                                                       args.rmid, args.rpial, args.rwhite)
         ]
     surfaces = {
         'L_mid': lmid, 'R_mid': rmid,
         'L_white': lwhite, 'R_white':rwhite,
         'L_pial': lpial, 'R_pial': rpial
     }
-    # optional arguments
-    use_t1 = args.use_t1
-    pvcorr = args.pvcorr
-    cores = args.cores
-    order = args.interpolation
+    assert (args.cores>0 and args.cores<=cpu_count()), f"Number of cores should be 1-{cpu_count()}."
+    assert (args.interpolation>=0 and args.interpolation<=5), "Order of interpolation should be 0-5."
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
             print("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
@@ -289,15 +292,15 @@ def main():
     process_subject(studydir=studydir,
                     subid=subid,
                     mt_factors=mtname,
-                    cores=cores,
-                    order=order,
+                    cores=args.cores,
+                    interpolation=args.interpolation,
                     gradients=grads,
                     mbpcasl=mbpcasl,
                     structural=structural,
                     surfaces=surfaces,
                     fmaps=fmaps,
-                    use_t1=use_t1,
-                    pvcorr=pvcorr
+                    use_t1=args.use_t1,
+                    pvcorr=args.pvcorr
                     )
 
 if __name__ == '__main__':
