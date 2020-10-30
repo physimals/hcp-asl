@@ -292,18 +292,21 @@ def main():
     # argument handling
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "study_dir",
-        help="Path of the base study directory."
+        "--study_dir",
+        help="Path of the base study directory.",
+        required=True
     )
     parser.add_argument(
-        "sub_number",
-        help="Subject number."
+        "--sub_id",
+        help="Subject number.",
+        required=True
     )
     parser.add_argument(
         "-g",
         "--grads",
         help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
+            + "distortion correction.",
+        required=True
     )
     parser.add_argument(
         "-t",
@@ -316,11 +319,13 @@ def main():
     )
     parser.add_argument(
         "--fmap_ap",
-        help="Filename for the AP fieldmap for use in distortion correction"
+        help="Filename for the AP fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
-        help="Filename for the PA fieldmap for use in distortion correction"
+        help="Filename for the PA fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         '--use_t1',
@@ -339,21 +344,41 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        "--mt",
+        "--mtname",
         help="Filename of the empirically estimated MT-correction"
             + "scaling factors.",
-        default=None
+        default=None,
+        required="--sebased" in sys.argv
+    )
+    parser.add_argument(
+        "-c",
+        "--cores",
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({mp.cpu_count()}).",
+        default=mp.cpu_count(),
+        type=int,
+        choices=range(1, mp.cpu_count()+1)
+    )
+    parser.add_argument(
+        "--interpolation",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
+        default=3,
+        type=int,
+        choices=range(0, 5+1)
     )
     args = parser.parse_args()
     study_dir = args.study_dir
-    sub_id = args.sub_number
+    sub_id = args.sub_id
     grad_coefficients = args.grads
     target = args.target
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
     use_t1 = args.use_t1
     use_sebased = args.sebased
-    mt_factors = args.mt
+    mt_factors = args.mtname
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -392,7 +417,7 @@ def main():
         t1_spc = rt.ImageSpace(struct)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         nb.save(
-            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
+            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc, order=args.interpolation), 
             t1_asl_grid)
     
     # Create ASL-gridded version of T1 image
@@ -402,8 +427,8 @@ def main():
         t1_spc = rt.ImageSpace(struct_brain)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         t1_mask = binarise_image(struct_brain)
-        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
-                                                        t1_spc, t1_asl_grid_spc)
+        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, t1_spc, t1_asl_grid_spc, 
+                                                                    order=args.interpolation)
         # Re-binarise downsampled mask and save
         t1_asl_grid_mask_array = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
@@ -462,7 +487,8 @@ def main():
     gdc_tis_vol1_name = op.join(distcorr_out_dir, "gdc_tis_vol1.nii.gz")
     if (not op.exists(gdc_tis_vol1_name) or force_refresh) and target=='asl':
         gdc_tis_vol1 = gdc.apply_to_image(src=unreg_img,
-                                          ref=unreg_img)
+                                          ref=unreg_img,
+                                          order=args.interpolation)
         unreg_img = gdc_tis_vol1_name
         nb.save(gdc_tis_vol1, unreg_img)
 
@@ -543,7 +569,8 @@ def main():
         asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
         asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl, 
                                                         ref=reference, 
-                                                        cores=mp.cpu_count())
+                                                        cores=args.cores,
+                                                        order=args.interpolation)
         nb.save(asl_corrected, asl_outpath)
 
     # Final calibration transforms: calib->asl, grad dc, 
@@ -560,7 +587,8 @@ def main():
     if (not op.exists(calib_outpath) or force_refresh) and target=='structural':
         calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
         calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
-                                                         ref=reference)
+                                                         ref=reference,
+                                                         order=args.interpolation)
         
         nb.save(calib_corrected, calib_outpath)
 
@@ -596,7 +624,8 @@ def main():
         if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
             asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
             reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
-                                                    ref=reference)
+                                                      ref=reference,
+                                                      order=args.interpolation)
             nb.save(reg_est_t1, reg_est_t1_name)
 
     # create ti image in asl space

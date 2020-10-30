@@ -9,6 +9,7 @@ name of the MT correction scaling factors image.
 
 import sys
 import os
+from itertools import product
 
 from hcpasl.initial_bookkeeping import initial_processing
 from hcpasl.m0_mt_correction import correct_M0
@@ -21,45 +22,39 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, surfaces, 
-                    fmaps, gradients=None, use_t1=False, pvcorr=False, use_sebased=False,
-                    wmparc=None, ribbon=None, cLUT=None, scLUT=None):
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, 
+                    gradients, use_t1=False, pvcorr=False, cores=cpu_count(), 
+                    interpolation=3, use_sebased=False, wmparc=None, ribbon=None):
     """
     Run the hcp-asl pipeline for a given subject.
 
     Parameters
     ----------
-    subject_dir : str
-        Path to the subject's base directory.
-    mt_factors : str
+    studydir : pathlib.Path
+        Path to the study's base directory.
+    subid : str
+        Subject id for the subject of interest.
+    mt_factors : pathlib.Path
         Path to a .txt file of pre-calculated MT correction 
         factors.
-    cores : int
-        Number of cores to use.
-        When applying motion correction, this is the number 
-        of cores that will be used by regtricks.
-    order : int
-        The interpolation order to use for registrations.
-        Regtricks passes this on to scipy's map_coordinates. 
-        The meaning of the value can be found in the scipy 
-        documentation.
-    mbpcasl : str
+    mbpcasl : pathlib.Path
         Path to the subject's mbPCASL sequence.
     structural : dict
-        Contains the locations of important structural files.
+        Contains pathlib.Path locations of important structural 
+        files.
     surfaces : dict
-        Contains the locations of the surfaces needed for the 
-        pipeline.
+        Contains pathlib.Path locations of the surfaces needed 
+        for the pipeline.
     fmaps : dict
-        Contains the locations of the fieldmaps needed for 
-        distortion correction.
-    gradients : str, optional
-        Path to a gradient coefficients file for use in 
+        Contains pathlib.Path locations of the fieldmaps needed 
+        for distortion correction.
+    gradients : str
+        pathlib.Path to a gradient coefficients file for use in 
         gradient distortion correction.
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
-    use_t1 : bool, optional
+    pvcorr : bool, optional
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
@@ -67,25 +62,32 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
         Whether or not to use HCP's SE-based bias-correction 
         to refine the bias correction obtained using FAST at 
         the beginning of the pipeline. Default is False.
+    cores : int, optional
+        Number of cores to use.
+        When applying motion correction, this is the number 
+        of cores that will be used by regtricks. Default is 
+        the number of cores on your machine.
+    interpolation : int, optional
+        The interpolation order to use for registrations.
+        Regtricks passes this on to scipy's map_coordinates. 
+        The meaning of the value can be found in the scipy 
+        documentation. Default is 3.
     """
-    subject_dir = Path(subject_dir)
-    mt_factors = Path(mt_factors)
+    subject_dir = (studydir / subid).resolve(strict=True)
     initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
     correct_M0(subject_dir, mt_factors)
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, order=order)
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
-            str(subject_dir.parent),
-            subject_dir.stem,
-            "--target", target,
-            "--fmap_ap", fmaps['AP'], 
-            "--fmap_pa", fmaps['PA'],
-            '--mt', mt_factors
+            "--study_dir", str(subject_dir.parent), 
+            "--sub_id", subject_dir.stem,
+            '--mtname', mt_factors,
+            "--target", target, 
+            "--grads", gradients,
+            "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
+            "--cores", str(cores), "--interpolation", str(interpolation)
         ]
-        if gradients:
-            dist_corr_call.append('--grads')
-            dist_corr_call.append(gradients)
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
         if use_sebased and (target=='structural'):
@@ -95,7 +97,8 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
             pv_est_call = [
                 "pv_est",
                 str(subject_dir.parent),
-                subject_dir.stem
+                subject_dir.stem,
+                "--cores", str(cores)
             ]
             subprocess.run(pv_est_call, check=True)
         if use_sebased and (target=='structural'):
@@ -104,6 +107,9 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
             mask_name = subject_dir/'T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
             fmapmag_name = subject_dir/'T1w/ASL/reg/fmap/fmapmag_aslstruct.nii.gz'
             out_dir = subject_dir/'T1w/ASL/TIs/BiasCorr'
+            hcppipedir = Path(os.environ["HCPPIPEDIR"])
+            corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
+            subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
             sebased_cmd = [
                 'get_sebased_bias',
                 '-i', calib_name,
@@ -112,8 +118,8 @@ def process_subject(subject_dir, mt_factors, cores, order, mbpcasl, structural, 
                 '-m', mask_name,
                 '--wmparc', wmparc,
                 '--ribbon', ribbon,
-                '--cortical', cLUT,
-                '--subcortical', scLUT,
+                '--corticallut', corticallut,
+                '--subcorticallut', subcorticallut,
                 '-o', out_dir,
                 '--debug'
             ]
@@ -137,72 +143,111 @@ def main():
         description="This script performs the minimal processing for the "
                     + "HCP-Aging ASL data.")
     parser.add_argument(
-        "subject_dir",
-        help="The directory of the subject you wish to process."
+        "--studydir",
+        help="Path to the study's base directory.",
+        required=True
     )
     parser.add_argument(
-        "scaling_factors",
+        "--subid",
+        help="Subject id for the subject of interest.",
+        required=True
+    )
+    parser.add_argument(
+        "--mtname",
         help="Filename of the empirically estimated MT-correction"
-            + "scaling factors."
+            + "scaling factors.",
+        required=True
     )
     parser.add_argument(
         "-g",
         "--grads",
         help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
+            + "distortion correction.",
+        required=True
     )
     parser.add_argument(
         "-s",
         "--struct",
-        help="Filename for the acpc-aligned, dc-restored structural image."
+        help="Filename for the acpc-aligned, dc-restored structural image.",
+        required=True
     )
     parser.add_argument(
         "--sbrain",
         help="Filename for the brain-extracted acpc-aligned, "
-            + "dc-restored structural image."
+            + "dc-restored structural image.",
+        required=True
+    )
+    parser.add_argument(
+        "--surfacedir",
+        help="Directory containing the 32k surfaces. These will be used for "
+            +"the ribbon-constrained projection. If this argument is "
+            +"provided, it is assumed that the surface names follow the "
+            +"convention ${surfacedir}/{subjectid}_V1_MR.{side}.{surface}."
+            +"32k_fs_LR.surf.gii.",
+        required=False
     )
     parser.add_argument(
         "--lmid",
-        help="Filename for the left mid surface."
+        help="Filename for the 32k left mid surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rmid",
-        help="Filename for the right mid surface."
+        help="Filename for the 32k right mid surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--lwhite",
-        help="Filename for the left white surface."
+        help="Filename for the 32k left white surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rwhite",
-        help="Filename for the right white surface."
+        help="Filename for the 32k right white surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--lpial",
-        help="Filename for the left pial surface."
+        help="Filename for the 32k left pial surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
         "--rpial",
-        help="Filename for the right pial surface."
+        help="Filename for the 32k right pial surface. This argument is "
+            +"required if the '--surfacedir' argument is not provided.",
+        required="--surfacedir" not in sys.argv
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        help="Filename for the mbPCASLhr acquisition."
+        "--mbpcasl",
+        help="Filename for the mbPCASLhr acquisition.",
+        required=True
     )
     parser.add_argument(
         "--fmap_ap",
-        help="Filename for the AP fieldmap for use in distortion correction"
+        help="Filename for the AP fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
-        help="Filename for the PA fieldmap for use in distortion correction"
+        help="Filename for the PA fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         '--use_t1',
         help="If this flag is provided, the T1 estimates from the satrecov "
             + "will also be registered to ASL-gridded T1 space for use in "
             + "perfusion estimation via oxford_asl.",
+        action='store_true'
+    )
+    parser.add_argument(
+        '--pvcorr',
+        help="If this flag is provided, oxford_asl will be run using the "
+            + "--pvcorr flag.",
         action='store_true'
     )
     parser.add_argument(
@@ -215,44 +260,35 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        '--pvcorr',
-        help="If this flag is provided, oxford_asl will be run using the "
-            + "--pvcorr flag.",
-        action='store_true'
-    )
-    parser.add_argument(
         '--wmparc',
-        help="wmparc.mgz from FreeSurfer",
-        default=None
+        help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
+        default=None,
+        required="--sebased" in sys.argv
     )
     parser.add_argument(
         '--ribbon',
-        help="ribbon.mgz from FreeSurfer",
-        default=None
-    )
-    parser.add_argument(
-        "--cortical",
-        help="Filename for FreeSurfer's Cortical Lable Table",
-        default=None
-    )
-    parser.add_argument(
-        "--subcortical",
-        help="Filename for FreeSurfer's Subcortical Lable Table",
-        default=None
+        help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
+        default=None,
+        required="--sebased" in sys.argv
     )
     parser.add_argument(
         "-c",
         "--cores",
-        help="Number of cores to use for registration operations. "
-            + f"Your PC has {cpu_count()}. Default is 1.",
-        default=1,
-        type=int
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({cpu_count()}).",
+        default=cpu_count(),
+        type=int,
+        choices=range(1, cpu_count()+1)
     )
     parser.add_argument(
         "--interpolation",
-        help="Interpolation order for registrations. Default is 3.",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
         default=3,
-        type=int
+        type=int,
+        choices=range(0, 5+1)
     )
     parser.add_argument(
         "--fabberdir",
@@ -261,25 +297,35 @@ def main():
     )
     # assign arguments to variables
     args = parser.parse_args()
-    mt_name = args.scaling_factors
-    subject_dir = args.subject_dir
+    mtname = Path(args.mtname).resolve(strict=True)
+    studydir = Path(args.studydir).resolve(strict=True)
+    subid = args.subid
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
-    surfaces = {
-        'L_mid': args.lmid, 'R_mid': args.rmid,
-        'L_white': args.lwhite, 'R_white':args.rwhite,
-        'L_pial': args.lpial, 'R_pial': args.rpial
+    mbpcasl = Path(args.mbpcasl).resolve(strict=True)
+    fmaps = {
+        'AP': Path(args.fmap_ap).resolve(strict=True), 
+        'PA': Path(args.fmap_pa).resolve(strict=True)
     }
-    mbpcasl = args.input
-    fmaps = {'AP': args.fmap_ap, 'PA': args.fmap_pa}
-    use_t1 = args.use_t1
-    use_sebased = args.sebased
-    pvcorr = args.pvcorr
-    wmparc = args.wmparc
-    ribbon = args.ribbon
-    scLUT = args.subcortical
-    cLUT = args.cortical
-    cores = args.cores
-    order = args.interpolation
+    grads = Path(args.grads).resolve(strict=True)
+    # surfaces
+    if args.surfacedir:
+        surfacedir = Path(args.surfacedir).resolve(strict=True)
+        sides = ("L", "R")
+        surfaces = ("midthickness", "pial", "white")
+        lmid, lpial, lwhite, rmid, rpial, rwhite = [
+            surfacedir / f"{subid}_V1_MR.{side}.{surf}.32k_fs_LR.surf.gii"
+            for side, surf in product(sides, surfaces)
+        ]
+    else:
+        lmid, lpial, lwhite, rmid, rpial, rwhite = [
+            Path(arg).resolve(strict=True) for arg in (args.lmid, args.lpial, args.lwhite, 
+                                                       args.rmid, args.rpial, args.rwhite)
+        ]
+    surfaces = {
+        'L_mid': lmid, 'R_mid': rmid,
+        'L_white': lwhite, 'R_white':rwhite,
+        'L_pial': lpial, 'R_pial': rpial
+    }
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
             print("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
@@ -293,44 +339,24 @@ def main():
         print("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
-    print(f"Processing subject {subject_dir}.")
-    if args.grads:
-        print("Including gradient distortion correction step.")
-        process_subject(subject_dir=subject_dir,
-                        mt_factors=mt_name,
-                        cores=cores,
-                        order=order,
-                        gradients=args.grads,
-                        mbpcasl=mbpcasl,
-                        structural=structural,
-                        surfaces=surfaces,
-                        fmaps=fmaps,
-                        use_t1=use_t1,
-                        pvcorr=pvcorr,
-                        use_sebased=use_sebased,
-                        wmparc=wmparc,
-                        ribbon=ribbon,
-                        cLUT=cLUT,
-                        scLUT=scLUT
-                        )
-    else:
-        print("Not including gradient distortion correction step.")
-        process_subject(subject_dir=subject_dir,
-                        mt_factors=mt_name,
-                        cores=cores,
-                        order=order,
-                        mbpcasl=mbpcasl,
-                        structural=structural,
-                        surfaces=surfaces,
-                        fmaps=fmaps,
-                        use_t1=use_t1,
-                        pvcorr=pvcorr,
-                        use_sebased=use_sebased,
-                        wmparc=wmparc,
-                        ribbon=ribbon,
-                        cLUT=cLUT,
-                        scLUT=scLUT
-                        )
+    # process subject
+    print(f"Processing subject {studydir/subid}.")
+    process_subject(studydir=studydir,
+                    subid=subid,
+                    mt_factors=mtname,
+                    cores=args.cores,
+                    interpolation=args.interpolation,
+                    gradients=grads,
+                    mbpcasl=mbpcasl,
+                    structural=structural,
+                    surfaces=surfaces,
+                    fmaps=fmaps,
+                    use_t1=args.use_t1,
+                    pvcorr=args.pvcorr,
+                    use_sebased=args.sebased,
+                    wmparc=args.wmparc,
+                    ribbon=args.ribbon
+                    )
 
 if __name__ == '__main__':
     main()

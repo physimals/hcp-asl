@@ -54,12 +54,14 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     ----------
     subject_dir : pathlib.Path
         Path to the subject's base directory.
-    mbpcasl : str
+    mbpcasl : pathlib.Path
         Path to the subject's mbPCASL sequence.
     structural : dict
-        Dictionary containing paths to important structural files.
+        Dictionary containing pathlib.Paths to important structural 
+        files.
     surfaces : dict
-        Dictionary containing paths to important surface files.
+        Dictionary containing pathlib.Paths to important surface 
+        files.
     """
     # get subject name
     subject_name = subject_dir.parts[-1]

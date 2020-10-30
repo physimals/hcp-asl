@@ -46,42 +46,51 @@ def se_based_bias_estimation():
     parser.add_argument(
         "-i",
         "--input",
-        help="Image from which we wish to estimate the bias field."
+        help="Image from which we wish to estimate the bias field.",
+        required=True
     )
     parser.add_argument(
         '--asl',
-        help="ASL series to which we wish to apply the bias field."
+        help="ASL series to which we wish to apply the bias field.",
+        required=True
     )
     parser.add_argument(
         "-f",
         "--fmapmag",
-        help="Fieldmap magnitude image from topup."
+        help="Fieldmap magnitude image from topup.",
+        required=True
     )
     parser.add_argument(
         "-m",
         "--mask",
-        help="Brain mask."
+        help="Brain mask.",
+        required=True
     )
     parser.add_argument(
         '--wmparc',
-        help="wmparc.mgz from FreeSurfer"
+        help="wmparc.mgz from FreeSurfer",
+        required=True
     )
     parser.add_argument(
         '--ribbon',
-        help="ribbon.mgz from FreeSurfer"
+        help="ribbon.mgz from FreeSurfer",
+        required=True
     )
     parser.add_argument(
-        "--cortical",
-        help="Filename for FreeSurfer's Cortical Lable Table"
+        "--corticallut",
+        help="Filename for FreeSurfer's Cortical Lable Table",
+        required=True
     )
     parser.add_argument(
-        "--subcortical",
-        help="Filename for FreeSurfer's Subcortical Lable Table"
+        "--subcorticallut",
+        help="Filename for FreeSurfer's Subcortical Lable Table",
+        required=True
     )
     parser.add_argument(
         '-o',
         '--outdir',
-        help="Output directory for results."
+        help="Output directory for results.",
+        required=True
     )
     parser.add_argument(
         '--debug',
@@ -104,8 +113,8 @@ def se_based_bias_estimation():
     mask_name = args.mask
     wmparc_name = args.wmparc
     ribbon_name = args.ribbon
-    cLUT_name = args.cortical
-    scLUT_name = args.subcortical
+    corticallut = args.corticallut
+    subcorticallut = args.subcorticallut
     outdir = Path(args.outdir)
     debug = args.debug
     wm_mask = args.wm_mask
@@ -224,7 +233,7 @@ def se_based_bias_estimation():
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs
-        c_labels, sc_labels = [parse_LUT(lut) for lut in (cLUT_name, scLUT_name)]
+        c_labels, sc_labels = [parse_LUT(lut) for lut in (corticallut, subcorticallut)]
         cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
         cgm, scgm = [np.zeros(ribbon_aslt1.shape), np.zeros(wmparc_aslt1.shape)]
         for label in c_labels:

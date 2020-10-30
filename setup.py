@@ -20,7 +20,8 @@ setup(
         'nibabel',
         'regtricks',
         'toblerone',
-        'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git'
+        'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git',
+        'pandas'
     ],
     entry_points={
         'console_scripts': [
