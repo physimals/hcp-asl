@@ -500,7 +500,7 @@ def main():
     if not op.exists(asl2struct_initial_path) or force_refresh:
         asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat')
         fsdir = op.join(t1_dir, f'{sub_id}_V1_MR')
-        generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir)
+        generate_asl2struct_initial(unreg_img, struct, fsdir, reg_dir)
         os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
     asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
                                                     src=unreg_img, ref=struct)
