@@ -75,7 +75,7 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
     scaling_factors = scaling_factors.flatten()
     return scaling_factors, X_pred, y_pred
 
-def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
+def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_method='calib'):
     """
     Estimates the slice-dependent MT effect on the given subject's 
     calibration images. Performs the estimation using a linear 
@@ -91,11 +91,12 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
             print(subject_dir)
             # load subject's json
             json_dict = load_json(subject_dir)
-            # calculate mean per slice of masked in both calib images
-            masked_names = (
-                json_dict[f'calib0_{tissue}_masked'],
-                json_dict[f'calib1_{tissue}_masked']
-            )
+            mask_dirs = [
+                Path(json_dict[calib_dir]/'masks') for calib_dir in ('calib0_dir', 'calib1_dir')
+            ]
+            masked_names = [
+                mask_dir/f'{tissue}_masked_{biascorr_method}' for mask_dir in mask_dirs
+            ]
             for n2, masked_name in enumerate(masked_names):
                 if tissue == 'combined':
                     gm_masked, wm_masked = masked_name
@@ -127,7 +128,6 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
                 # calculate slicewise summary stats
                 slicewise_mean = np.nanmean(masked_data, axis=(0, 1))
                 mean_array[:, 2*n1 + n2] = slicewise_mean
-
         # calculate non-zero slicewise mean of mean_array
         slice_means = np.nanmean(mean_array, axis=1)
         slice_std = np.nanstd(mean_array, axis=1)
@@ -155,11 +155,11 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_1709.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_t1.png'
         plt.savefig(plt_name)
         # add linear models on top
         plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_with_lin_1709.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_with_lin_{biascorr_method}.png'
         plt.savefig(plt_name)
 
         # plot rescaled slice-means
@@ -177,7 +177,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled_1709.png'
+        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled_{biascorr_method}.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
@@ -191,7 +191,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
                 ' PVE $\geqslant$ 70% across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
-        plt_name = Path().cwd() / 'mean_voxel_count_1709.png'
+        plt_name = Path().cwd() / f'mean_voxel_count_{biascorr_method}.png'
         plt.savefig(plt_name)
 
         # # the scaling factors have been estimated on images which have been 
@@ -201,7 +201,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
         # scaling_factors = undo_st_correction(scaling_factors, tissue, tr)
 
         # save scaling factors as a .txt file
-        sfs_savename = f'{method}_scaling_factors_1709.txt'
+        sfs_savename = f'{method}_scaling_factors_{biascorr_method}.txt'
         np.savetxt(sfs_savename, scaling_factors, fmt='%.5f')
         # create array from scaling_factors
         scaling_factors = np.tile(scaling_factors, (86, 86, 1))
@@ -214,12 +214,15 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate'):
             scaling_dir = Path(json_dict['calib_dir']).parent / 'MTEstimation'
             mtcorr_dir = Path(json_dict['calib0_img']).parent / 'MTCorr'
             create_dirs([scaling_dir, mtcorr_dir])
-            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}_1709.nii.gz'
+            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}_{biascorr_method}.nii.gz'
             scaling_img.save(scaling_name)
             
             # apply scaling factors to image to perform MT correction
-            bcorr_name = Path(json_dict['calib0_img']).parent / 'BiasCorr/calib0_restore.nii.gz'
-            mtcorr_name = mtcorr_dir / 'calib0_mtcorr.nii.gz'
+            if biascorr_method == 'calib':
+                bcorr_name = Path(json_dict['calib0_img']).parent/'BiasCorr/calib0_restore.nii.gz'
+            elif biascorr_method:
+                bcorr_name = Path(json_dict['calib0_img']).parent/'BiasCorr/T1_biascorr_calib0.nii.gz'
+            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{biascorr_method}.nii.gz'
             bcorr_img = Image(str(bcorr_name))
             mtcorr_img = Image(
                 bcorr_img.data * scaling_factors,
