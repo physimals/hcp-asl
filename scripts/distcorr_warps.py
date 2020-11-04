@@ -51,6 +51,11 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t1 "
     cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path}"
     sp.run(cmd, shell=True)
+
+    # lta_convert
+    cmd = f"lta_convert --inreg asl2orig_mgz_initial_bbr.dat --outfsl {omat_path} "
+    cmd += f"--src {asl_vol0} --trg {orig_mgz}"
+    sp.run(cmd, shell=True)
     asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
 
     # Return to original working directory, and flip the FSL matrix to target
