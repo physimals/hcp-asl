@@ -61,7 +61,7 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
 
-def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
+def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir, interpolation=1):
     """
     Generate distortion correction warp via gradient_unwarp. 
 
@@ -69,6 +69,8 @@ def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
         asl_vol0: path to first volume of ASL series
         coeffs_path: path to coefficients file for the scanner (.grad)
         distcorr_dir: directory in which to put output
+        interpolation: order of interpolation to be used, default is 1 
+                        (this is the gradient_unwarp.py default also)
     
     Returns: 
         n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
@@ -78,8 +80,8 @@ def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
     # right place
     pwd = os.getcwd()
     os.chdir(distcorr_dir)
-    cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {}"
-            .format(asl_vol0, coeffs_path))
+    cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {} --interp_order {}"
+            .format(asl_vol0, coeffs_path, interpolation))
     sp.run(cmd, shell=True)
     os.chdir(pwd)
 
@@ -385,7 +387,7 @@ def main():
     # Generate the gradient distortion correction warp 
     gdc_path = op.join(distcorr_dir, 'fullWarp_abs.nii.gz')
     if (not op.exists(gdc_path) or force_refresh) and target=='asl':
-        generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir)
+        generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir, args.interpolation)
     gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
             asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
 
