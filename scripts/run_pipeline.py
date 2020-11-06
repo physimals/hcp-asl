@@ -22,7 +22,9 @@ import subprocess
 import argparse
 from multiprocessing import cpu_count
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, gradients, use_t1=False, pvcorr=False, cores=cpu_count(), interpolation=3):
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, 
+                    gradients, use_t1=False, pvcorr=False, cores=cpu_count(), 
+                    interpolation=3, use_sebased=False, wmparc=None, ribbon=None):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -56,6 +58,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
+    use_sebased : bool, optional
+        Whether or not to use HCP's SE-based bias-correction 
+        to refine the bias correction obtained using FAST at 
+        the beginning of the pipeline. Default is False.
     cores : int, optional
         Number of cores to use.
         When applying motion correction, this is the number 
@@ -76,6 +82,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
             "--sub_id", subject_dir.stem,
+            '--mtname', mt_factors,
             "--target", target, 
             "--grads", gradients,
             "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
@@ -83,6 +90,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
+        if use_sebased and (target=='structural'):
+            dist_corr_call.append('--sebased')
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             pv_est_call = [
@@ -92,7 +101,36 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 "--cores", str(cores)
             ]
             subprocess.run(pv_est_call, check=True)
-        tag_control_differencing(subject_dir, target=target)
+        if use_sebased and (target=='structural'):
+            calib_name = subject_dir/'T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/'T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/'T1w/ASL/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/'T1w/ASL/TIs/BiasCorr'
+            hcppipedir = Path(os.environ["HCPPIPEDIR"])
+            corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
+            subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
+            sebased_cmd = [
+                'get_sebased_bias',
+                '-i', calib_name,
+                '--asl', asl_name,
+                '-f', fmapmag_name,
+                '-m', mask_name,
+                '--wmparc', wmparc,
+                '--ribbon', ribbon,
+                '--corticallut', corticallut,
+                '--subcorticallut', subcorticallut,
+                '-o', out_dir,
+                '--debug'
+            ]
+            subprocess.run(sebased_cmd, check=True)
+        if use_sebased and (target=='structural'):
+            series = subject_dir/'T1w/ASL/TIs/BiasCorr/tis_secorr.nii.gz'
+        elif target=='structural':
+            series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+        else:
+            series = subject_dir/'ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+        tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
         project_to_surface(subject_dir, target=target)
 
@@ -213,6 +251,27 @@ def main():
         action='store_true'
     )
     parser.add_argument(
+        '--sebased',
+        help="If this flag is provided, the distortion warps and motion "
+            +"estimates will be applied to the MT-corrected but not bias-"
+            +"corrected calibration and ASL images. The bias-field will "
+            +"then be estimated from the calibration image using HCP's "
+            +"SE-based algorithm and applied in subsequent steps.",
+        action='store_true'
+    )
+    parser.add_argument(
+        '--wmparc',
+        help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
+        default=None,
+        required="--sebased" in sys.argv
+    )
+    parser.add_argument(
+        '--ribbon',
+        help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
+        default=None,
+        required="--sebased" in sys.argv
+    )
+    parser.add_argument(
         "-c",
         "--cores",
         help="Number of cores to use when applying motion correction and "
@@ -293,7 +352,10 @@ def main():
                     surfaces=surfaces,
                     fmaps=fmaps,
                     use_t1=args.use_t1,
-                    pvcorr=args.pvcorr
+                    pvcorr=args.pvcorr,
+                    use_sebased=args.sebased,
+                    wmparc=args.wmparc,
+                    ribbon=args.ribbon
                     )
 
 if __name__ == '__main__':

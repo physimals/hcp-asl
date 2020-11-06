@@ -11,8 +11,11 @@ The HCP list some prerequisites for their pipelines: https://github.com/Washingt
 The prerequisites specific to this pipeline, along with links to their installation pages, are listed below:
 - [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation) (version >= 6.0.4)
 - [Workbench](https://www.humanconnectome.org/software/get-connectome-workbench)
+- HCP Pipelines (https://github.com/Washington-University/HCPpipelines)
 
 FSL version 6.0.4 is required to use new features in fabber, added for this pipeline. Alternatively, you can try to update these files separately and provide the fabberdir argument - more support about this will be provided in future.
+
+The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` set in order for the (Sub-)Cortical LUTs to be used in SE-based bias correction.
 
 ## Installation
 A dependency of the hcpasl pipeline requires igl which is installable via conda. It is advised that the pipeline is installed in a conda environment which has igl installed, for example following the steps below:
@@ -38,3 +41,5 @@ The filepaths passed to the script may be relative or absolute. A more detailed 
 ```
 hcp_asl --help
 ```
+
+In this branch, SE-based bias correction is an option which can be used via the `--sebased` flag. If this flag is specified, the paths to `ribbon.mgz` and `wmparc.mgz` in the FreeSurfer outputs must also be provided via the `--ribbon` and `--wmparc` arguments respectively.
