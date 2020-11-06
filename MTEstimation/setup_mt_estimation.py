@@ -29,7 +29,7 @@ PVE_THRESHOLDS = {
     'combined': 0.7
 }
 
-def setup_mtestimation(subject_dir, rois=['wm',]):
+def setup_mtestimation(subject_dir, rois=['wm',], biascorr_method='calib', force_refresh=False):
     """
     Perform the initial processing needed for estimation of the 
     MT Effect. This includes:
@@ -88,28 +88,29 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
 
     # get ventricles mask if csf
     if 'csf' in rois:
-        # initialise atlas list
-        atlases.rescanAtlases()
-        harv_ox_prob_2mm = atlases.loadAtlas(
-            'harvardoxford-subcortical', 
-            resolution=2.0
-        )
-        vent_img = Image(
-            harv_ox_prob_2mm.data[:, :, :, 2] + harv_ox_prob_2mm.data[:, :, :, 13],
-            header=harv_ox_prob_2mm.header
-        )
-        vent_img = fslmaths(vent_img).thr(0.1).bin().ero().run(LOAD)
-        # we already have registration from T1 to MNI
-        struc2mni_coeff = fsl_anat_dir / 'T1_to_MNI_nonlin_coeff.nii.gz'
-        mni2struc_coeff = fsl_anat_dir / 'MNI_to_T1_nonlin_coeff.nii.gz'
-        invwarp(str(struc2mni_coeff), str(t1_brain_name), str(mni2struc_coeff))
-        # apply warp to ventricles image
         vent_t1_name = fsl_anat_dir / 'ventricles_mask.nii.gz'
-        applywarp(vent_img, str(t1_brain_name), str(vent_t1_name), warp=str(mni2struc_coeff))
-        # re-threshold
-        vent_t1 = fslmaths(str(vent_t1_name)).thr(PVE_THRESHOLDS['csf']).bin().run(LOAD)
-        # mask pve estimate by ventricles mask
-        fslmaths(str(fsl_anat_dir / PVE_NAMES['csf'])).mas(vent_t1).run(str(vent_t1_name))
+        if (not vent_t1_name.exists()) or force_refresh:
+            # initialise atlas list
+            atlases.rescanAtlases()
+            harv_ox_prob_2mm = atlases.loadAtlas(
+                'harvardoxford-subcortical', 
+                resolution=2.0
+            )
+            vent_img = Image(
+                harv_ox_prob_2mm.data[:, :, :, 2] + harv_ox_prob_2mm.data[:, :, :, 13],
+                header=harv_ox_prob_2mm.header
+            )
+            vent_img = fslmaths(vent_img).thr(0.1).bin().ero().run(LOAD)
+            # we already have registration from T1 to MNI
+            struc2mni_coeff = fsl_anat_dir / 'T1_to_MNI_nonlin_coeff.nii.gz'
+            mni2struc_coeff = fsl_anat_dir / 'MNI_to_T1_nonlin_coeff.nii.gz'
+            invwarp(str(struc2mni_coeff), str(t1_brain_name), str(mni2struc_coeff))
+            # apply warp to ventricles image
+            applywarp(vent_img, str(t1_brain_name), str(vent_t1_name), warp=str(mni2struc_coeff))
+            # re-threshold
+            vent_t1 = fslmaths(str(vent_t1_name)).thr(PVE_THRESHOLDS['csf']).bin().run(LOAD)
+            # mask pve estimate by ventricles mask
+            fslmaths(str(fsl_anat_dir / PVE_NAMES['csf'])).mas(vent_t1).run(str(vent_t1_name))
 
     # bias-field correction
     for calib_name in (calib0_name, calib1_name):
@@ -117,33 +118,55 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
         # run bet
         betted_m0 = bet(str(calib_name), LOAD, g=0.2, f=0.2, m=True)
         # create directories to save results
-        fast_dir = calib_name.parent / 'FAST'
         biascorr_dir = calib_name.parent / 'BiasCorr'
-        create_dirs([fast_dir, biascorr_dir])
-        # run FAST on brain-extracted m0 image
-        fast_base = fast_dir / calib_name_stem
-        fast(
-            betted_m0['output'],
-            out=str(fast_base),
-            type=3,
-            b=True,
-            nopve=True
-        )
-        bias_name = fast_dir / f'{calib_name_stem}_bias.nii.gz'
-        # apply bias field to original m0 image (i.e. not BETted)
-        biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
-        fslmaths(str(calib_name)).div(str(bias_name)).run(str(biascorr_name))
+        if biascorr_method == 'calib':
+            fast_dir = calib_name.parent / 'Fast'
+            create_dirs([biascorr_dir, fast_dir])
+        else:
+            create_dirs([biascorr_dir,])
         # obtain registration from structural to calibration image
-        mask_dir = biascorr_name.parent / 'masks'
+        mask_dir = calib_name.parent / 'masks'
         create_dirs([mask_dir, ])
-        cmd = [
-            'asl_reg',
-            f'-i {biascorr_name}',
-            f'-s {t1_name}',
-            f'--sbet {t1_brain_name}',
-            f'-o {mask_dir}'
-        ]
-        subprocess.run(" ".join(cmd), shell=True)
+        struct2asl_name = (mask_dir/f'struct2asl_{biascorr_method}.mat')
+        if (not struct2asl_name.exists()) or force_refresh:
+            struct2asl_name_temp = mask_dir/'struct2asl.mat'
+            cmd = [
+                'asl_reg',
+                f'-i {calib_name}',
+                f'-s {t1_name}',
+                f'--sbet {t1_brain_name}',
+                f'-o {mask_dir}'
+            ]
+            subprocess.run(" ".join(cmd), shell=True)
+            os.replace(struct2asl_name_temp, struct2asl_name)
+        # perform bias correction
+        if biascorr_method == 'calib':
+            biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
+        else:
+            biascorr_name = biascorr_dir / f'T1_biascorr_{calib_name_stem}.nii.gz'
+        if (not biascorr_name.exists()) or force_refresh:
+            if biascorr_method == 'calib':
+                fast_base = fast_dir / 'fast'
+                fast_results = fast(
+                    betted_m0['output'], # output of bet
+                    out=str(fast_base), 
+                    type=3, # image type, 3=PD image
+                    b=True, # output estimated bias field
+                    nopve=True # don't need pv estimates
+                )
+                calib_bias_name = fast_base / 'fast_bias.nii.gz'
+            else:
+                # get bias field from T1 image's fsl_anat
+                bias_name = fsl_anat_dir / 'T1_fast_bias.nii.gz'
+                # apply registration to the T1 bias field
+                calib_bias_name = biascorr_dir / 'T1_bias_field_calibspc.nii.gz'
+                applyxfm(
+                    str(bias_name),
+                    str(calib_name),
+                    str(struct2asl_name),
+                    str(calib_bias_name)
+                )
+            fslmaths(str(calib_name)).div(str(calib_bias_name)).run(str(biascorr_name))
         # apply transformation to the pve map
         for tissue in rois:
             roi_dir = mask_dir / tissue
@@ -154,12 +177,12 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
                 wm_pve = mask_dir / 'wm/pve_wm.nii.gz'
                 if not (gm_pve.exists() and wm_pve.exists()):
                     raise Exception("WM and GM PVEs don't exist.")
-                gm_mask_name = roi_dir / 'gm_mask.nii.gz'
-                wm_mask_name = roi_dir / 'wm_mask.nii.gz'
+                gm_mask_name = roi_dir / f'gm_mask_{biascorr_method}.nii.gz'
+                wm_mask_name = roi_dir / f'wm_mask_{biascorr_method}.nii.gz'
                 fslmaths(str(gm_pve)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(gm_mask_name))
                 fslmaths(str(wm_pve)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(wm_mask_name))
-                gm_masked_name = roi_dir / f'{calib_name_stem}_gm_masked'
-                wm_masked_name = roi_dir / f'{calib_name_stem}_wm_masked'
+                gm_masked_name = roi_dir / f'{calib_name_stem}_gm_masked_{biascorr_method}'
+                wm_masked_name = roi_dir / f'{calib_name_stem}_wm_masked_{biascorr_method}'
                 fslmaths(str(biascorr_name)).mul(str(gm_mask_name)).mul(betted_m0['output_mask']).run(str(gm_masked_name))
                 fslmaths(str(biascorr_name)).mul(str(wm_mask_name)).mul(betted_m0['output_mask']).run(str(wm_masked_name))
                 # update dictionary
@@ -175,25 +198,23 @@ def setup_mtestimation(subject_dir, rois=['wm',]):
                 else:
                     pve_struct_name = fsl_anat_dir / PVE_NAMES[tissue]
                 pve_asl_name = roi_dir / f'pve_{tissue}.nii.gz'
-                struct2asl_name = mask_dir / 'struct2asl.mat'
                 applyxfm(
                     str(pve_struct_name),
-                    str(biascorr_name),
+                    str(calib_name),
                     str(struct2asl_name),
                     str(pve_asl_name)
                 )
                 # threshold and binarise the ASL-space pve map
-                mask_name = roi_dir / f'{tissue}_mask.nii.gz'
+                mask_name = roi_dir / f'{tissue}_mask_{biascorr_method}.nii.gz'
                 fslmaths(str(pve_asl_name)).thr(PVE_THRESHOLDS[tissue]).bin().run(str(mask_name))
                 # apply the mask to the calibration image
-                masked_name = mask_dir / f'{tissue}_masked.nii.gz'
+                masked_name = mask_dir / f'{tissue}_masked_{biascorr_method}.nii.gz'
                 fslmaths(str(biascorr_name)).mul(str(mask_name)).run(str(masked_name))
                 # update dictionary
                 new_dict = {
                     f'{calib_name_stem}_{tissue}_masked': str(masked_name)
                 }
             important_dict.update(new_dict)
-
     # save json
     with open(json_name, 'w') as fp:
         json.dump(important_dict, fp, sort_keys=True, indent=4)

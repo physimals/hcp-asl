@@ -63,11 +63,11 @@ def main():
         print(f"Rois to be used for the estimation: {rois}.")
 
     # do setup
-    setup_call = partial(setup_mtestimation, rois)
+    setup_call = partial(setup_mtestimation, rois, biascorr_method=args.method, force_refresh=False)
     with mp.Pool(args.cores) as pool:
         results = pool.map(setup_call, subjects)
     for result in results:
         print(result)
 
     # do estimation
-    estimate_mt(subject_dirs, rois, TR, 'separate')
+    estimate_mt(subject_dirs, rois, TR, 'separate', biascorr_method=args.method)

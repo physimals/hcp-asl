@@ -19,7 +19,8 @@ setup(
         'pyfab',
         'nibabel',
         'regtricks',
-        'toblerone',
+        'scikit-learn',
+        'toblerone @ git+https://github.com/tomfrankkirk/toblerone.git',
         'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git'
     ],
     entry_points={
