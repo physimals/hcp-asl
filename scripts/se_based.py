@@ -1,4 +1,5 @@
 import subprocess
+import sys
 import argparse
 from pathlib import Path
 import shutil
@@ -43,65 +44,54 @@ def se_based_bias_estimation():
     """
     # argument handling
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-i",
-        "--input",
+    parser.add_argument("-i", "--input",
         help="Image from which we wish to estimate the bias field.",
         required=True
     )
-    parser.add_argument(
-        '--asl',
-        help="ASL series to which we wish to apply the bias field.",
-        required=True
+    parser.add_argument('--asl',
+        help="ASL series to which we wish to apply the bias field. Optional."
     )
-    parser.add_argument(
-        "-f",
-        "--fmapmag",
+    parser.add_argument("-f", "--fmapmag",
         help="Fieldmap magnitude image from topup.",
         required=True
     )
-    parser.add_argument(
-        "-m",
-        "--mask",
+    parser.add_argument("-m", "--mask",
         help="Brain mask.",
         required=True
     )
-    parser.add_argument(
-        '--wmparc',
+    parser.add_argument('--wmparc',
         help="wmparc.mgz from FreeSurfer",
-        required=True
+        required=not "--tissue_mask" in sys.argv,
+        default=None
     )
-    parser.add_argument(
-        '--ribbon',
+    parser.add_argument('--ribbon',
         help="ribbon.mgz from FreeSurfer",
-        required=True
+        required=not "--tissue_mask" in sys.argv,
+        default=None
     )
-    parser.add_argument(
-        "--corticallut",
+    parser.add_argument("--corticallut",
         help="Filename for FreeSurfer's Cortical Lable Table",
-        required=True
+        required=not "--tissue_mask" in sys.argv,
+        default=None
     )
-    parser.add_argument(
-        "--subcorticallut",
+    parser.add_argument("--subcorticallut",
         help="Filename for FreeSurfer's Subcortical Lable Table",
-        required=True
+        required=not "--tissue_mask" in sys.argv,
+        default=None
     )
-    parser.add_argument(
-        '-o',
-        '--outdir',
+    parser.add_argument('-o', '--outdir',
         help="Output directory for results.",
         required=True
     )
-    parser.add_argument(
-        '--debug',
+    parser.add_argument('--debug',
         help="If this argument is specified, all intermediate files "
             +"will be saved for inspection.",
         action='store_true'
     )
-    parser.add_argument(
-        '--wm_mask',
-        help="Filename for white matter mask to use this instead of "
-            +"a gray matter mask derived from FreeSurfer outputs.",
+    parser.add_argument('--tissue_mask',
+        help="Filename for tissue mask we've derived ourselves to use "
+            +"instead of a gray matter mask derived from FreeSurfer "
+            +"outputs.",
         default=None
     )
 
@@ -117,7 +107,7 @@ def se_based_bias_estimation():
     subcorticallut = args.subcorticallut
     outdir = Path(args.outdir)
     debug = args.debug
-    wm_mask = args.wm_mask
+    tissue_mask = args.tissue_mask
 
     # create output directory
     outdir.mkdir(exist_ok=True)
@@ -220,10 +210,10 @@ def se_based_bias_estimation():
         images = [Image(array, header=m0_img.header) for array in (Dropouts, Dropouts_inv)]
         [image.save(savename) for image, savename in zip(images, savenames)]
     
-    if wm_mask:
-        tissue_mask = rt.Registration.identity().apply_to_image(wm_mask, m0_name, order=0).get_fdata()
+    if tissue_mask:
+        tissue_mask = rt.Registration.identity().apply_to_image(tissue_mask, m0_name, order=0).get_fdata()
         if debug:
-            savename = str(outdir/'WhiteMatter.nii.gz')
+            savename = str(outdir/'TissueMask.nii.gz')
             image = Image(tissue_mask, header=m0_img.header)
             image.save(savename)
     else:
@@ -319,14 +309,13 @@ def se_based_bias_estimation():
 
     # apply bias field to calibration and ASL images
     sebased_bias = Image(sebased_bias_dil_name)
-    asl_img = Image(asl_name)
     calib_bc = np.where(sebased_bias.data!=0, m0_img.data/sebased_bias.data, m0_img.data)
-    asl_bc = np.where(
-        sebased_bias.data[..., np.newaxis]!=0, 
-        asl_img.data/sebased_bias.data[..., np.newaxis], 
-        asl_img.data
-    )
-    [
-        Image(bc_arr, header=asl_img.header).save(str(outdir/f'{name}_secorr.nii.gz'))
-        for name, bc_arr in zip(('calib0', 'tis'), (calib_bc, asl_bc))
-    ]
+    Image(calib_bc, header=m0_img.header).save(str(outdir/"calib0_secorr.nii.gz"))
+    if asl_name:
+        asl_img = Image(asl_name)
+        asl_bc = np.where(
+            sebased_bias.data[..., np.newaxis]!=0, 
+            asl_img.data/sebased_bias.data[..., np.newaxis], 
+            asl_img.data
+        )
+        Image(asl_bc, header=asl_img.header).save(str(outdir/"tis_secorr.nii.gz"))
