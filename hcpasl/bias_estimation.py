@@ -1,0 +1,209 @@
+from fsl.wrappers import bet, fast, LOAD
+import nibabel as nb
+import regtricks as rt
+
+from hcpasl import distortion_correction
+from hcpasl.utils import binarise
+
+from pathlib import Path
+
+import subprocess
+
+def bias_estimation_calib(calib_name):
+    """
+    Estimate the bias field from a calibration image using FAST.
+
+    Parameters
+    ----------
+    calib_name: pathlib.Path
+        Path to the calibration image from which to estimate the 
+        bias field.
+    
+    Returns
+    -------
+    bias_field: Nifti1Image
+    """
+    # perform brain extraction using BET
+    betted_m0 = bet(str(calib_name), LOAD, g=0.2, f=0.2, m=True)
+    # run FAST on BET-ed calibration image
+    fast_results = fast(betted_m0["output"], out=LOAD, type=3, b=True, nopve=True)
+    # extract and return bias field
+    bias_field = fast_results["out_bias"]
+    return bias_field
+
+def bias_estimation_t1(
+    calib_name, fslanatdir, struct2asl, interpolation=3
+    ):
+    """
+    Obtain a bias field estimate in calibration space by 
+    registering that obtained from the T1 image.
+
+    Parameters
+    ----------
+    calib_name: pathlib.Path
+        Path to the calibration image.
+    fslanatdir: pathlib.Path
+        Path to the T1 image's fslanat output.
+    struct2asl: pathlib.Path
+        Path to the .mat file which will be used to register 
+        the T1-estimated bias field to calibration image space.
+    interpolation: int, default=3
+        Order of interpolation to be used when registering 
+        the T1 image's bias field to the calibration image.
+    
+    Returns
+    -------
+    bias_field: Nifti1Image
+    """
+    # get t1 and bias field
+    t1_name = fslanatdir/"T1_biascorr.nii.gz"
+    t1_bias = fslanatdir/"T1_fast_bias.nii.gz"
+    # load struct2asl registration
+    struct2asl_reg = rt.Registration.from_flirt(
+        str(struct2asl), src=str(t1_name), ref=str(calib_name)
+    )
+    # apply registration to bias field to get it in calib space
+    bias_field = struct2asl_reg.apply_to_image(
+        str(t1_bias), str(calib_name), order=interpolation
+    )
+    return bias_field
+
+def bias_estimation_sebased(
+    calib_name, fslanatdir, struct2asl, wmseg_name, 
+    results_dir, fmapmag, fmapmagbrain, interpolation=3,
+    force_refresh=True
+    ):
+    """
+    Obtain a bias field estimate in calibration space using 
+    the HCP's sebased approach.
+
+    Parameters
+    ----------
+    calib_name: pathlib.Path
+        Path to the calibration image.
+    fslanatdir: pathlib.Path
+        Path to the T1 image's fslanat output.
+    struct2asl: pathlib.Path
+        Path to the .mat file which will be used to register 
+        the T1-estimated bias field to calibration image space.
+    wmseg_name: pathlib.Path
+        Path to a white matter segmentation for use in BBR 
+        registration.
+    results_dir: pathlib.Path
+        Directory in which to store results.
+    fmapmag: pathlib.Path
+        Path to the fieldmap magnitude image.
+    fmapmagbrain: pathlib.Path
+        Path to the brain-extracted fieldmap magnitude image.
+    interpolation: int, default=3
+        Order of interpolation to be used when registering 
+        the T1 image's bias field to the calibration image.
+    force_refresh: bool, default=True
+        Whether to recreate intermediate files if they already 
+        exist.
+    
+    Returns
+    -------
+    bias_field: Nifti1Image
+    """
+    # register fieldmap to t1 image
+    fmap_reg_dir = results_dir/"fmap_registration"
+    fmap_reg_dir.mkdir(exist_ok=True)
+    fmapmag_calib_name = fmap_reg_dir/"fmapmag_calibspc.nii.gz"
+    t1_name, t1_brain_name = [fslanatdir/f"T1_biascorr{suf}.nii.gz" for suf in ("", "_brain")]
+    struct2asl_reg = rt.Registration.from_flirt(
+        str(struct2asl), src=str(t1_name), ref=str(calib_name)
+    )
+    if not fmapmag_calib_name.exists() or force_refresh:
+        distortion_correction.register_fmap(
+            fmapmag, fmapmagbrain, t1_name, t1_brain_name, 
+            fmap_reg_dir, wmseg_name
+        )
+        fmap_bbr =rt.Registration.from_flirt(
+            str(fmap_reg_dir/"fmapmag2struct_bbr.mat"),
+            src=str(fmapmag), ref=str(t1_name)
+        )
+        fmap2calib = rt.chain(fmap_bbr, struct2asl_reg)
+        fmap_calib = fmap2calib.apply_to_image(
+            src=str(fmapmag), ref=str(calib_name), order=interpolation
+        )
+        nb.save(fmap_calib, fmapmag_calib_name)
+    # get gray matter mask for sebased
+    gm_seg_name = results_dir/"gm_seg.nii.gz"
+    if not gm_seg_name.exists() or force_refresh:
+        gm_pve = (fslanatdir/"T1_fast_pve_1.nii.gz").resolve(strict=True)
+        gm_pve_calib = struct2asl_reg.apply_to_image(
+            str(gm_pve), str(calib_name), order=interpolation
+        )
+        gm_pve_calib_name = results_dir/"gm_pve_calib.nii.gz"
+        nb.save(gm_pve_calib, gm_pve_calib_name)
+        gm_seg = binarise(gm_pve_calib_name, 0.9)
+        gm_seg.save(str(gm_seg_name))
+    # get brain mask
+    brain_mask = results_dir/"brain_mask.nii.gz"
+    if not brain_mask.exists() or force_refresh:
+        bet_results = bet(str(calib_name), LOAD, m=True)
+        nb.save(bet_results['output_mask'], brain_mask)
+    bias_name = results_dir/"sebased_bias_dil.nii.gz"
+    if not bias_name.exists() or force_refresh:
+        sebased_cmd = [
+            "get_sebased_bias", "-i", calib_name, "-f", fmapmag_calib_name,
+            "-m", brain_mask, "-o", results_dir, "--tissue_mask", gm_seg_name, "--debug"
+        ]
+        subprocess.run(sebased_cmd, check=True)
+    dilall_cmd = ["fslmaths", bias_name, "-dilall", bias_name]
+    subprocess.run(dilall_cmd, check=True)
+    bias_field = nb.load(bias_name)
+    return bias_field
+
+METHODS = ("calib", "t1", "sebased")
+BIAS_ESTIMATION = {
+    "calib": bias_estimation_calib,
+    "t1": bias_estimation_t1,
+    "sebased": bias_estimation_sebased
+}
+
+def bias_estimation(calib_name, method, **kwargs):
+    """
+    Wrapper for the different bias field estimation 
+    functions.
+
+    Parameters
+    ----------
+    calib_name: pathlib.Path
+    method: str
+
+    Returns
+    -------
+    bias_field: Nifti1Image
+
+    There are also several kwargs which will be passed on 
+    to the wrapped functions depending on the chosen bias 
+    estimation method. These are documented briefly below.
+    kwargs
+    ------
+    method == "calib"
+        n/a
+    method == "t1"
+        fslanatdir: pathlib.Path
+        struct2asl: pathlib.Path
+        interpolation: int
+    method == "sebased"
+        fslanatdir: pathlib.Path
+        struct2asl: pathlib.Path
+        interpolation: int
+        wmseg_name: pathlib.Path
+        results_dir: pathlib.Path
+        fmapmag: pathlib.Path
+        fmapmagbrain: pathlib.Path
+    """
+    # check the calibration image exists
+    calib_name = Path(calib_name).resolve(strict=True)
+    # assert the bias estimation method is one of those supported
+    assert (method in METHODS), f"{method} is not a supported method."
+    # call appropriate bias estimation function
+    try:
+        return BIAS_ESTIMATION[method](calib_name, **kwargs)
+    except TypeError as e:
+        raise TypeError(f"Incorrect arguments for {method} " \
+                        f"based bias estimation.\n{e}")
