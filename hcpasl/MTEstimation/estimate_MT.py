@@ -87,7 +87,7 @@ def estimate_mt(
     correct the effect.
     """
     outdir = Path(outdir).resolve(strict=True) if outdir else Path.cwd()
-    suffix = "_newdistcorr" if distcorr else ""
+    suffix = "_distcorr" if distcorr else ""
     errors = []
     for tissue in rois:
         # initialise array to store image-level means

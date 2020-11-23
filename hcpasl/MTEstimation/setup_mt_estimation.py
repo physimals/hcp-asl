@@ -45,7 +45,7 @@ def setup_mtestimation(subject_dir, rois=['wm',], biascorr_method='calib',
     calib_stems = [c.stem.split(".")[0] for c in (calib0_name, calib1_name)]
 
     # create results directory
-    suffix = "_newdistcorr" if distcorr else ""
+    suffix = "_distcorr" if distcorr else ""
     results_dirs = [names_dict[f'calib{n}_dir']/f"{biascorr_method}{suffix}" for n in (0, 1)]
     create_dirs(results_dirs)
 
