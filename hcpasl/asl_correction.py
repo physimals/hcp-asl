@@ -335,7 +335,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), interpolation=3):
+def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), interpolation=3):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -364,8 +364,8 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), in
         Path to the subject's base directory.
     mt_factors : pathlib.Path
         Path to the pre-calculated MT correction scaling factors.
-    superlevel : int, optional
-        Superlevel to use when using regtricks. Default is 1.
+    superfactor : int, optional
+        superfactor to use when using regtricks. Default is 1.
     cores : int, optional
         Number of cores regtricks will use. Default is the number 
         of cores available.
@@ -464,7 +464,7 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), in
     reg_mtcorr = Image(asln2asl0.apply_to_image(
         str(mtcorr_name), 
         json_dict['calib0_mc'],
-        superlevel=superlevel,
+        superfactor=superfactor,
         cores=cores,
         order=interpolation
     ))
@@ -482,7 +482,7 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), in
         asln2asl0.inverse().apply_to_image(
             str(t1_filt_name),
             json_dict['calib0_mc'],
-            superlevel=superlevel,
+            superfactor=superfactor,
             cores=cores,
             order=interpolation
         )
