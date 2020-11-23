@@ -212,7 +212,7 @@ def estimate_mt(
         # scaling_factors = undo_st_correction(scaling_factors, tissue, tr)
 
         # save scaling factors as a .txt file
-        sfs_savename = outdir/f'{method}_scaling_factors_{biascorr_method}{suffix}.txt'
+        sfs_savename = outdir/f'{method}_{tissue}_scaling_factors_{biascorr_method}{suffix}.txt'
         np.savetxt(sfs_savename, scaling_factors, fmt='%.5f')
         # create array from scaling_factors
         scaling_factors = np.tile(scaling_factors, (86, 86, 1))
