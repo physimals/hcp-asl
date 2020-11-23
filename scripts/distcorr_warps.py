@@ -16,6 +16,10 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
+from hcpasl.distortion_correction import (
+    generate_gdc_warp, generate_topup_params, generate_fmaps, 
+    generate_epidc_warp, register_fmap
+)
 
 def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     """
@@ -71,30 +75,6 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
 
-def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir, interpolation=1):
-    """
-    Generate distortion correction warp via gradient_unwarp. 
-
-    Args: 
-        asl_vol0: path to first volume of ASL series
-        coeffs_path: path to coefficients file for the scanner (.grad)
-        distcorr_dir: directory in which to put output
-        interpolation: order of interpolation to be used, default is 1 
-                        (this is the gradient_unwarp.py default also)
-    
-    Returns: 
-        n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
-    """
-
-    # Need to run in the output directory to make sure files end up in the
-    # right place
-    pwd = os.getcwd()
-    os.chdir(distcorr_dir)
-    cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {} --interp_order {}"
-            .format(asl_vol0, coeffs_path, interpolation))
-    sp.run(cmd, shell=True)
-    os.chdir(pwd)
-
 def generate_wmmask(aparc_aseg):
     """ 
     Generate binary WM mask in space of T1 image using FS aparc+aseg
@@ -109,64 +89,6 @@ def generate_wmmask(aparc_aseg):
     aseg_array = nb.load(aparc_aseg).get_data()
     wm = np.logical_or(aseg_array == 41, aseg_array == 2)
     return wm 
-
-def generate_topup_params(pars_filepath):
-    """
-    Generate a file containing the parameters used by topup
-    """
-    if os.path.isfile(pars_filepath):
-        os.remove(pars_filepath)
-    with open(pars_filepath, "a") as t_pars:
-        t_pars.write("0 1 0 0.04845" + "\n")
-        t_pars.write("0 -1 0 0.04845")
-
-def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir): 
-    """
-    Generate fieldmaps via topup for use with asl_reg. 
-
-    Args: 
-        asl_vol0: path to image of stacked blipped images (ie, PEdir as vol0,
-            (oPEdir as vol1), in this case stacked as pa then ap)
-        params: path to text file for topup --datain, PE directions/times
-        config: path to text file for topup --config, other args 
-        distcorr_dir: directory in which to put output
-    
-    Returns: 
-        n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
-    """
-
-    pwd = os.getcwd()
-    os.chdir(distcorr_dir)
-
-    # Run topup to get fmap in Hz 
-    topup_fmap = op.join(distcorr_dir, 'topup_fmap_hz.nii.gz')        
-    cmd = (("topup --imain={} --datain={}".format(pa_ap_sefms, params)
-            + " --config={} --out=topup".format(config))
-            + " --fout={} --iout={}".format(topup_fmap,
-                op.join(distcorr_dir, 'corrected_sefms.nii.gz')))
-    sp.run(cmd, shell=True)
-
-    fmap, fmapmag, fmapmagbrain = [ 
-        op.join(distcorr_dir, '{}.nii.gz'.format(s)) 
-        for s in [ 'fmap', 'fmapmag', 'fmapmagbrain' ]
-    ]    
-
-    # Convert fmap from Hz to rad/s
-    fmap_spc = rt.ImageSpace(topup_fmap)
-    fmap_arr_hz = nb.load(topup_fmap).get_data()
-    fmap_arr = fmap_arr_hz * 2 * np.pi
-    fmap_spc.save_image(fmap_arr, fmap)
-
-    # Mean across volumes of corrected sefms to get fmapmag
-    fmapmag_arr = nb.load(op.join(
-                    distcorr_dir, "corrected_sefms.nii.gz")).get_data()
-    fmapmag_arr = fmapmag_arr.mean(-1)
-    fmap_spc.save_image(fmapmag_arr, fmapmag)
-
-    # Run BET on fmapmag to get brain only version 
-    bet(fmap_spc.make_nifti(fmapmag_arr), output=fmapmagbrain)
-
-    os.chdir(pwd)
 
 def generate_asl_mask(struct_brain, asl, asl2struct):
     """
@@ -186,37 +108,6 @@ def generate_asl_mask(struct_brain, asl, asl2struct):
     asl_mask = binary_fill_holes(asl_mask > 0.25)
     return asl_mask
 
-def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
-                       wmmask, asl2struct, fmap, fmapmag, fmapmagbrain, 
-                       distcorr_dir):
-    """
-    Generate EPI distortion correction warp via asl_reg. 
-
-    Args: 
-        asl_vol0_brain: path to first volume of ASL series, brain-extracted
-        struct: path to T1 image, ac_dc_restore
-        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
-        asl_mask: path to brain mask in ASL space 
-        wmmask: path to WM mask in T1 space 
-        asl2struct: regtricks.Registration for asl to structural
-        fmap: path to topup's field map in rad/s
-        fmapmag: path to topup's field map magnitude 
-        fmapmagbrain: path to topup's field map magnitude, brain only
-        distcorr_dir: path to directory in which to place output 
-
-    Returns: 
-        n/a, file 'asl2struct_warp.nii.gz' is created in output directory 
-    """
-
-    a2s_fsl = op.join(distcorr_dir, 'asl2struct.mat')
-    asl2struct.save_fsl(a2s_fsl, asl_vol0_brain, struct)
-    cmd = ("asl_reg -i {} -o {} ".format(asl_vol0_brain, distcorr_dir)
-           + "-s {} --sbet={} -m {} ".format(struct, struct_brain, asl_mask)
-           + "--tissseg={} --imat={} --finalonly ".format(wmmask, a2s_fsl)
-           + "--fmap={} --fmapmag={} ".format(fmap, fmapmag)
-           + "--fmapmagbrain={} --pedir=y --echospacing=0.00057 ".format(fmapmagbrain))
-    sp.run(cmd, shell=True)
-
 def binarise_image(image, threshold=0):
     """
     Binarise image above a threshold if given.
@@ -229,7 +120,7 @@ def binarise_image(image, threshold=0):
         np.array, logical mask
     """
     image = Image(image)
-    mask = (image.data>0).astype(np.float32)
+    mask = (image.data>threshold).astype(np.float32)
     return mask
 
 def create_ti_image(asl, tis, sliceband, slicedt, outname):
