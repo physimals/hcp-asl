@@ -75,59 +75,70 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
     scaling_factors = scaling_factors.flatten()
     return scaling_factors, X_pred, y_pred
 
-def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_method='calib'):
+def estimate_mt(
+    subject_dirs, distcorr=False, rois=['wm', ], 
+    tr=8, method='separate', biascorr_method='calib', 
+    outdir=None
+    ):
     """
     Estimates the slice-dependent MT effect on the given subject's 
     calibration images. Performs the estimation using a linear 
     model and calculates scaling factors which can be used to 
     correct the effect.
     """
+    outdir = Path(outdir).resolve(strict=True) if outdir else Path.cwd()
+    suffix = "_newdistcorr" if distcorr else ""
+    errors = []
     for tissue in rois:
         # initialise array to store image-level means
         mean_array = np.zeros((60, 2*len(subject_dirs)))
         count_array = np.zeros((60, 2*len(subject_dirs), 2)) # wm and gm
         # iterate over subjects
         for n1, subject_dir in enumerate(subject_dirs):
-            print(subject_dir)
-            # load subject's json
-            json_dict = load_json(subject_dir)
-            mask_dirs = [
-                Path(json_dict[calib_dir]/'masks') for calib_dir in ('calib0_dir', 'calib1_dir')
-            ]
-            masked_names = [
-                mask_dir/f'{tissue}_masked_{biascorr_method}' for mask_dir in mask_dirs
-            ]
-            for n2, masked_name in enumerate(masked_names):
-                if tissue == 'combined':
-                    gm_masked, wm_masked = masked_name
-                    gm_masked_data = slicetime_correction(
-                        image=Image(gm_masked).data, 
-                        tissue='gm',
-                        tr=tr
-                    )
-                    wm_masked_data = slicetime_correction(
-                        image=Image(wm_masked).data, 
-                        tissue='wm',
-                        tr=tr
-                    )
-                    masked_data = gm_masked_data + wm_masked_data
-                    gm_bin = np.where(gm_masked_data>0, 1, 0)
-                    gm_count = np.sum(gm_bin, axis=(0, 1))[..., np.newaxis]
-                    wm_bin = np.where(wm_masked_data>0, 1, 0)
-                    wm_count = np.sum(wm_bin, axis=(0, 1))[..., np.newaxis]
-                    count_array[:, 2*n1 + n2, :] = np.hstack((wm_count, gm_count))
-                else:
-                    # load masked calibration data
-                    masked_data = slicetime_correction(
-                        image=Image(masked_name).data,
-                        tissue=tissue,
-                        tr=tr
-                    )
-                # find zero indices
-                masked_data[masked_data==0] = np.nan
-                # calculate slicewise summary stats
-                slicewise_mean = np.nanmean(masked_data, axis=(0, 1))
-                mean_array[:, 2*n1 + n2] = slicewise_mean
+            try:
+                print(subject_dir)
+                mask_dirs = [
+                    subject_dir/"ASL/Calib"/c/f"{biascorr_method}{suffix}"/"masks"
+                    for c in ("Calib0", "Calib1")
+                ]
+                tissues = ("gm", "wm") if tissue=="combined" else (tissue,)
+                masked_names = [
+                    [mask_dir/tissue/f"calib{n}_{t}_masked.nii.gz" for t in tissues]
+                    for n, mask_dir in enumerate(mask_dirs)
+                ]
+                for n2, masked_name in enumerate(masked_names):
+                    if tissue == 'combined':
+                        gm_masked, wm_masked = masked_name
+                        gm_masked_data = slicetime_correction(
+                            image=Image(str(gm_masked)).data, 
+                            tissue='gm',
+                            tr=tr
+                        )
+                        wm_masked_data = slicetime_correction(
+                            image=Image(str(wm_masked)).data, 
+                            tissue='wm',
+                            tr=tr
+                        )
+                        masked_data = gm_masked_data + wm_masked_data
+                        gm_bin = np.where(gm_masked_data>0, 1, 0)
+                        gm_count = np.sum(gm_bin, axis=(0, 1))[..., np.newaxis]
+                        wm_bin = np.where(wm_masked_data>0, 1, 0)
+                        wm_count = np.sum(wm_bin, axis=(0, 1))[..., np.newaxis]
+                        count_array[:, 2*n1 + n2, :] = np.hstack((wm_count, gm_count))
+                    else:
+                        # load masked calibration data
+                        masked_data = slicetime_correction(
+                            image=Image(str(*masked_name)).data,
+                            tissue=tissue,
+                            tr=tr
+                        )
+                    # find zero indices
+                    masked_data[masked_data==0] = np.nan
+                    # calculate slicewise summary stats
+                    slicewise_mean = np.nanmean(masked_data, axis=(0, 1))
+                    mean_array[:, 2*n1 + n2] = slicewise_mean
+            except:
+                errors.append(tissue + " " + str(subject_dir))
         # calculate non-zero slicewise mean of mean_array
         slice_means = np.nanmean(mean_array, axis=1)
         slice_std = np.nanstd(mean_array, axis=1)
@@ -155,11 +166,11 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_m
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_t1.png'
+        plt_name = outdir / f'{tissue}_mean_per_slice_t1.png'
         plt.savefig(plt_name)
         # add linear models on top
         plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_with_lin_{biascorr_method}.png'
+        plt_name = outdir / f'{tissue}_mean_per_slice_with_lin_{biascorr_method}{suffix}.png'
         plt.savefig(plt_name)
 
         # plot rescaled slice-means
@@ -177,7 +188,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_m
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = Path().cwd() / f'{tissue}_mean_per_slice_rescaled_{biascorr_method}.png'
+        plt_name = outdir / f'{tissue}_mean_per_slice_rescaled_{biascorr_method}{suffix}.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
@@ -191,7 +202,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_m
                 ' PVE $\geqslant$ 70% across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
-        plt_name = Path().cwd() / f'mean_voxel_count_{biascorr_method}.png'
+        plt_name = outdir / f'mean_voxel_count_{biascorr_method}{suffix}.png'
         plt.savefig(plt_name)
 
         # # the scaling factors have been estimated on images which have been 
@@ -201,31 +212,28 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', biascorr_m
         # scaling_factors = undo_st_correction(scaling_factors, tissue, tr)
 
         # save scaling factors as a .txt file
-        sfs_savename = f'{method}_scaling_factors_{biascorr_method}.txt'
+        sfs_savename = outdir/f'{method}_scaling_factors_{biascorr_method}{suffix}.txt'
         np.savetxt(sfs_savename, scaling_factors, fmt='%.5f')
         # create array from scaling_factors
         scaling_factors = np.tile(scaling_factors, (86, 86, 1))
         for subject_dir in subject_dirs:
-            json_dict = load_json(subject_dir)
-            # load calibration image
-            calib_img = Image(json_dict['calib0_img'])
+            # load bias (and possibly distortion) corrected calibration image
+            method_dir = subject_dir/"ASL/Calib/Calib0"/f"{biascorr_method}{suffix}"
+            print(method_dir)
+            calib_name = method_dir/"calib0_restore.nii.gz"
+            calib_img = Image(str(calib_name))
             # create and save scaling factors image
             scaling_img = Image(scaling_factors, header=calib_img.header)
-            scaling_dir = Path(json_dict['calib_dir']).parent / 'MTEstimation'
-            mtcorr_dir = Path(json_dict['calib0_img']).parent / 'MTCorr'
-            create_dirs([scaling_dir, mtcorr_dir])
-            scaling_name = scaling_dir / f'MTcorr_SFs_{tissue}_{biascorr_method}.nii.gz'
+            mtcorr_dir = method_dir/"MTCorr"
+            mtcorr_dir.mkdir(exist_ok=True)
+            scaling_name = mtcorr_dir / f'MTcorr_SFs_{tissue}_{biascorr_method}{suffix}.nii.gz'
             scaling_img.save(scaling_name)
             
             # apply scaling factors to image to perform MT correction
-            if biascorr_method == 'calib':
-                bcorr_name = Path(json_dict['calib0_img']).parent/'BiasCorr/calib0_restore.nii.gz'
-            elif biascorr_method:
-                bcorr_name = Path(json_dict['calib0_img']).parent/'BiasCorr/T1_biascorr_calib0.nii.gz'
-            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{biascorr_method}.nii.gz'
-            bcorr_img = Image(str(bcorr_name))
+            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{tissue}_{biascorr_method}{suffix}.nii.gz'
             mtcorr_img = Image(
-                bcorr_img.data * scaling_factors,
-                header=bcorr_img.header
+                calib_img.data * scaling_factors,
+                header=calib_img.header
             )
             mtcorr_img.save(str(mtcorr_name))
+    return errors
