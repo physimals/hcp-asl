@@ -80,6 +80,12 @@ def correct_M0(subject_dir, mt_factors):
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
+
+    # find gradient distortion correction warp and fieldmaps
+    gdc_name = Path(json_dict['ASL_dir'])/'gradient_unwarp/fullWarp_abs.nii.gz'
+    fmap, fmapmag, fmapmagbrain = [
+        Path(json_dict['ASL_dir'])/f"topup/fmap{ext}.nii.gz" for ext in ('', 'mag', 'magbrain')
+    ]
     for calib_name in calib_names:
         # get calib_dir and other info
         calib_path = Path(calib_name)

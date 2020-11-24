@@ -92,6 +92,14 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     fslroi(str(mbpcasl), calib0_name, 88, 1)
     fslroi(str(mbpcasl), calib1_name, 89, 1)
 
+    # find spin-echo fieldmaps
+    b_dir = (subject_dir/f'{subject_name}_V1_B/scans').resolve(strict=True)
+    for name in b_dir.glob('**/*'):
+        if "PCASLhr_SpinEchoFieldMap_PA.nii.gz" in str(name):
+            pa_sefm = name
+        elif "PCASLhr_SpinEchoFieldMap_AP.nii.gz" in str(name):
+            ap_sefm = name
+
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'
     fields = [
@@ -113,6 +121,8 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
         "R_pial",
         "L_white",
         "R_white",
+        "pa_sefm",
+        "ap_sefm",
         "json_name"
     ]
     field_values = [
@@ -134,6 +144,8 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
         surfaces['R_pial'],
         surfaces['L_white'],
         surfaces['R_white'],
+        pa_sefm,
+        ap_sefm,
         json_name
     ]
     names_dict = {}
@@ -141,3 +153,5 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
         names_dict[key] = str(value)
     with open(json_name, 'w') as fp:
         json.dump(names_dict, fp, sort_keys=True, indent=4)
+    
+    return names_dict

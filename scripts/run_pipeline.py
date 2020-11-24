@@ -12,6 +12,7 @@ import os
 from itertools import product
 
 from hcpasl.initial_bookkeeping import initial_processing
+from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco
 from hcpasl.asl_differencing import tag_control_differencing
@@ -74,7 +75,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         documentation. Default is 3.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
-    initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+    names = initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+
+    # run gradient_unwarp and topup
+    calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
+    asl_dir = Path(names["ASL_dir"])
+    gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
+
     correct_M0(subject_dir, mt_factors)
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
