@@ -82,7 +82,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     asl_dir = Path(names["ASL_dir"])
     gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
-    correct_M0(subject_dir, mt_factors)
+    correct_M0(subject_dir, mt_factors, interpolation)
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [

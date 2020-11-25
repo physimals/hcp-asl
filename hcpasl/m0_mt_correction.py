@@ -10,6 +10,8 @@ from fsl.data.image import Image
 import numpy as np
 from .initial_bookkeeping import create_dirs
 import subprocess
+import regtricks as rt
+import nibabel as nb
 
 def load_json(subject_dir):
     """
@@ -57,7 +59,7 @@ def update_json(new_dict, old_dict):
     with open(Path(old_dict['json_name']), 'w') as fp:
         json.dump(old_dict, fp, sort_keys=True, indent=4)
 
-def correct_M0(subject_dir, mt_factors):
+def correct_M0(subject_dir, mt_factors, interpolation=3):
     """
     Correct the M0 images.
     
@@ -81,16 +83,41 @@ def correct_M0(subject_dir, mt_factors):
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
 
+    # get structural image names
+    struct_name, struct_brain_name = [json_dict[key] for key in ("T1w_acpc", "T1w_acpc_brain")]
+
     # find gradient distortion correction warp and fieldmaps
     gdc_name = Path(json_dict['ASL_dir'])/'gradient_unwarp/fullWarp_abs.nii.gz'
+    gdc_warp = rt.NonLinearRegistration.from_fnirt(
+        str(gdc_name), calib_names[0], calib_names[0],
+        intensity_correct=True, constrain_jac=(0.01, 100)
+    )
     fmap, fmapmag, fmapmagbrain = [
         Path(json_dict['ASL_dir'])/f"topup/fmap{ext}.nii.gz" for ext in ('', 'mag', 'magbrain')
     ]
+
     for calib_name in calib_names:
         # get calib_dir and other info
         calib_path = Path(calib_name)
         calib_dir = calib_path.parent
         calib_name_stem = calib_path.stem.split('.')[0]
+
+        # apply gradient distortion correction to the calibration image
+        gdc_calib_img = gdc_warp.apply_to_image(calib_name, calib_name, order=interpolation)
+        distcorr_dir = calib_dir/"DistCorr"
+        distcorr_dir.mkdir(exist_ok=True)
+        gdc_calib_name = distcorr_dir/f"gdc_{calib_name_stem}.nii.gz"
+        nb.save(gdc_calib_img, gdc_calib_name)
+
+        # apply mt scaling factors to the gradient distortion-corrected calibration image
+        mt_sfs = np.loadtxt(mt_factors)
+        assert (len(mt_sfs) == gdc_calib_img.shape[2])
+        mt_gdc_calib_img = nb.nifti1.Nifti1Image(gdc_calib_img.get_fdata()*mt_sfs, 
+                                                 gdc_calib_img.affine)
+        mtcorr_dir = calib_dir/"MTCorr"
+        mtcorr_dir.mkdir(exist_ok=True)
+        mt_gdc_calib_name = mtcorr_dir/f"mtcorr_gdc_{calib_name_stem}.nii.gz"
+        nb.save(mt_gdc_calib_img, mt_gdc_calib_name)
 
         # run BET on m0 image
         betted_m0 = bet(calib_name, LOAD, g=0.2, f=0.2, m=True)
