@@ -233,3 +233,20 @@ def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
            + "--echospacing=0.00057 --pedir=y")
     sp.run(cmd, shell=True)
 
+def generate_asl_mask(struct_brain, asl, asl2struct):
+    """
+    Generate brain mask in ASL space 
+
+    Args: 
+        struct_brain: path to T1 brain-extracted, ac_dc_restore_brain
+        asl: path to ASL image 
+        asl2struct: regtricks.Registration for asl to structural 
+
+    Returns: 
+        np.array, logical mask. 
+    """
+
+    brain_mask = (nb.load(struct_brain).get_data() > 0).astype(np.float32)
+    asl_mask = asl2struct.inverse().apply_to_array(brain_mask, struct_brain, asl)
+    asl_mask = binary_fill_holes(asl_mask > 0.25)
+    return asl_mask
