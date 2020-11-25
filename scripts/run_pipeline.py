@@ -82,7 +82,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     asl_dir = Path(names["ASL_dir"])
     gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
-    correct_M0(subject_dir, mt_factors, interpolation)
+    # run m0 correction (includes sebased bias estimation)
+    hcppipedir = Path(os.environ["HCPPIPEDIR"])
+    corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
+    subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
