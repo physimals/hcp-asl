@@ -79,6 +79,11 @@ def se_based_bias_estimation():
         required=not "--tissue_mask" in sys.argv,
         default=None
     )
+    parser.add_argument("--struct2calib", 
+        help="flirt registration from structural space to the calibration "
+            +"image from which we wish to estimate the bias field.",
+        default=None
+        )
     parser.add_argument('-o', '--outdir',
         help="Output directory for results.",
         required=True
@@ -218,8 +223,14 @@ def se_based_bias_estimation():
             image.save(savename)
     else:
         # downsample wmparc and ribbon to ASL-gridded T1 resolution
+        if args.struct2calib:
+            registration = rt.Registration.from_flirt(args.struct2calib, 
+                                                      wmparc_name,
+                                                      m0_name)
+        else:
+            registration = rt.Registration.identity()
         wmparc_aslt1, ribbon_aslt1 = [
-            rt.Registration.identity().apply_to_image(name, m0_name, order=0)
+            registration.apply_to_image(name, m0_name, order=0)
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs
