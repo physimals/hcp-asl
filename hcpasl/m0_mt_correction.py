@@ -111,7 +111,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
 
     # generate white matter mask in T1w space for use in registration
     wmmask = Path(json_dict["T1w_dir"])/"wmmask.nii.gz"
-    aparc_seg = Path(json_dict["T1w_dir"])/"aparc_seg.nii.gz"
+    aparc_aseg = Path(json_dict["T1w_dir"])/"aparc+aseg.nii.gz"
     wmmask_img = generate_wmmask(aparc_aseg)
     rt.ImageSpace.save_like(struct_name, wmmask_img, str(wmmask))
 
@@ -121,7 +121,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         str(gdc_name), calib_names[0], calib_names[0],
         intensity_correct=True, constrain_jac=(0.01, 100)
     )
-    topup_dir = Path(json_dict["ASL_dir"]/"topup")
+    topup_dir = Path(json_dict["ASL_dir"])/"topup"
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
                                    for ext in ('', 'mag', 'magbrain')]
 
@@ -167,14 +167,39 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         nb.save(mt_gdc_calib_img, mt_gdc_calib_name)
 
         # get registration to structural
+        # initial
         asl_reg_cmd = [
             "asl_reg",
             "-i", mt_gdc_calib_name, "-o", distcorr_dir,
             "-s", struct_name, f"--sbet={struct_brain_name}",
-            f"--tissseg={wmmask}", "--echospacing=0.00057", "--pedir=y"
-            f"--fmap={fmap_struct}", f"--fmapmag={fmapmag_struct}", 
-            f"--fmapmagbrain={fmapmagbrain_struct}", "--nofmapreg"
+            f"--tissseg={wmmask}", "--mainonly"
         ]
+        print("Running first asl_reg")
+        subprocess.run(asl_reg_cmd, check=True)
+
+        # get brain mask in calibration image space
+        calib2struct_init = distcorr_dir/"asl2struct.mat"
+        struct2calib_reg = rt.Registration.from_flirt(str(calib2struct_init),
+                                                      str(calib_name),
+                                                      str(struct_name)
+                                                      ).inverse()
+        mask = generate_asl_mask(str(struct_brain_name), 
+                                 str(calib_name), 
+                                 struct2calib_reg.inverse())
+        mask_name = calib_dir/"mask.nii.gz"
+        rt.ImageSpace.save_like(calib_name, mask, str(mask_name))
+
+        # refined
+        asl_reg_cmd = [
+            "asl_reg",
+            "-i", str(mt_gdc_calib_name), "-o", str(distcorr_dir),
+            "-s", str(struct_name), f"--sbet={str(struct_brain_name)}",
+            f"--tissseg={str(wmmask)}", "--echospacing=0.00057", "--pedir=y",
+            f"--fmap={str(fmap_struct)}", f"--fmapmag={str(fmapmag_struct)}", 
+            f"--fmapmagbrain={str(fmapmagbrain_struct)}", "--nofmapreg", 
+            f"--imat={str(calib2struct_init)}", "--finalonly", "-m", str(mask_name)
+        ]
+        print("Running second asl_reg")
         subprocess.run(asl_reg_cmd, check=True)
         struct2calib_name = distcorr_dir/"struct2asl.mat"
         struct2calib_reg = rt.Registration.from_flirt(str(struct2calib_name), 
@@ -194,6 +219,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
                                                          order=interpolation)
         biascorr_dir = calib_dir/"BiasCorr"
         sebased_dir = biascorr_dir/"SEbased"
+        sebased_dir.mkdir(parents=True, exist_ok=True)
         fmapmag_cspc_name = sebased_dir/f"fmapmag_{calib_name_stem}spc.nii.gz"
         nb.save(fmapmag_calibspc, fmapmag_cspc_name)
 
@@ -210,7 +236,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
                                  str(calib_name), 
                                  struct2calib_reg.inverse())
         mask_name = calib_dir/"mask.nii.gz"
-        nb.save(mask, mask_name)
+        rt.ImageSpace.save_like(calib_name, mask, str(mask_name))
 
         # get sebased bias estimate
         sebased_cmd = [

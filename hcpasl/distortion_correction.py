@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess as sp
 import regtricks as rt
 import numpy as np
+from scipy.ndimage import binary_fill_holes
 import nibabel as nb
 from fsl.wrappers import bet
 
@@ -164,7 +165,7 @@ def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm,
     gdc_dir.mkdir(exist_ok=True)
     gdc_warp = gdc_dir/"fullWarp_abs.nii.gz"
     if not gdc_warp.exists() or force_refresh:
-        generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation)
+        generate_gdc_warp(vol, coeffs_path, gdc_dir, interpolation)
 
     # create topup results directory
     topup_dir = distcorr_dir/"topup"

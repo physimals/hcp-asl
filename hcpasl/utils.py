@@ -3,6 +3,8 @@ from fsl.data.image import Image
 from fsl.wrappers import fslroi, fslmaths, LOAD
 from fsl.wrappers.fnirt import invwarp, applywarp
 
+import nibabel as nb
+
 import numpy as np
 
 import subprocess
