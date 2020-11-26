@@ -34,7 +34,7 @@ from .m0_mt_correction import load_json, update_json
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 from fsl.data.image import Image
-import nibabel as nib
+import nibabel as nb
 from fabber import Fabber, percent_progress
 import sys
 from pathlib import Path
@@ -390,12 +390,14 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
     # original ASL series and bias field names
     asl_name = Path(json_dict['ASL_seq'])
     bias_name = json_dict['calib0_bias']
+    calib_name = Path(json_dict['calib0_mc'])
     # create directories for results
     tis_dir_name = Path(json_dict['TIs_dir'])
     bcorr_dir = tis_dir_name / 'BiasCorr'
     mtcorr_dir = tis_dir_name / 'MTCorr'
     satrecov_dir = tis_dir_name / 'SatRecov'
     stcorr_dir = tis_dir_name / 'STCorr'
+    distcorr_dir = tis_dir_name / 'DistCorr/FirstPass'
     moco_dir = tis_dir_name / 'MoCo'
     asln2m0_name = moco_dir / 'asln2m0.mat'
     m02asln_name = moco_dir / 'm02asln.mat'
@@ -407,15 +409,40 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
         mtcorr_dir,
         satrecov_dir,
         stcorr_dir,
+        distcorr_dir,
         moco_dir,
         asln2m0_name,
         m02asln_name,
         asln2asl0_name,
         asl02asln_name
     ])
+    # apply distortion corrections to the ASL series
+    gdc_name = Path(json_dict["ASL_dir"])/"gradient_unwarp/fullWarp_abs.nii.gz"
+    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
+                                                   src=str(asl_name), 
+                                                   ref=str(asl_name), 
+                                                   intensity_correct=True,
+                                                   constrain_jac=(0.01, 100))
+    struct2calib_lin_name = Path(json_dict["calib0_dir"])/"DistCorr/struct2asl.mat"
+    struct2calib_lin = rt.Registration.from_flirt(src2ref=str(struct2calib_lin_name),
+                                                  src=json_dict["T1w_acpc"],
+                                                  ref=str(calib_name))
+    calib2struct_name = Path(json_dict["calib0_dir"])/"DistCorr/asl2struct_warp.nii.gz"
+    calib2struct_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(calib2struct_name),
+                                                            src=str(calib_name),
+                                                            ref=json_dict["T1w_acpc"],
+                                                            intensity_correct=True,
+                                                            constrain_jac=(0.01, 100))
+    dc_warp = rt.chain(gdc_warp, calib2struct_warp, struct2calib_lin)
+    asl_dc = dc_warp.apply_to_image(src=str(asl_name),
+                                    ref=str(asl_name),
+                                    order=interpolation,
+                                    cores=cores)
+    asl_dc_name = distcorr_dir/"tis_dc.nii.gz"
+    nb.save(asl_dc, asl_dc_name)
     # bias correct the original ASL series
     bcorr_img = bcorr_dir / 'tis_biascorr.nii.gz'
-    fslmaths(str(asl_name)).div(str(bias_name)).run(str(bcorr_img))
+    fslmaths(str(asl_dc_name)).div(str(bias_name)).run(str(bcorr_img))
     # apply MT scaling factors to the bias-corrected ASL series
     mtcorr_name = mtcorr_dir / 'tis_mtcorr.nii.gz'
     # load mt factors
@@ -424,7 +451,7 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
     assert (len(mt_sfs) == biascorr_img.shape[2])
     mtcorr_img = Image(biascorr_img.data*mt_sfs.reshape(1, 1, -1, 1), header=biascorr_img.header)
     mtcorr_img.save(str(mtcorr_name))
-    # estimate satrecov model on bias and MT corrected ASL series
+    # estimate satrecov model on distortion-, bias- and MT- corrected ASL series
     t1_name = _saturation_recovery(mtcorr_name, satrecov_dir, ntis, iaf, ibf, tis, rpts)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
     # perform slice-time correction using estimated tissue params
