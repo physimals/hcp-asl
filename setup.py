@@ -68,7 +68,7 @@ with open("README.md", "r") as fh:
 setup(
     name=PACKAGE_NAME,
     version=get_version(),
-    author='Flora Kennedy McConnell, Tom Kirk, Jack Toner',
+    author='Flora Kennedy McConnell <bbzfk@exmail.nottingham.ac.uk>, Tom Kirk <thomas.kirk@eng.ox.ac.uk>, Jack Toner <bbzjt@exmail.nottingham.ac.uk>',
     author_email='jack.toner@nottingham.ac.uk',
     description='Minimal ASL processing pipeline for the HCP.',
     long_description=long_description,
