@@ -83,7 +83,14 @@ def se_based_bias_estimation():
         help="flirt registration from structural space to the calibration "
             +"image from which we wish to estimate the bias field.",
         default=None
-        )
+    )
+    parser.add_argument("--structural",
+        help="Path to an image in T1w structural space for use when applying "
+            +"struct2calib.mat. Only required if the --struct2calib option has "
+            +"been provided.",
+        required="--struct2calib" in sys.argv,
+        default=None
+    )
     parser.add_argument('-o', '--outdir',
         help="Output directory for results.",
         required=True
@@ -145,7 +152,7 @@ def se_based_bias_estimation():
         [np.savetxt(name, [val]) for name, val in zip(savenames, (median, std))]
 
     # apply thresholding
-    lower, upper = [median - std, median + std]
+    lower, upper = [median - (std/3), median + (std/3)]
     print(lower, upper)
     SEdivM0_brain_thr = np.where(
         np.logical_and(SEdivM0_brain >= lower, SEdivM0_brain <= upper),
@@ -225,7 +232,7 @@ def se_based_bias_estimation():
         # downsample wmparc and ribbon to ASL-gridded T1 resolution
         if args.struct2calib:
             registration = rt.Registration.from_flirt(args.struct2calib, 
-                                                      wmparc_name,
+                                                      args.structural,
                                                       m0_name)
         else:
             registration = rt.Registration.identity()
