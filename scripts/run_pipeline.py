@@ -141,10 +141,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         elif target=='structural':
             series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
-            series = subject_dir/'ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
-        project_to_surface(subject_dir, target=target)
+        if target == 'structural':
+            project_to_surface(subject_dir, target=target)
 
 def main():
     """
