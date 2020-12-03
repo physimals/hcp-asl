@@ -6,7 +6,7 @@ with open("README.md", "r") as fh:
 setup(
     name='hcpasl',
     version='0.0.1',
-    author='Jack Toner',
+    author='Flora Kennedy McConnell, Tom Kirk, Jack Toner',
     author_email='jack.toner@nottingham.ac.uk',
     description='Minimal ASL processing pipeline for the HCP.',
     long_description=long_description,
