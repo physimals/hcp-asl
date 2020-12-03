@@ -45,7 +45,7 @@ def tag_control_differencing(series, subject_dir, target='structural'):
     if target == 'structural':
         distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
     else:
-        distcorr_dir = Path(json_dict['TIs_dir']) / 'DistCorr'
+        distcorr_dir = Path(json_dict['TIs_dir']) / 'STCorr2'
     Y_moco = Image(str(series))
 
     # load registered scaling factors, S_st
