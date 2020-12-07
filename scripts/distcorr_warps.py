@@ -519,7 +519,8 @@ def main():
                                                 ref=struct)
         ti_t1_img = asl2struct.apply_to_image(src=ti_asl,
                                               ref=reference,
-                                              order=0)
+                                              order=0,
+                                              superfactor=False)
         nb.save(ti_t1_img, ti_t1)
 
 if __name__  == '__main__':

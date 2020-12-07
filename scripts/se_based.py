@@ -223,7 +223,7 @@ def se_based_bias_estimation():
         [image.save(savename) for image, savename in zip(images, savenames)]
     
     if tissue_mask:
-        tissue_mask = rt.Registration.identity().apply_to_image(tissue_mask, m0_name, order=0).get_fdata()
+        tissue_mask = rt.Registration.identity().apply_to_image(tissue_mask, m0_name, order=0, superfactor=False).get_fdata()
         if debug:
             savename = str(outdir/'TissueMask.nii.gz')
             image = Image(tissue_mask, header=m0_img.header)
@@ -237,7 +237,7 @@ def se_based_bias_estimation():
         else:
             registration = rt.Registration.identity()
         wmparc_aslt1, ribbon_aslt1 = [
-            registration.apply_to_image(name, m0_name, order=0)
+            registration.apply_to_image(name, m0_name, order=0, superfactor=False)
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs
