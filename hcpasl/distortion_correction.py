@@ -4,6 +4,7 @@ from pathlib import Path
 import subprocess as sp
 import regtricks as rt
 import numpy as np
+from scipy.ndimage import binary_fill_holes
 import nibabel as nb
 from fsl.wrappers import bet
 
@@ -164,7 +165,7 @@ def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm,
     gdc_dir.mkdir(exist_ok=True)
     gdc_warp = gdc_dir/"fullWarp_abs.nii.gz"
     if not gdc_warp.exists() or force_refresh:
-        generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation)
+        generate_gdc_warp(vol, coeffs_path, gdc_dir, interpolation)
 
     # create topup results directory
     topup_dir = distcorr_dir/"topup"
@@ -233,3 +234,20 @@ def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
            + "--echospacing=0.00057 --pedir=y")
     sp.run(cmd, shell=True)
 
+def generate_asl_mask(struct_brain, asl, asl2struct):
+    """
+    Generate brain mask in ASL space 
+
+    Args: 
+        struct_brain: path to T1 brain-extracted, ac_dc_restore_brain
+        asl: path to ASL image 
+        asl2struct: regtricks.Registration for asl to structural 
+
+    Returns: 
+        np.array, logical mask. 
+    """
+
+    brain_mask = (nb.load(struct_brain).get_data() > 0).astype(np.float32)
+    asl_mask = asl2struct.inverse().apply_to_array(brain_mask, struct_brain, asl)
+    asl_mask = binary_fill_holes(asl_mask > 0.25)
+    return asl_mask
