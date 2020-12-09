@@ -2,20 +2,23 @@
 set -e
 echo -e "\n START: RibbonVolumeToSurfaceMapping"
 
-StudyFolder="/home/ibmeuser/HCP_test/jack_pipeline_test"
-SubjectID="HCA6002236"
+# These two options need to be provided on the command line
+# StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test" 
+# SubjectID="HCA6002236"
 
-WorkingDirectory="$StudyFolder/$SubjectID/T1w/ASL/Results/RibbonVolumetoSurface" #"$1" # 
-ASLVariable="$StudyFolder/$SubjectID/T1w/ASL/TIs/OxfordASL/native_space/perfusion_calib" #"$2" # ASL Results --> perfusion and ATT
-Subject="HCA6002236_V1_MR" #"$3" # SubjectID
-DownsampleFolder="$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" # "$4" # 
-LowResMesh=32 #"$5" #
-T1wNativeFolder="$StudyFolder/$SubjectID/T1w/Native" #"$6" 
-RegName=MSMSulc #"$7" # MSMSulc
+WorkingDirectory="$4" #"$StudyFolder/$SubjectID/T1w/ASL/Results/RibbonVolumetoSurface" # # 
+ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/TIs/OxfordASL/native_space" # # 
+ASLVariable="$3" #"perfusion_calib"
+Subject="$1" #"${SubjectID}_V1_MR" #
+DownsampleFolder="$9" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k" #  # 
+LowResMesh="$7" #32 # #
+T1wNativeFolder="$5" #"$StudyFolder/$SubjectID/T1w/Native" #
+AtlasSpaceNativeFolder="$6" #"$StudyFolder/$SubjectID/MNINonLinear/Native" 
+RegName="$8" #"MSMSulc" #
 
-CARET7DIR="/opt/workbench/bin_linux64"
+CARET7DIR="${10}"
 
-mkdir -p $WorkingDirectory
+Subject="${Subject}_V1_MR"
 
 NeighborhoodSmoothing="5" # May need to change
 Factor="0.5" # May need to change
@@ -32,12 +35,14 @@ for Hemisphere in L R ; do
   fi    
   ${CARET7DIR}/wb_command -create-signed-distance-volume \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".white.native.surf.gii \
-                            "$ASLVariable".nii.gz \
+                            "$ASLFolder"/"$ASLVariable".nii.gz \
                             "$WorkingDirectory"/"$Subject"."$Hemisphere".white.native.nii.gz
+
+  echo "Done first thing"                          
 
   ${CARET7DIR}/wb_command -create-signed-distance-volume \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".pial.native.surf.gii \
-                            "$ASLVariable".nii.gz \
+                            "$ASLFolder"/"$ASLVariable".nii.gz \
                             "$WorkingDirectory"/"$Subject"."$Hemisphere".pial.native.nii.gz
 
   fslmaths "$WorkingDirectory"/"$Subject"."$Hemisphere".white.native.nii.gz \
@@ -200,45 +205,47 @@ for Hemisphere in L R ; do
 #                             "$WorkingDirectory"/"$Hemisphere".goodvoxels."$LowResMesh"k_fs_LR.func.gii
 
   ${CARET7DIR}/wb_command -volume-to-surface-mapping \
-                            "$ASLVariable".nii.gz \
+                            "$ASLFolder"/"$ASLVariable".nii.gz \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
-                            "$ASLVariable"."$Hemisphere".native.func.gii \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
                             -ribbon-constrained \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".white.native.surf.gii \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".pial.native.surf.gii 
+                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".pial.native.surf.gii \
+                            -output-weights-text "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".weights.txt
                             # -volume-roi \
                             # "$WorkingDirectory"/goodvoxels.nii.gz
 
   ${CARET7DIR}/wb_command -metric-dilate \
-                            "$ASLVariable"."$Hemisphere".native.func.gii \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
-                            10 "$ASLVariable"."$Hemisphere".native.func.gii -nearest
+                            10 "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii -nearest
 
-  ${CARET7DIR}/wb_command -metric-mask \
-                            "$ASLVariable"."$Hemisphere".native.func.gii \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii  \
-                            "$ASLVariable"."$Hemisphere".native.func.gii
+# ${CARET7DIR}/wb_command -metric-mask \
+#                            "$ASLVariable"."$Hemisphere".native.func.gii \
+#                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii  \
+#                            "$ASLVariable"."$Hemisphere".native.func.gii
 
   ${CARET7DIR}/wb_command -metric-resample \
-                            "$ASLVariable"."$Hemisphere".native.func.gii \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".sphere.${RegName}.native.surf.gii \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
+                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".sphere.${RegName}.native.surf.gii \
                             "$DownsampleFolder"/"$Subject"."$Hemisphere".sphere."$LowResMesh"k_fs_LR.surf.gii \
-                            ADAP_BARY_AREA "$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            ADAP_BARY_AREA \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             -area-surfs \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
+                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
                             "$DownsampleFolder"/"$Subject"."$Hemisphere".midthickness."$LowResMesh"k_fs_LR.surf.gii \
-                            -current-roi \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii
+#                            -current-roi \
+#                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii
 
   ${CARET7DIR}/wb_command -metric-dilate \
-                            "$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             "$DownsampleFolder"/"$Subject"."$Hemisphere".midthickness."$LowResMesh"k_fs_LR.surf.gii \
-                            30 "$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii -nearest
+                            30 "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii -nearest
 
   ${CARET7DIR}/wb_command -metric-mask \
-                            "$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             "$DownsampleFolder"/"$Subject"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.shape.gii \
-                            "$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii
+                            "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii
 done
 
 echo " END: RibbonVolumeToSurfaceMapping"
