@@ -4,6 +4,9 @@ import regtricks as rt
 
 from hcpasl import distortion_correction
 from hcpasl.utils import binarise
+from hcpasl.tissue_masks import generate_tissue_mask_in_ref_space
+
+import numpy as np
 
 from pathlib import Path
 
@@ -69,9 +72,9 @@ def bias_estimation_t1(
     return bias_field
 
 def bias_estimation_sebased(
-    calib_name, fslanatdir, struct2asl, wmseg_name, 
-    results_dir, fmapmag, fmapmagbrain, interpolation=3,
-    force_refresh=True
+    calib_name, struct2asl, wmseg_name, results_dir, t1_name,
+    t1_brain_name, aparc_aseg,
+    fmapmag, fmapmagbrain, interpolation=3, force_refresh=True
     ):
     """
     Obtain a bias field estimate in calibration space using 
@@ -81,8 +84,6 @@ def bias_estimation_sebased(
     ----------
     calib_name: pathlib.Path
         Path to the calibration image.
-    fslanatdir: pathlib.Path
-        Path to the T1 image's fslanat output.
     struct2asl: pathlib.Path
         Path to the .mat file which will be used to register 
         the T1-estimated bias field to calibration image space.
@@ -110,7 +111,6 @@ def bias_estimation_sebased(
     fmap_reg_dir = results_dir/"fmap_registration"
     fmap_reg_dir.mkdir(exist_ok=True)
     fmapmag_calib_name = fmap_reg_dir/"fmapmag_calibspc.nii.gz"
-    t1_name, t1_brain_name = [fslanatdir/f"T1_biascorr{suf}.nii.gz" for suf in ("", "_brain")]
     struct2asl_reg = rt.Registration.from_flirt(
         str(struct2asl), src=str(t1_name), ref=str(calib_name)
     )
@@ -129,21 +129,26 @@ def bias_estimation_sebased(
         )
         nb.save(fmap_calib, fmapmag_calib_name)
     # get gray matter mask for sebased
-    gm_seg_name = results_dir/"gm_seg.nii.gz"
+    gm_seg_name = results_dir/"gm_mask.nii.gz"
     if not gm_seg_name.exists() or force_refresh:
-        gm_pve = (fslanatdir/"T1_fast_pve_1.nii.gz").resolve(strict=True)
-        gm_pve_calib = struct2asl_reg.apply_to_image(
-            str(gm_pve), str(calib_name), order=interpolation
+        gm_seg = generate_tissue_mask_in_ref_space(
+            aparc_aseg, calib_name, "gm", struct2asl, 
+            superfactor=False, order=0
         )
-        gm_pve_calib_name = results_dir/"gm_pve_calib.nii.gz"
-        nb.save(gm_pve_calib, gm_pve_calib_name)
-        gm_seg = binarise(gm_pve_calib_name, 0.9)
-        gm_seg.save(str(gm_seg_name))
+        nb.save(gm_seg, gm_seg_name)
     # get brain mask
     brain_mask = results_dir/"brain_mask.nii.gz"
     if not brain_mask.exists() or force_refresh:
-        bet_results = bet(str(calib_name), LOAD, m=True)
-        nb.save(bet_results['output_mask'], brain_mask)
+        t1_brain_img = nb.load(t1_brain_name)
+        t1_mask = nb.nifti1.Nifti1Image(
+            np.where(t1_brain_img.get_fdata()>0, 1., 0.), affine=t1_brain_img.affine
+        )
+        aslt1_mask = struct2asl_reg.apply_to_image(t1_mask, str(calib_name), superfactor=False, order=0)
+        aslt1_mask = nb.nifti1.Nifti1Image(
+            np.where(aslt1_mask.get_fdata()>0.5, 1., 0.), affine=aslt1_mask.affine
+        )
+        nb.save(aslt1_mask, brain_mask)
+    # get sebased bias
     bias_name = results_dir/"sebased_bias_dil.nii.gz"
     if not bias_name.exists() or force_refresh:
         sebased_cmd = [
@@ -151,9 +156,10 @@ def bias_estimation_sebased(
             "-m", brain_mask, "-o", results_dir, "--tissue_mask", gm_seg_name, "--debug"
         ]
         subprocess.run(sebased_cmd, check=True)
-    dilall_cmd = ["fslmaths", bias_name, "-dilall", bias_name]
+    dilall_name = results_dir/"sebased_bias_dilall.nii.gz"
+    dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
     subprocess.run(dilall_cmd, check=True)
-    bias_field = nb.load(bias_name)
+    bias_field = nb.load(dilall_name)
     return bias_field
 
 METHODS = ("calib", "t1", "sebased")

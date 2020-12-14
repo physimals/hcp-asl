@@ -43,13 +43,14 @@ def generate_tissue_mask(aparc_aseg, tissue, erode=False):
 
     Returns
     -------
-    mask: np.array logical mask of tissue of interest
+    mask: nibabel.Nifti1Image logical mask of tissue of interest
     """
     # load aparc_aseg
-    aseg = nb.load(aparc_aseg).get_fdata()
+    aseg = nb.load(aparc_aseg)
+    aseg_data = aseg.get_fdata()
 
     # create mask
-    mask = np.zeros_like(aseg)
+    mask = np.zeros_like(aseg_data)
 
     # get appropriate labels
     if tissue == "gm":
@@ -59,7 +60,7 @@ def generate_tissue_mask(aparc_aseg, tissue, erode=False):
 
     # iterate through labels
     for label in labels:
-        mask = np.where(aseg==label, 1., mask)
+        mask = np.where(aseg_data==label, 1., mask)
     
     # invert mask if tissue==gm
     if tissue == "gm":
@@ -67,8 +68,10 @@ def generate_tissue_mask(aparc_aseg, tissue, erode=False):
 
     # potential round of eroding
     if erode:
-        mask = scipy.ndimage.morphology.binary_erosion(mask)
+        mask = scipy.ndimage.morphology.binary_erosion(mask).astype(np.float)
     
+    # create and return Nifti1Image
+    mask = nb.nifti1.Nifti1Image(mask, affine=aseg.affine)
     return mask
 
 def generate_tissue_mask_in_ref_space(aparc_aseg, 
@@ -105,27 +108,24 @@ def generate_tissue_mask_in_ref_space(aparc_aseg,
     mask: Nifti1Image
     """
 
-    # load reference image
-    ref_img = nb.load(ref_img)
-
     # get T1 space tissue mask
     mask = generate_tissue_mask(aparc_aseg, tissue, erode=erode)
 
     # resample to reference image
     if struct2ref:
-        reg = rt.Registration.from_flirt(struct2ref,
-                                         src=aparc_aseg,
-                                         ref=ref_img)
+        reg = rt.Registration.from_flirt(str(struct2ref),
+                                         src=str(aparc_aseg),
+                                         ref=str(ref_img))
     else:
         reg = rt.Registration.identity()
-    mask = reg.apply_to_array(
-        data=mask, src=aparc_aseg, ref=ref_img, 
+    mask = reg.apply_to_image(
+        src=mask, ref=str(ref_img), 
         superfactor=superfactor, order=order
     )
 
     # re-binarise
-    mask = np.where(mask>=threshold, 1., 0.)
-
-    # create nifti
-    mask = nb.nifti1.Nifti1Image(mask, affine=ref_img.affine)
+    mask = nb.Nifti1Image(
+        np.where(mask.get_fdata()>=threshold, 1., 0.),
+        affine=mask.affine
+    )
     return mask

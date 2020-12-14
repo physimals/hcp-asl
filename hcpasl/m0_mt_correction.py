@@ -9,7 +9,7 @@ from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
 import numpy as np
 from .initial_bookkeeping import create_dirs
-from .utils import generate_wmmask
+from .tissue_masks import generate_tissue_mask
 from .distortion_correction import register_fmap, generate_asl_mask
 import subprocess
 import regtricks as rt
@@ -113,7 +113,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     t1reg_dir = Path(json_dict["T1w_dir"])/"ASL/reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
     aparc_aseg = Path(json_dict["T1w_dir"])/"aparc+aseg.nii.gz"
-    wmmask_img = generate_wmmask(aparc_aseg)
+    wmmask_img = generate_tissue_mask(aparc_aseg, "wm")
     wmmask_name = t1reg_dir/"wmmask.nii.gz"
     rt.ImageSpace.save_like(struct_name, wmmask_img, str(wmmask_name))
 
