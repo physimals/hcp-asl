@@ -3,8 +3,6 @@ set -e
 script_name="SubcorticalProcessing.sh"
 echo "${script_name}: START"
 
-# StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test" 
-# SubjectID="HCA6002236"
 AtlasSpaceFolder="$3" #"${StudyFolder}/${SubjectID}/MNINonLinear" # 
 echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 
