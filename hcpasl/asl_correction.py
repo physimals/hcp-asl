@@ -335,7 +335,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), order=3):
+def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), interpolation=3):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -364,16 +364,18 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), or
         Path to the subject's base directory.
     mt_factors : pathlib.Path
         Path to the pre-calculated MT correction scaling factors.
-    superlevel : int, optional
-        Superlevel to use when using regtricks. Default is 1.
+    superfactor : int, optional
+        superfactor to use when using regtricks. Default is 1.
     cores : int, optional
         Number of cores regtricks will use. Default is the number 
         of cores available.
-    order : int, optional
+    interpolation : int, optional
         Order of interpolation to be used by regtricks. This is 
         passed to scipy's map_coordinates. See that for more 
         information. Default is 3.
     """
+    assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
+    assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
     # asl sequence parameters
     ntis = 5
     iaf = "tc"
@@ -462,9 +464,9 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), or
     reg_mtcorr = Image(asln2asl0.apply_to_image(
         str(mtcorr_name), 
         json_dict['calib0_mc'],
-        superlevel=superlevel,
+        superfactor=superfactor,
         cores=cores,
-        order=order
+        order=interpolation
     ))
     reg_mtcorr.save(str(temp_reg_mtcorr))
 
@@ -480,9 +482,9 @@ def hcp_asl_moco(subject_dir, mt_factors, superlevel=1, cores=mp.cpu_count(), or
         asln2asl0.inverse().apply_to_image(
             str(t1_filt_name),
             json_dict['calib0_mc'],
-            superlevel=superlevel,
+            superfactor=superfactor,
             cores=cores,
-            order=order
+            order=interpolation
         )
     )
     reg_t1_filt.save(str(reg_t1_filt_name))

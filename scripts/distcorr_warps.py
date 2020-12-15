@@ -16,6 +16,10 @@ from fsl.wrappers import fslmaths, bet
 from fsl.data.image import Image
 from scipy.ndimage import binary_fill_holes
 
+from hcpasl.distortion_correction import (
+    generate_gdc_warp, generate_topup_params, generate_fmaps, 
+    generate_epidc_warp, register_fmap
+)
 
 def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     """
@@ -51,7 +55,17 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t1 "
     cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path}"
     sp.run(cmd, shell=True)
-    asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
+
+    try:
+        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
+    except RuntimeError as e:
+        # try lta_convert if final row != [0 0 0 1]
+        print(e)
+        print("Trying lta_convert instead")
+        cmd = f"lta_convert --inreg asl2orig_mgz_initial_bbr.dat --outfsl {omat_path} "
+        cmd += f"--src {asl_vol0} --trg {orig_mgz}"
+        sp.run(cmd, shell=True)
+        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
 
     # Return to original working directory, and flip the FSL matrix to target
     # asl -> T1, not orig.mgz. Save output. 
@@ -60,28 +74,6 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
         os.environ['SUBJECTS_DIR'] = old_sd
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
-
-def generate_gdc_warp(asl_vol0, coeffs_path, distcorr_dir):
-    """
-    Generate distortion correction warp via gradient_unwarp. 
-
-    Args: 
-        asl_vol0: path to first volume of ASL series
-        coeffs_path: path to coefficients file for the scanner (.grad)
-        distcorr_dir: directory in which to put output
-    
-    Returns: 
-        n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
-    """
-
-    # Need to run in the output directory to make sure files end up in the
-    # right place
-    pwd = os.getcwd()
-    os.chdir(distcorr_dir)
-    cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {}"
-            .format(asl_vol0, coeffs_path))
-    sp.run(cmd, shell=True)
-    os.chdir(pwd)
 
 def generate_wmmask(aparc_aseg):
     """ 
@@ -97,64 +89,6 @@ def generate_wmmask(aparc_aseg):
     aseg_array = nb.load(aparc_aseg).get_data()
     wm = np.logical_or(aseg_array == 41, aseg_array == 2)
     return wm 
-
-def generate_topup_params(pars_filepath):
-    """
-    Generate a file containing the parameters used by topup
-    """
-    if os.path.isfile(pars_filepath):
-        os.remove(pars_filepath)
-    with open(pars_filepath, "a") as t_pars:
-        t_pars.write("0 1 0 0.04845" + "\n")
-        t_pars.write("0 -1 0 0.04845")
-
-def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir): 
-    """
-    Generate fieldmaps via topup for use with asl_reg. 
-
-    Args: 
-        asl_vol0: path to image of stacked blipped images (ie, PEdir as vol0,
-            (oPEdir as vol1), in this case stacked as pa then ap)
-        params: path to text file for topup --datain, PE directions/times
-        config: path to text file for topup --config, other args 
-        distcorr_dir: directory in which to put output
-    
-    Returns: 
-        n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
-    """
-
-    pwd = os.getcwd()
-    os.chdir(distcorr_dir)
-
-    # Run topup to get fmap in Hz 
-    topup_fmap = op.join(distcorr_dir, 'topup_fmap_hz.nii.gz')        
-    cmd = (("topup --imain={} --datain={}".format(pa_ap_sefms, params)
-            + " --config={} --out=topup".format(config))
-            + " --fout={} --iout={}".format(topup_fmap,
-                op.join(distcorr_dir, 'corrected_sefms.nii.gz')))
-    sp.run(cmd, shell=True)
-
-    fmap, fmapmag, fmapmagbrain = [ 
-        op.join(distcorr_dir, '{}.nii.gz'.format(s)) 
-        for s in [ 'fmap', 'fmapmag', 'fmapmagbrain' ]
-    ]    
-
-    # Convert fmap from Hz to rad/s
-    fmap_spc = rt.ImageSpace(topup_fmap)
-    fmap_arr_hz = nb.load(topup_fmap).get_data()
-    fmap_arr = fmap_arr_hz * 2 * np.pi
-    fmap_spc.save_image(fmap_arr, fmap)
-
-    # Mean across volumes of corrected sefms to get fmapmag
-    fmapmag_arr = nb.load(op.join(
-                    distcorr_dir, "corrected_sefms.nii.gz")).get_data()
-    fmapmag_arr = fmapmag_arr.mean(-1)
-    fmap_spc.save_image(fmapmag_arr, fmapmag)
-
-    # Run BET on fmapmag to get brain only version 
-    bet(fmap_spc.make_nifti(fmapmag_arr), output=fmapmagbrain)
-
-    os.chdir(pwd)
 
 def generate_asl_mask(struct_brain, asl, asl2struct):
     """
@@ -174,37 +108,6 @@ def generate_asl_mask(struct_brain, asl, asl2struct):
     asl_mask = binary_fill_holes(asl_mask > 0.25)
     return asl_mask
 
-def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
-                       wmmask, asl2struct, fmap, fmapmag, fmapmagbrain, 
-                       distcorr_dir):
-    """
-    Generate EPI distortion correction warp via asl_reg. 
-
-    Args: 
-        asl_vol0_brain: path to first volume of ASL series, brain-extracted
-        struct: path to T1 image, ac_dc_restore
-        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
-        asl_mask: path to brain mask in ASL space 
-        wmmask: path to WM mask in T1 space 
-        asl2struct: regtricks.Registration for asl to structural
-        fmap: path to topup's field map in rad/s
-        fmapmag: path to topup's field map magnitude 
-        fmapmagbrain: path to topup's field map magnitude, brain only
-        distcorr_dir: path to directory in which to place output 
-
-    Returns: 
-        n/a, file 'asl2struct_warp.nii.gz' is created in output directory 
-    """
-
-    a2s_fsl = op.join(distcorr_dir, 'asl2struct.mat')
-    asl2struct.save_fsl(a2s_fsl, asl_vol0_brain, struct)
-    cmd = ("asl_reg -i {} -o {} ".format(asl_vol0_brain, distcorr_dir)
-           + "-s {} --sbet={} -m {} ".format(struct, struct_brain, asl_mask)
-           + "--tissseg={} --imat={} --finalonly ".format(wmmask, a2s_fsl)
-           + "--fmap={} --fmapmag={} ".format(fmap, fmapmag)
-           + "--fmapmagbrain={} --pedir=y --echospacing=0.00057 ".format(fmapmagbrain))
-    sp.run(cmd, shell=True)
-
 def binarise_image(image, threshold=0):
     """
     Binarise image above a threshold if given.
@@ -217,7 +120,7 @@ def binarise_image(image, threshold=0):
         np.array, logical mask
     """
     image = Image(image)
-    mask = (image.data>0).astype(np.float32)
+    mask = (image.data>threshold).astype(np.float32)
     return mask
 
 def create_ti_image(asl, tis, sliceband, slicedt, outname):
@@ -243,23 +146,70 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname):
     ti_array = ti_array + (slice_in_band * slicedt)
     rt.ImageSpace.save_like(asl, ti_array, outname)
 
+def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
+    # create output directory
+    out_dir = Path(out_dir)
+    out_dir.mkdir(exist_ok=True)
+
+    # get schedule
+    fsldir = os.environ.get('FSLDIR')
+    schedule = Path(fsldir)/'etc/flirtsch/bbr.sch'
+
+    # set up commands
+    init_xform = out_dir/'fmapmag2struct_init.mat'
+    sec_xform = out_dir/'fmapmag2struct_sec.mat'
+    bbr_xform = out_dir/'fmapmag2struct_bbr.mat'
+    init_cmd = [
+        'flirt',
+        '-in', fmapmagbrain,
+        '-ref', sbet,
+        '-dof', '6',
+        '-omat', init_xform
+    ]
+    sec_cmd = [
+        'flirt',
+        '-in', fmapmag,
+        '-ref', s,
+        '-dof', '6',
+        '-init', init_xform,
+        '-omat', sec_xform,
+        '-nosearch'
+    ]
+    bbr_cmd = [
+        'flirt',
+        '-ref', s,
+        '-in', fmapmag,
+        '-dof', '6',
+        '-cost', 'bbr',
+        '-wmseg', wm_tissseg,
+        '-init', sec_xform,
+        '-omat', bbr_xform,
+        '-schedule', schedule
+    ]
+    for cmd in (init_cmd, sec_cmd, bbr_cmd):
+        sp.run(cmd, check=True)
+    return str(bbr_xform)
+
 def main():
 
     # argument handling
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "study_dir",
-        help="Path of the base study directory."
+        "--study_dir",
+        help="Path of the base study directory.",
+        required=True
     )
     parser.add_argument(
-        "sub_number",
-        help="Subject number."
+        "--sub_id",
+        help="Subject number.",
+        required=True
     )
     parser.add_argument(
         "-g",
         "--grads",
         help="Filename of the gradient coefficients for gradient"
-            + "distortion correction (optional)."
+            + "distortion correction.",
+        required=True
     )
     parser.add_argument(
         "-t",
@@ -272,20 +222,66 @@ def main():
     )
     parser.add_argument(
         "--fmap_ap",
-        help="Filename for the AP fieldmap for use in distortion correction"
+        help="Filename for the AP fieldmap for use in distortion correction",
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
-        help="Filename for the PA fieldmap for use in distortion correction"
+        help="Filename for the PA fieldmap for use in distortion correction",
+        required=True
     )
-
+    parser.add_argument(
+        '--use_t1',
+        help="If this flag is provided, the T1 estimates from the satrecov "
+            + "will also be registered to ASL-gridded T1 space for use in "
+            + "perfusion estimation via oxford_asl.",
+        action='store_true'
+    )
+    parser.add_argument(
+        '--sebased',
+        help="If this flag is provided, the distortion warps and motion "
+            +"estimates will be applied to the MT-corrected but not bias-"
+            +"corrected calibration and ASL images. The bias-field will "
+            +"then be estimated from the calibration image using HCP's "
+            +"SE-based algorithm and applied in subsequent steps.",
+        action='store_true'
+    )
+    parser.add_argument(
+        "--mtname",
+        help="Filename of the empirically estimated MT-correction"
+            + "scaling factors.",
+        default=None,
+        required="--sebased" in sys.argv
+    )
+    parser.add_argument(
+        "-c",
+        "--cores",
+        help="Number of cores to use when applying motion correction and "
+            +"other potentially multi-core operations. Default is the "
+            +f"number of cores your machine has ({mp.cpu_count()}).",
+        default=mp.cpu_count(),
+        type=int,
+        choices=range(1, mp.cpu_count()+1)
+    )
+    parser.add_argument(
+        "--interpolation",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
+        default=3,
+        type=int,
+        choices=range(0, 5+1)
+    )
     args = parser.parse_args()
     study_dir = args.study_dir
-    sub_id = args.sub_number
+    sub_id = args.sub_id
     grad_coefficients = args.grads
     target = args.target
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
+    use_t1 = args.use_t1
+    use_sebased = args.sebased
+    mt_factors = args.mtname
 
     # For debug, re-use existing intermediate files 
     force_refresh = True
@@ -324,7 +320,7 @@ def main():
         t1_spc = rt.ImageSpace(struct)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         nb.save(
-            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
+            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc, order=args.interpolation), 
             t1_asl_grid)
     
     # Create ASL-gridded version of T1 image
@@ -334,8 +330,8 @@ def main():
         t1_spc = rt.ImageSpace(struct_brain)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         t1_mask = binarise_image(struct_brain)
-        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
-                                                        t1_spc, t1_asl_grid_spc)
+        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, t1_spc, t1_asl_grid_spc, 
+                                                                    order=args.interpolation)
         # Re-binarise downsampled mask and save
         t1_asl_grid_mask_array = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
@@ -354,7 +350,7 @@ def main():
     # Generate the gradient distortion correction warp 
     gdc_path = op.join(distcorr_dir, 'fullWarp_abs.nii.gz')
     if (not op.exists(gdc_path) or force_refresh) and target=='asl':
-        generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir)
+        generate_gdc_warp(asl_vol0, grad_coefficients, distcorr_dir, args.interpolation)
     gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
             asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
 
@@ -394,7 +390,8 @@ def main():
     gdc_tis_vol1_name = op.join(distcorr_out_dir, "gdc_tis_vol1.nii.gz")
     if (not op.exists(gdc_tis_vol1_name) or force_refresh) and target=='asl':
         gdc_tis_vol1 = gdc.apply_to_image(src=unreg_img,
-                                          ref=unreg_img)
+                                          ref=unreg_img,
+                                          order=args.interpolation)
         unreg_img = gdc_tis_vol1_name
         nb.save(gdc_tis_vol1, unreg_img)
 
@@ -406,7 +403,7 @@ def main():
     if not op.exists(asl2struct_initial_path) or force_refresh:
         asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat')
         fsdir = op.join(t1_dir, f'{sub_id}_V1_MR')
-        generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir)
+        generate_asl2struct_initial(unreg_img, struct, fsdir, reg_dir)
         os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
     asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
                                                     src=unreg_img, ref=struct)
@@ -461,23 +458,51 @@ def main():
     # epi dc (incorporating asl->struct reg)
     asl = op.join(asl_dir, "tis_stcorr.nii.gz")
     reference = t1_asl_grid if target=='structural' else asl
+    if use_sebased and target=='structural':
+        asl = op.join(sub_base, "ASL", "TIs", "tis.nii.gz")
+        asl = Image(asl)
+        asl_sfs = op.join(asl_dir, "combined_scaling_factors.nii.gz")
+        asl_sfs = Image(asl_sfs)
+        asl = Image(asl.data * asl_sfs.data, header=asl.header)
+        mtcorr_name = op.join(sub_base, "ASL", "TIs", "MTCorr", "tis_mtcorr_nobc.nii.gz")
+        asl.save(mtcorr_name)
+        asl = mtcorr_name
     asl_outpath = op.join(distcorr_out_dir, "tis_distcorr.nii.gz")
     if not op.exists(asl_outpath) or force_refresh:
         asl2struct_mc_dc = rt.chain(asl_mc, gdc, epi_dc)
         asl_corrected = asl2struct_mc_dc.apply_to_image(src=asl, 
                                                         ref=reference, 
-                                                        cores=mp.cpu_count())
+                                                        cores=args.cores,
+                                                        order=args.interpolation)
         nb.save(asl_corrected, asl_outpath)
 
     # Final calibration transforms: calib->asl, grad dc, 
     # epi dc (incorporating asl->struct reg)
+    if use_sebased and target=='structural':
+        calib = op.join(sub_base, "ASL", "Calib", "Calib0", "calib0.nii.gz")
+        calib = Image(calib)
+        mt_sfs = np.loadtxt(mt_factors).reshape(1, 1, -1)
+        calib = Image(calib.data * mt_sfs, header=calib.header)
+        mtcorr_name = op.join(sub_base, "ASL", "Calib", "Calib0", "MTCorr", "calib0_mtcorr_nobc.nii.gz")
+        calib.save(mtcorr_name)
+        calib = mtcorr_name
     calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
     if (not op.exists(calib_outpath) or force_refresh) and target=='structural':
         calib2struct_dc = rt.chain(calib2asl0, gdc, epi_dc)
         calib_corrected = calib2struct_dc.apply_to_image(src=calib, 
-                                                         ref=reference)
+                                                         ref=reference,
+                                                         order=args.interpolation)
         
         nb.save(calib_corrected, calib_outpath)
+
+    # apply distortion corrections to fmapmag.nii.gz
+    if use_sebased and target=='structural':
+        fmap_reg_dir = op.join(sub_base, "T1w", "ASL", "reg", "fmap")
+        bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
+        fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
+        fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
+        fmap_struct_name = op.join(fmap_reg_dir, "fmapmag_aslstruct.nii.gz")
+        nb.save(fmap_struct, fmap_struct_name)
 
     # Final scaling factors transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
@@ -493,6 +518,18 @@ def main():
                                                         ref=reference, 
                                                         cores=mp.cpu_count())
         nb.save(sfs_corrected, sfs_outpath)
+    
+    # apply registrations to satrecov-estimated T1 image for use with oxford_asl
+    if use_t1:
+        est_t1_name = op.join(sub_base, "ASL", "TIs", "SatRecov2", 
+                                "spatial", "mean_T1t_filt.nii.gz")
+        reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
+        if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
+            asl2struct_dc = rt.chain(asl_mc[0], gdc, epi_dc)
+            reg_est_t1 = asl2struct_dc.apply_to_image(src=est_t1_name,
+                                                      ref=reference,
+                                                      order=args.interpolation)
+            nb.save(reg_est_t1, reg_est_t1_name)
 
     # create ti image in asl space
     slicedt = 0.059

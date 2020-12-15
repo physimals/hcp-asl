@@ -15,6 +15,7 @@ SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM
 GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
 RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
 script_path="${10}" #
+CARET7DIR="${11}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64"
 
 # log_Msg "Path: ${Path}"
 # log_Msg "Subject: ${Subject}"

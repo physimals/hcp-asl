@@ -17,7 +17,7 @@ from pathlib import Path
 import subprocess
 import numpy as np
 
-def tag_control_differencing(subject_dir, target='structural'):
+def tag_control_differencing(series, subject_dir, target='structural'):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -25,6 +25,8 @@ def tag_control_differencing(subject_dir, target='structural'):
 
     Parameters
     ----------
+    series : pathlib.Path
+        Path to the ASL series we wish to difference.
     subject_dir : pathlib.Path
         Path to the subject's base directory.
     target : str, {'structural', 'asl'}
@@ -44,8 +46,7 @@ def tag_control_differencing(subject_dir, target='structural'):
         distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
     else:
         distcorr_dir = Path(json_dict['TIs_dir']) / 'DistCorr'
-    Y_moco_name = distcorr_dir / 'tis_distcorr.nii.gz'
-    Y_moco = Image(str(Y_moco_name))
+    Y_moco = Image(str(series))
 
     # load registered scaling factors, S_st
     sfs_name = distcorr_dir / 'combined_scaling_factors.nii.gz'
