@@ -75,21 +75,6 @@ def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
 
-def generate_wmmask(aparc_aseg):
-    """ 
-    Generate binary WM mask in space of T1 image using FS aparc+aseg
-
-    Args: 
-        aparc_aseg: path to aparc_aseg in T1 space (not FS 256 1mm space!)
-
-    Returns: 
-        np.array logical WM mask in space of T1 image 
-    """
-
-    aseg_array = nb.load(aparc_aseg).get_data()
-    wm = np.logical_or(aseg_array == 41, aseg_array == 2)
-    return wm 
-
 def generate_asl_mask(struct_brain, asl, asl2struct):
     """
     Generate brain mask in ASL space 
@@ -290,11 +275,12 @@ def main():
     # Create if they do not already exist. 
     sub_base = op.abspath(op.join(study_dir, sub_id))
     grad_coefficients = op.abspath(grad_coefficients)
-    pvs_dir = op.join(sub_base, "T1w", "ASL", "PVEs")
-    t1_asl_dir = op.join(sub_base, "T1w", "ASL")
+    t1_asl_dir = op.join(sub_base, "ASLT1w")
     distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
-    reg_dir = op.join(sub_base, 'T1w', 'ASL', 'reg')
-    t1_dir = op.join(sub_base, "T1w")
+    reg_dir = op.join(t1_asl_dir, 'reg')
+    pvs_dir = op.join(t1_asl_dir, "PVEs")
+    t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources", 
+                     "Structural_preproc", "files", f"{sub_id}_V1_MR","T1w")
     asl_dir = op.join(sub_base, "ASL", "TIs", "STCorr2")
     asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
     calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr") if target=='structural' else op.join(sub_base, "ASL", "Calib", "Calib0", "DistCorr")
@@ -306,22 +292,24 @@ def main():
     asl = op.join(asl_dir, "tis_stcorr.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
     struct_brain = op.join(t1_dir, "T1w_acpc_dc_restore_brain.nii.gz")
-    struct_brain_mask = op.join(t1_dir, "T1w_acpc_dc_restore_brain_mask.nii.gz")
+    struct_brain_mask = op.join(t1_dir, "brainmask_fs.nii.gz")
     asl_vol0 = op.join(asl_dir, "tis_stcorr_vol1.nii.gz")
     if (not op.exists(asl_vol0) or force_refresh) and target=='asl':
         cmd = "fslroi {} {} 0 1".format(asl, asl_vol0)
         sp.run(cmd.split(" "), check=True)
 
     # Create ASL-gridded version of T1 image 
-    t1_asl_grid = op.join(t1_dir, "ASL", "reg", 
-                          "ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    t1_asl_grid = op.join(reg_dir, "ASL_grid_T1w_acpc_dc_restore.nii.gz")
     if (not op.exists(t1_asl_grid) or force_refresh) and target=='asl':
         asl_spc = rt.ImageSpace(asl)
         t1_spc = rt.ImageSpace(struct)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
         nb.save(
-            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc, order=args.interpolation), 
-            t1_asl_grid)
+            rt.Registration.identity().apply_to_image(struct, 
+                                                      t1_asl_grid_spc, 
+                                                      order=args.interpolation), 
+            t1_asl_grid
+        )
     
     # Create ASL-gridded version of T1 image
     t1_asl_grid_mask = op.join(reg_dir, "ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz")
@@ -329,9 +317,11 @@ def main():
         asl_spc = rt.ImageSpace(asl)
         t1_spc = rt.ImageSpace(struct_brain)
         t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
-        t1_mask = binarise_image(struct_brain)
-        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, t1_spc, t1_asl_grid_spc, 
-                                                                    order=args.interpolation)
+        t1_mask = nb.load(struct_brain_mask).get_fdata()
+        t1_mask_asl_grid = rt.Registration.identity().apply_to_array(t1_mask, 
+                                                                     t1_spc, 
+                                                                     t1_asl_grid_spc, 
+                                                                     order=0)
         # Re-binarise downsampled mask and save
         t1_asl_grid_mask_array = binary_fill_holes(t1_mask_asl_grid>0.25).astype(np.float32)
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
@@ -374,12 +364,13 @@ def main():
     asl2struct_initial_path = op.join(reg_dir, 'asl2struct_final_bbr_fsl.mat')
     if (not op.exists(asl2struct_initial_path) or force_refresh) and target=='structural':
         asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat')
-        fsdir = op.join(t1_dir, f'{sub_id}_V1_MR')
+        fsdir = op.join(t1_dir, f"{sub_id}_V1_MR")
         generate_asl2struct_initial(unreg_img, struct, fsdir, reg_dir)
         os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
     if target == 'structural':
         asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
-                                                        src=unreg_img, ref=struct)
+                                                        src=unreg_img, 
+                                                        ref=struct)
     elif target == 'asl':
         calib2struct_name = op.join(calib_out_dir, "asl2struct.mat")
         calib2struct = rt.Registration.from_flirt(calib2struct_name,
@@ -393,11 +384,15 @@ def main():
     else:
         mask_name = op.join(reg_dir, "asl_vol1_mask_final.nii.gz")
     if not op.exists(mask_name) or force_refresh:
-        asl_mask = generate_asl_mask(struct_brain, unreg_img, asl2struct_initial)
-        rt.ImageSpace.save_like(unreg_img, asl_mask, mask_name)
+        asl_mask = asl2struct_initial.inverse().apply_to_image(struct_brain_mask,
+                                                               unreg_img, 
+                                                               order=0)
+        asl_mask = nb.nifti1.Nifti1Image(np.where(asl_mask.get_fdata()>0., 1., 0.),
+                                         affine=asl_mask.affine)
+        nb.save(asl_mask, mask_name)
 
     # get binary WM mask name (using FS' aparc+aseg)
-    wmmask = op.join(sub_base, "T1w", "ASL", "reg", "wmmask.nii.gz")
+    wmmask = op.join(t1_asl_dir, "reg", "wmmask.nii.gz")
 
     # load/estimate epi distortion correction
     # if target is asl, we already have a rough estimate from calibration image
@@ -468,7 +463,7 @@ def main():
 
     # apply distortion corrections to fmapmag.nii.gz
     if use_sebased and target=='structural':
-        fmap_reg_dir = op.join(sub_base, "T1w", "ASL", "reg", "fmap")
+        fmap_reg_dir = op.join(sub_base, t1_asl_dir, "reg", "fmap")
         bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
         fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
         fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
@@ -519,8 +514,7 @@ def main():
                                                 ref=struct)
         ti_t1_img = asl2struct.apply_to_image(src=ti_asl,
                                               ref=reference,
-                                              order=0,
-                                              superfactor=False)
+                                              order=0)
         nb.save(ti_t1_img, ti_t1)
 
 if __name__  == '__main__':

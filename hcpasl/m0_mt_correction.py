@@ -110,12 +110,12 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     struct_name, struct_brain_name = [json_dict[key] for key in ("T1w_acpc", "T1w_acpc_brain")]
 
     # generate white matter mask in T1w space for use in registration
-    t1reg_dir = Path(json_dict["T1w_dir"])/"ASL/reg"
+    t1reg_dir = Path(json_dict["structasl"])/"reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
     aparc_aseg = Path(json_dict["T1w_dir"])/"aparc+aseg.nii.gz"
     wmmask_img = generate_tissue_mask(aparc_aseg, "wm")
     wmmask_name = t1reg_dir/"wmmask.nii.gz"
-    rt.ImageSpace.save_like(struct_name, wmmask_img, str(wmmask_name))
+    nb.save(wmmask_img, wmmask_name)
 
     # find gradient distortion correction warp and fieldmaps
     gdc_name = Path(json_dict['ASL_dir'])/'gradient_unwarp/fullWarp_abs.nii.gz'
@@ -234,17 +234,20 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         nb.save(dc_calib, dc_calib_name)
 
         # get brain mask in calibration image space
-        mask = generate_asl_mask(str(struct_brain_name), 
-                                 str(calib_name), 
-                                 struct2calib_reg.inverse())
-        mask_name = calib_dir/"mask.nii.gz"
-        rt.ImageSpace.save_like(calib_name, mask, str(mask_name))
+        fs_brainmask = Path(json_dict["T1w_dir"])/"brainmask_fs.nii.gz"
+        aslfs_mask_name = calib_dir/"aslfs_mask.nii.gz"
+        aslfs_mask = struct2calib_reg.apply_to_image(src=str(fs_brainmask), 
+                                                     ref=str(calib_name),
+                                                     order=0)
+        aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
+                                           affine=gdc_calib_img.affine)
+        nb.save(aslfs_mask, aslfs_mask_name)
 
         # get sebased bias estimate
         sebased_cmd = [
             "get_sebased_bias",
             "-i", dc_calib_name, "-f", fmapmag_cspc_name,
-            "-m", mask_name, "-o", sebased_dir, 
+            "-m", aslfs_mask_name, "-o", sebased_dir, 
             "--ribbon", ribbon, "--wmparc", wmparc,
             "--corticallut", corticallut, "--subcorticallut", subcorticallut,
             "--struct2calib", struct2calib_name, "--structural", struct_name, 

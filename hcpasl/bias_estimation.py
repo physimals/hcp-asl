@@ -133,7 +133,7 @@ def bias_estimation_sebased(
     if not gm_seg_name.exists() or force_refresh:
         gm_seg = generate_tissue_mask_in_ref_space(
             aparc_aseg, calib_name, "gm", struct2asl, 
-            superfactor=False, order=0
+            order=0
         )
         nb.save(gm_seg, gm_seg_name)
     # get brain mask
@@ -143,7 +143,7 @@ def bias_estimation_sebased(
         t1_mask = nb.nifti1.Nifti1Image(
             np.where(t1_brain_img.get_fdata()>0, 1., 0.), affine=t1_brain_img.affine
         )
-        aslt1_mask = struct2asl_reg.apply_to_image(t1_mask, str(calib_name), superfactor=False, order=0)
+        aslt1_mask = struct2asl_reg.apply_to_image(t1_mask, str(calib_name), order=0)
         aslt1_mask = nb.nifti1.Nifti1Image(
             np.where(aslt1_mask.get_fdata()>0.5, 1., 0.), affine=aslt1_mask.affine
         )

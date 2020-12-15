@@ -165,7 +165,6 @@ def setup_mtestimation(subject_dir, coeffs_path, rois=['wm',],
                 aparc_aseg=names_dict["aparc_aseg"],
                 ref_img=bc_calib_name,
                 struct2ref=struct2asl,
-                superfactor=False,
                 order=0
             )
             tissues = ("gm", "wm") if roi=="combined" else (roi,)

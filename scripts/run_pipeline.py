@@ -75,20 +75,24 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         documentation. Default is 3.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
-    names = initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+    names = initial_processing(subject_dir, 
+                               mbpcasl=mbpcasl, 
+                               structural=structural, 
+                               surfaces=surfaces,
+                               fmaps=fmaps)
 
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
     asl_dir = Path(names["ASL_dir"])
-    gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
+    # gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
     # run m0 correction (includes sebased bias estimation)
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    # correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
     
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
+    # hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
@@ -112,13 +116,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 subject_dir.stem,
                 "--cores", str(cores)
             ]
-            subprocess.run(pv_est_call, check=True)
+            # subprocess.run(pv_est_call, check=True)
         if use_sebased and (target=='structural'):
-            calib_name = subject_dir/'T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/'T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/'T1w/ASL/reg/fmap/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/'T1w/ASL/TIs/BiasCorr'
+            calib_name = subject_dir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/'ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/'ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
             subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -137,9 +141,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             ]
             subprocess.run(sebased_cmd, check=True)
         if use_sebased and (target=='structural'):
-            series = subject_dir/'T1w/ASL/TIs/BiasCorr/tis_secorr.nii.gz'
+            series = subject_dir/'ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz'
         elif target=='structural':
-            series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            series = subject_dir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
             series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         tag_control_differencing(series, subject_dir, target=target)

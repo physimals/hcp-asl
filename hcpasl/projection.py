@@ -22,8 +22,8 @@ def project_to_surface(subject_dir, target='structural'):
 
     # if in ASL space, need to register to T1w
     if target == 'asl':
-        ref = subject_dir/"T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore.nii.gz"
-        asl_t1_name = subject_dir/"T1w/T1w_acpc_dc_restore.nii.gz"
+        ref = Path(json_dict["structasl"])/"reg/ASL_grid_T1w_acpc_dc_restore.nii.gz"
+        asl_t1_name = Path(json_dict["T1w_dir"])/"T1w_acpc_dc_restore.nii.gz"
         asl2struct = rt.Registration.from_flirt(
             str(oxasl_dir.parent/"DistCorr/asl2struct.mat"),
             src=str(pc_name),

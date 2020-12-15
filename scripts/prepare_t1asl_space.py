@@ -105,12 +105,15 @@ def main():
     force_refresh = True 
 
     sub_base = op.abspath(op.join(study_dir, sub_id))
-    t1_dir = op.join(sub_base, "T1w")
+    t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources",
+                    "Structural_preproc", "files", f"{sub_id}_V1_MR",
+                    "T1w")
+    t1_asl_dir = op.join(sub_base, "ASLT1w")
     asl = op.join(sub_base, "ASL", "TIs", "tis.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
 
     # Create ASL-gridded version of T1 image 
-    t1_asl_grid = op.join(t1_dir, "ASL", "reg", 
+    t1_asl_grid = op.join(t1_asl_dir, "reg", 
                           "ASL_grid_T1w_acpc_dc_restore.nii.gz")
     if not op.exists(t1_asl_grid) or force_refresh:
         asl_spc = rt.ImageSpace(asl)
@@ -121,7 +124,7 @@ def main():
             t1_asl_grid)
 
     # Create a ventricle CSF mask in T1 ASL space 
-    ventricle_mask = op.join(sub_base, "T1w", "ASL", "PVEs",
+    ventricle_mask = op.join(sub_base, "ASLT1w", "PVEs",
                              "vent_csf_mask.nii.gz")
     if not op.exists(ventricle_mask) or force_refresh: 
         aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
@@ -135,7 +138,7 @@ def main():
         pvs_stacked = estimate_pvs(t1_dir, t1_asl_grid)
 
         # Save output with tissue suffix 
-        fileroot = op.join(sub_base, "T1w", "ASL", "PVEs", "pve")
+        fileroot = op.join(sub_base, "ASLT1w", "PVEs", "pve")
         for idx, suffix in enumerate(['GM', 'WM', 'CSF']):
             p = "{}_{}.nii.gz".format(fileroot, suffix)
             rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[...,idx], p)
