@@ -387,7 +387,7 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
     sliceband = 10
     n_slices = 60
     # load json containing important file info
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
     # original ASL series and bias field names
     asl_name = Path(json_dict['ASL_seq'])
     bias_name = json_dict['calib0_bias']

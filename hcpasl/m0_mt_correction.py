@@ -101,7 +101,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         scaling factors.
     """
     # load json containing info on where files are stored
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]

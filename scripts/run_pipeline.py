@@ -118,11 +118,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             ]
             subprocess.run(pv_est_call, check=True)
         if use_sebased and (target=='structural'):
-            calib_name = subject_dir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/'ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/'ASLT1w/TIs/BiasCorr'
+            calib_name = subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/'hcp_asl/ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/'hcp_asl/ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
             subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -141,11 +141,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             ]
             subprocess.run(sebased_cmd, check=True)
         if use_sebased and (target=='structural'):
-            series = subject_dir/'ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz'
+            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz'
         elif target=='structural':
-            series = subject_dir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            series = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
-            series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
+            series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
         if target == 'structural':

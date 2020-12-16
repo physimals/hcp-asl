@@ -274,15 +274,15 @@ def main():
     # Create if they do not already exist. 
     sub_base = op.abspath(op.join(study_dir, sub_id))
     grad_coefficients = op.abspath(grad_coefficients)
-    t1_asl_dir = op.join(sub_base, "ASLT1w")
-    distcorr_dir = op.join(sub_base, "ASL", "TIs", "DistCorr")
+    t1_asl_dir = op.join(sub_base, "hcp_asl", "ASLT1w")
+    distcorr_dir = op.join(sub_base, "hcp_asl", "ASL", "TIs", "DistCorr")
     reg_dir = op.join(t1_asl_dir, 'reg')
     pvs_dir = op.join(t1_asl_dir, "PVEs")
     t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources", 
                      "Structural_preproc", "files", f"{sub_id}_V1_MR","T1w")
-    asl_dir = op.join(sub_base, "ASL", "TIs", "STCorr2")
+    asl_dir = op.join(sub_base, "hcp_asl", "ASL", "TIs", "STCorr2")
     asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
-    calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr") if target=='structural' else op.join(sub_base, "ASL", "Calib", "Calib0", "DistCorr")
+    calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr") if target=='structural' else op.join(sub_base, "hcp_asl", "ASL", "Calib", "Calib0", "DistCorr")
     [ os.makedirs(d, exist_ok=True) 
         for d in [pvs_dir, t1_asl_dir, distcorr_dir, reg_dir, 
                   asl_out_dir, calib_out_dir] ]
@@ -326,9 +326,9 @@ def main():
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
 
     # MCFLIRT ASL using the calibration as reference 
-    calib = op.join(sub_base, 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
-    asl = op.join(sub_base, 'ASL', 'TIs', 'tis.nii.gz')
-    mcdir = op.join(sub_base, 'ASL', 'TIs', 'MoCo', 'asln2m0.mat')
+    calib = op.join(sub_base, "hcp_asl", 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
+    asl = op.join(sub_base, "hcp_asl", 'ASL', 'TIs', 'tis.nii.gz')
+    mcdir = op.join(sub_base, "hcp_asl", 'ASL', 'TIs', 'MoCo', 'asln2m0.mat')
     asl2calib_mc = rt.MotionCorrection.from_mcflirt(mcdir, asl, calib)
 
     # Rebase the motion correction to target volume 0 of ASL 
@@ -337,13 +337,13 @@ def main():
     asl_mc = rt.chain(asl2calib_mc, calib2asl0)
 
     # load the gradient distortion correction warp 
-    gdc_path = op.join(sub_base, "ASL", "gradient_unwarp", "fullWarp_abs.nii.gz")
+    gdc_path = op.join(sub_base, "hcp_asl", "ASL", "gradient_unwarp", "fullWarp_abs.nii.gz")
     gdc = rt.NonLinearRegistration.from_fnirt(gdc_path, asl_vol0, 
             asl_vol0, intensity_correct=True, constrain_jac=(0.01,100))
 
     # get fieldmap names for use with asl_reg
     fmap, fmapmag, fmapmagbrain = [ 
-        op.join(sub_base, "ASL", "topup", '{}.nii.gz'.format(s)) 
+        op.join(sub_base, "hcp_asl", "ASL", "topup", '{}.nii.gz'.format(s)) 
         for s in [ 'fmap', 'fmapmag', 'fmapmagbrain' ]
     ]
 
@@ -352,7 +352,7 @@ def main():
         unreg_img = asl_vol0
     elif target == 'structural':
         # register perfusion-weighted image to structural instead of asl 0
-        unreg_img = op.join(sub_base, "ASL", "TIs", "OxfordASL", 
+        unreg_img = op.join(sub_base, "hcp_asl", "ASL", "TIs", "OxfordASL", 
                             "native_space", "perfusion.nii.gz")
     
     # set correct output directory
@@ -421,15 +421,15 @@ def main():
 
     # Final ASL transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
-    asl = op.join(sub_base, "ASL", "TIs", "MTCorr", "tis_mtcorr.nii.gz")
+    asl = op.join(sub_base, "hcp_asl", "ASL", "TIs", "MTCorr", "tis_mtcorr.nii.gz")
     reference = t1_asl_grid if target=='structural' else asl
     if use_sebased and target=='structural':
-        asl = op.join(sub_base, "ASL", "TIs", "tis.nii.gz")
+        asl = op.join(sub_base, "hcp_asl", "ASL", "TIs", "tis.nii.gz")
         asl = Image(asl)
         asl_sfs = op.join(asl_dir, "combined_scaling_factors.nii.gz")
         asl_sfs = Image(asl_sfs)
         asl = Image(asl.data * asl_sfs.data, header=asl.header)
-        mtcorr_name = op.join(sub_base, "ASL", "TIs", "MTCorr", "tis_mtcorr_nobc.nii.gz")
+        mtcorr_name = op.join(sub_base, "hcp_asl", "ASL", "TIs", "MTCorr", "tis_mtcorr_nobc.nii.gz")
         asl.save(mtcorr_name)
         asl = mtcorr_name
     asl_outpath = op.join(distcorr_out_dir, "tis_distcorr.nii.gz")
@@ -444,11 +444,11 @@ def main():
     # Final calibration transforms: calib->asl, grad dc, 
     # epi dc (incorporating asl->struct reg)
     if use_sebased and target=='structural':
-        calib = op.join(sub_base, "ASL", "Calib", "Calib0", "calib0.nii.gz")
+        calib = op.join(sub_base, "hcp_asl", "ASL", "Calib", "Calib0", "calib0.nii.gz")
         calib = Image(calib)
         mt_sfs = np.loadtxt(mt_factors).reshape(1, 1, -1)
         calib = Image(calib.data * mt_sfs, header=calib.header)
-        mtcorr_name = op.join(sub_base, "ASL", "Calib", "Calib0", "MTCorr", "calib0_mtcorr_nobc.nii.gz")
+        mtcorr_name = op.join(sub_base, "hcp_asl", "ASL", "Calib", "Calib0", "MTCorr", "calib0_mtcorr_nobc.nii.gz")
         calib.save(mtcorr_name)
         calib = mtcorr_name
     calib_outpath = op.join(calib_out_dir, "calib0_dcorr.nii.gz")
@@ -462,7 +462,7 @@ def main():
 
     # apply distortion corrections to fmapmag.nii.gz
     if use_sebased and target=='structural':
-        fmap_reg_dir = op.join(sub_base, t1_asl_dir, "reg", "fmap")
+        fmap_reg_dir = op.join(t1_asl_dir, "reg", "fmap")
         bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
         fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
         fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
@@ -486,7 +486,7 @@ def main():
     
     # apply registrations to satrecov-estimated T1 image for use with oxford_asl
     if use_t1:
-        est_t1_name = op.join(sub_base, "ASL", "TIs", "SatRecov2", 
+        est_t1_name = op.join(sub_base, "hcp_asl", "ASL", "TIs", "SatRecov2", 
                                 "spatial", "mean_T1t_filt.nii.gz")
         reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
         if (not op.exists(reg_est_t1_name) or force_refresh) and target=='structural':
@@ -500,7 +500,7 @@ def main():
     slicedt = 0.059
     tis = [1.7, 2.2, 2.7, 3.2, 3.7]
     sliceband = 10
-    ti_asl = op.join(sub_base, "ASL", "TIs", "timing_img.nii.gz")
+    ti_asl = op.join(sub_base, "hcp_asl", "ASL", "TIs", "timing_img.nii.gz")
     if (not op.exists(ti_asl) or force_refresh) and target=='asl':
         create_ti_image(asl, tis, sliceband, slicedt, ti_asl)
     

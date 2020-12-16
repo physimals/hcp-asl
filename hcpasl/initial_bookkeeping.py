@@ -70,12 +70,12 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps):
 
     # create ${subject_dir}/ASL and ${subject_dir}/ASLT1w
     # directories
-    asl_dir = subject_dir / 'ASL'
+    asl_dir = subject_dir / 'hcp_asl/ASL'
     tis_dir = asl_dir / 'TIs'
     calib_dir = asl_dir / 'Calib'
     calib0_dir = calib_dir / 'Calib0'
     calib1_dir = calib_dir / 'Calib1'
-    strucasl_dir = subject_dir / 'ASLT1w'
+    strucasl_dir = subject_dir / 'hcp_asl/ASLT1w'
     create_dirs([asl_dir, tis_dir, calib0_dir, calib1_dir, strucasl_dir])
 
     # find sub-directories

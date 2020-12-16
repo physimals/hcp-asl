@@ -94,7 +94,7 @@ def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False,
     Run oxford_asl on the HCP's ASL data.
     """
     # load subject's json
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
 
     # base oxford_asl options common to both cases
     cmd = [

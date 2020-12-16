@@ -13,7 +13,7 @@ def project_to_surface(subject_dir, target='structural'):
     Project the results of the pipeline to the cortical surface.
     """
     # load subject's json
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
 
     # perfusion calib and variance calib
     oxasl_dir = Path(json_dict['oxford_asl'])

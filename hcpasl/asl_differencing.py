@@ -39,7 +39,7 @@ def tag_control_differencing(series, subject_dir, target='structural'):
        1553-1565.
     """
     # load subject's json
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
 
     # load motion- and distortion- corrected data, Y_moco
     if target == 'structural':
