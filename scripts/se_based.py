@@ -79,6 +79,18 @@ def se_based_bias_estimation():
         required=not "--tissue_mask" in sys.argv,
         default=None
     )
+    parser.add_argument("--struct2calib", 
+        help="flirt registration from structural space to the calibration "
+            +"image from which we wish to estimate the bias field.",
+        default=None
+    )
+    parser.add_argument("--structural",
+        help="Path to an image in T1w structural space for use when applying "
+            +"struct2calib.mat. Only required if the --struct2calib option has "
+            +"been provided.",
+        required="--struct2calib" in sys.argv,
+        default=None
+    )
     parser.add_argument('-o', '--outdir',
         help="Output directory for results.",
         required=True
@@ -140,7 +152,7 @@ def se_based_bias_estimation():
         [np.savetxt(name, [val]) for name, val in zip(savenames, (median, std))]
 
     # apply thresholding
-    lower, upper = [median - std, median + std]
+    lower, upper = [median - (std/3), median + (std/3)]
     print(lower, upper)
     SEdivM0_brain_thr = np.where(
         np.logical_and(SEdivM0_brain >= lower, SEdivM0_brain <= upper),
@@ -211,15 +223,21 @@ def se_based_bias_estimation():
         [image.save(savename) for image, savename in zip(images, savenames)]
     
     if tissue_mask:
-        tissue_mask = rt.Registration.identity().apply_to_image(tissue_mask, m0_name, order=0).get_fdata()
+        tissue_mask = rt.Registration.identity().apply_to_image(tissue_mask, m0_name, order=0, superfactor=False).get_fdata()
         if debug:
             savename = str(outdir/'TissueMask.nii.gz')
             image = Image(tissue_mask, header=m0_img.header)
             image.save(savename)
     else:
         # downsample wmparc and ribbon to ASL-gridded T1 resolution
+        if args.struct2calib:
+            registration = rt.Registration.from_flirt(args.struct2calib, 
+                                                      args.structural,
+                                                      m0_name)
+        else:
+            registration = rt.Registration.identity()
         wmparc_aslt1, ribbon_aslt1 = [
-            rt.Registration.identity().apply_to_image(name, m0_name, order=0)
+            registration.apply_to_image(name, m0_name, order=0, superfactor=False)
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs

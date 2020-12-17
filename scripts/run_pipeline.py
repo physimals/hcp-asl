@@ -12,6 +12,7 @@ import os
 from itertools import product
 
 from hcpasl.initial_bookkeeping import initial_processing
+from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco
 from hcpasl.asl_differencing import tag_control_differencing
@@ -74,8 +75,19 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         documentation. Default is 3.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
-    initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
-    correct_M0(subject_dir, mt_factors)
+    names = initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+
+    # run gradient_unwarp and topup
+    calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
+    asl_dir = Path(names["ASL_dir"])
+    gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
+
+    # run m0 correction (includes sebased bias estimation)
+    hcppipedir = Path(os.environ["HCPPIPEDIR"])
+    corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
+    subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
@@ -129,9 +141,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         elif target=='structural':
             series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
-            series = subject_dir/'ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+<<<<<<< HEAD
         project_to_surface(studydir, subid)
 
 def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", SmoothingFWHM="2",
@@ -166,6 +179,10 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
         
         subprocess.run(non_pvcorr_cmd)
         subprocess.run(pvcorr_cmd)
+=======
+        if target == 'structural':
+            project_to_surface(subject_dir, target=target)
+>>>>>>> master
 
 def main():
     """

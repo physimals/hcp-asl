@@ -3,6 +3,8 @@ from fsl.data.image import Image
 from fsl.wrappers import fslroi, fslmaths, LOAD
 from fsl.wrappers.fnirt import invwarp, applywarp
 
+import nibabel as nb
+
 import numpy as np
 
 import subprocess
@@ -113,6 +115,21 @@ def binarise(pve_name, threshold=0.5):
     pve = Image(str(pve_name))
     seg = Image(np.where(pve.data>threshold, 1., 0.), header=pve.header)
     return seg
+
+def generate_wmmask(aparc_aseg):
+    """ 
+    Generate binary WM mask in space of T1 image using FS aparc+aseg
+
+    Args: 
+        aparc_aseg: path to aparc_aseg in T1 space (not FS 256 1mm space!)
+
+    Returns: 
+        np.array logical WM mask in space of T1 image 
+    """
+
+    aseg_array = nb.load(aparc_aseg).get_data()
+    wm = np.logical_or(aseg_array == 41, aseg_array == 2)
+    return wm 
 
 def linear_asl_reg(calib_name, results_dir, t1_name, t1_brain_name, wmpve_name):
     # get white matter segmentation for registration
