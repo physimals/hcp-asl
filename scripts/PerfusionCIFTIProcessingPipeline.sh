@@ -47,7 +47,7 @@ else
     InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space/pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
-
+#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space" 
 AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
