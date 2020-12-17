@@ -144,7 +144,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         tag_control_differencing(series, subject_dir, target=target)
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
-<<<<<<< HEAD
         project_to_surface(studydir, subid)
 
 def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", SmoothingFWHM="2",
@@ -179,10 +178,6 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
         
         subprocess.run(non_pvcorr_cmd)
         subprocess.run(pvcorr_cmd)
-=======
-        if target == 'structural':
-            project_to_surface(subject_dir, target=target)
->>>>>>> master
 
 def main():
     """
