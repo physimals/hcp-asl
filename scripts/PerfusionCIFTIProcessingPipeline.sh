@@ -15,6 +15,8 @@ SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM
 GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
 RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
 script_path="${10}" #
+CARET7DIR="${11}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
+pvcorr="${12}"
 
 # log_Msg "Path: ${Path}"
 # log_Msg "Subject: ${Subject}"
@@ -34,12 +36,18 @@ ResultsFolder="Results"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
 ROIFolder="ROIs"
 OutputAtlasDenseScalar="${ASLVariable}_Atlas"
-CARET7DIR="/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" #"/Applications/workbench/bin_macosx64"
+#"/Applications/workbench/bin_macosx64"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
 T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"
-InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space" 
+if [ "$pvcorr" = false ] ; then
+    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
+else
+    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space/pvcorr"
+fi
+echo "Projecting ASL Variables from: $InitialASLResults"
+
 AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
