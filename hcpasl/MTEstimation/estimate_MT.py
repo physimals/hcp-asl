@@ -66,10 +66,11 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
     elif method=='together':
         X_pred = np.tile(np.arange(0, 10, 10/resolution), 4)[..., np.newaxis]
         y_train = np.vstack(np.split(slice_means, 6)[1:5])
-        y_train = y_train.mean(axis=0).reshape(-1, 1)
+        y_train = np.nanmean(y_train, axis=0).reshape(-1, 1)
         model = LinearRegression()
         model.fit(X, y_train)
-        scaling_factors[band, :] = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
+        sfs = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
+        scaling_factors[1:5, :] = sfs.reshape(4, 10)
         y_pred[resolution : resolution*5] = model.predict(X_pred)
     scaling_factors[[0, 5], :] = scaling_factors[1:5, :].mean(axis=0)
     scaling_factors = scaling_factors.flatten()
@@ -154,17 +155,17 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         if tissue == 'combined':
             plt.title(f'Mean signal per slice in GM and WM across 47 subjects.')
         else:
-            plt.title(f'Mean signal per slice in {tissue} across 47 subjects.')
+            plt.title(f'Mean signal per slice in {tissue} ({method}) across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean signal')
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = outdir / f'{tissue}_mean_per_slice_t1.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_t1.png'
         plt.savefig(plt_name)
         # add linear models on top
         plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
-        plt_name = outdir / f'{tissue}_mean_per_slice_with_lin_sebased.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_with_lin_sebased.png'
         plt.savefig(plt_name)
 
         # plot rescaled slice-means
@@ -182,7 +183,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = outdir / f'{tissue}_mean_per_slice_rescaled_sebased.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_rescaled_sebased.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
@@ -219,11 +220,11 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
             scaling_img = Image(scaling_factors, header=calib_img.header)
             mtcorr_dir = method_dir/"MTCorr"
             mtcorr_dir.mkdir(exist_ok=True)
-            scaling_name = mtcorr_dir / f'MTcorr_SFs_{tissue}_sebased.nii.gz'
+            scaling_name = mtcorr_dir / f'MTcorr_SFs_{method}_{tissue}_sebased.nii.gz'
             scaling_img.save(scaling_name)
             
             # apply scaling factors to image to perform MT correction
-            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{tissue}_sebased.nii.gz'
+            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{method}_{tissue}_sebased.nii.gz'
             mtcorr_img = Image(
                 calib_img.data * scaling_factors,
                 header=calib_img.header

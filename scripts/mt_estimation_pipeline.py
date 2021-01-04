@@ -36,6 +36,12 @@ def main():
         default="combined",
         choices=("combined", "wm", "gm", "csf", "all")
     )
+    parser.add_argument("--method",
+        help="Whether to estimate the MT scaling factors for the central "
+            +"4 bands separately or together.",
+        default="separate",
+        choices=("separate", "together")
+    )
     parser.add_argument("-g", "--grads",
         help="Filename of the gradient coefficients for gradient"
             +"distortion correction.",
@@ -111,7 +117,10 @@ def main():
         end = time.time()
         print(f"Time per subject: {(end-start)*args.cores/(len(subjects)*60)} minutes.")
     # do estimation
-    errors = estimate_mt(subjects, rois=rois, tr=TR, method='separate', 
+    errors = estimate_mt(subjects, rois=rois, tr=TR, method=args.method, 
                          outdir=args.out, ignore_dropouts=args.ignore_dropouts)
     for error in errors:
         print(error)
+
+if __name__ == "__main__":
+    main()
