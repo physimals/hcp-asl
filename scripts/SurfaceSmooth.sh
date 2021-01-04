@@ -5,7 +5,7 @@ echo -e "\n START: SurfaceSmoothing"
 # StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test" 
 # SubjectID="HCA6002236"
 
-ASLVariable="$2" #"$StudyFolder/$SubjectID/T1w/ASL/Results/RibbonVolumetoSurface/perfusion_calib" # #e.g. perfusion, PVEc perfusion, ATT
+ASLVariable="$2" 
 Subject="$1"
 DownSampleFolder="$3" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k" #
 LowResMesh="$4"

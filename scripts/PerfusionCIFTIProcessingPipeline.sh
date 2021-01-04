@@ -40,15 +40,16 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"
 if [ "$pvcorr" = false ] ; then
     InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
+    T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"
+    AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
 else
     InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space/pvcorr"
+    T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"/"pvcorr"
+    AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder"/"pvcorr" #"$AtlasSpaceFolder"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
-#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space" 
-AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 
