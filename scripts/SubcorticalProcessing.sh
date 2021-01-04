@@ -3,35 +3,34 @@ set -e
 script_name="SubcorticalProcessing.sh"
 echo "${script_name}: START"
 
-AtlasSpaceFolder="$3" #"${StudyFolder}/${SubjectID}/MNINonLinear" # 
+AtlasSpaceFolder="$2" #"${StudyFolder}/${SubjectID}/MNINonLinear" # 
 echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 
-ROIFolder="$8" #"${AtlasSpaceFolder}/ROIs" # 
+ROIFolder="$7" #"${AtlasSpaceFolder}/ROIs" # 
 echo "${script_name}: ROIFolder: ${ROIFolder}"
 
-FinalASLResolution="$5" # "2.5" # 
+FinalASLResolution="$4" # "2.5" # 
 echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
-ResultsFolder="$4" #"${StudyFolder}/${SubjectID}/T1w/ASL/Results/RibbonVolumetoSurface" # 
+ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/T1w/ASL/Results/RibbonVolumetoSurface" # 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
-ASLVariable="$2" #"perfusion_calib" #
+ASLVariable="$1" #"perfusion_calib" #
 echo "${script_name}: ASLVariable: ${ASLVariable}"
 
-SmoothingFWHM="$6" #"2" #
+SmoothingFWHM="$5" #"2" #
 echo "${script_name}: SmoothingFWHM: ${SmoothingFWHM}"
 
-BrainOrdinatesResolution="$7" #"2" #
+BrainOrdinatesResolution="$6" #"2" #
 echo "${script_name}: BrainOrdinatesResolution: ${BrainOrdinatesResolution}"
 
-VolumeASL="$1" #"${StudyFolder}/${SubjectID}/T1w/ASL/TIs/OxfordASL/native_space/${ASLVariable}" #"${ResultsFolder}/${ASLVariable}"
-VolumeASL="$VolumeASL"/"$ASLVariable"
+VolumeASL="${ResultsFolder}/${ASLVariable}"
 echo "${script_name}: VolumeASL: ${VolumeASL}"
 
 Sigma=`echo "$SmoothingFWHM / ( 2 * ( sqrt ( 2 * l ( 2 ) ) ) )" | bc -l`
 echo "${script_name}: Sigma: ${Sigma}"
 
-CARET7DIR="$9" #"/Applications/workbench/bin_macosx64"
+CARET7DIR="$8" #"/Applications/workbench/bin_macosx64"
 #NOTE: wmparc has dashes in structure names, which -cifti-create-* won't accept
 #ROIs files have acceptable structure names
 
@@ -47,19 +46,19 @@ then
     echo "${script_name}: Creating subject-roi subcortical cifti at same resolution as output"
     ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
         ${ResultsFolder}/${ASLVariable}_temp_subject.dscalar.nii \
-        -volume "$VolumeASL".nii.gz \
+        -volume "${VolumeASL}_MNI".nii.gz \
         "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz
 else
     echo "${script_name}: Creating subject-roi subcortical cifti at differing fMRI resolution"
     ${CARET7DIR}/wb_command -volume-affine-resample \
         "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz \
         $FSLDIR/etc/flirtsch/ident.mat \
-        "$VolumeASL".nii.gz ENCLOSING_VOXEL \
+        "${VolumeASL}_MNI".nii.gz ENCLOSING_VOXEL \
         "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz
 
     ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
         ${ResultsFolder}/${ASLVariable}_temp_subject.dscalar.nii \
-        -volume "$VolumeASL".nii.gz \
+        -volume "${VolumeASL}_MNI".nii.gz \
         "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz
 
     rm -f "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz

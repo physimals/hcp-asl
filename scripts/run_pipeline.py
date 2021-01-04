@@ -80,15 +80,15 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
     asl_dir = Path(names["ASL_dir"])
-    gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
+    # gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
     # run m0 correction (includes sebased bias estimation)
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    # correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
     
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
+    # hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
         dist_corr_call = [
             "hcp_asl_distcorr",
@@ -104,7 +104,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             dist_corr_call.append('--use_t1')
         if use_sebased and (target=='structural'):
             dist_corr_call.append('--sebased')
-        subprocess.run(dist_corr_call, check=True)
+        # subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             pv_est_call = [
                 "pv_est",
@@ -112,7 +112,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 subject_dir.stem,
                 "--cores", str(cores)
             ]
-            subprocess.run(pv_est_call, check=True)
+            # subprocess.run(pv_est_call, check=True)
         if use_sebased and (target=='structural'):
             calib_name = subject_dir/'T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
             asl_name = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
@@ -135,18 +135,19 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 '-o', out_dir,
                 '--debug'
             ]
-            subprocess.run(sebased_cmd, check=True)
+            # subprocess.run(sebased_cmd, check=True)
         if use_sebased and (target=='structural'):
             series = subject_dir/'T1w/ASL/TIs/BiasCorr/tis_secorr.nii.gz'
         elif target=='structural':
             series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
             series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
-        tag_control_differencing(series, subject_dir, target=target)
-        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+        # tag_control_differencing(series, subject_dir, target=target)
+        # run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+        # script_path = os.path.abspath(os.path.dirname(__file__))
         project_to_surface(studydir, subid)
 
-def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", SmoothingFWHM="2",
+def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2.5", SmoothingFWHM="2",
                         GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
@@ -162,8 +163,8 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
         Subject id for the subject of interest.
     """
     # Projection scripts path:
-    script_path    = os.path.abspath(os.path.dirname(__file__))
-    script         = os.path.join(script_path, "PerfusionCITIProcessingPipeline.sh")
+    # script_path    = os.path.abspath(os.path.dirname(__file__))
+    script         = "PerfusionCIFTIProcessingPipeline.sh" # os.path.join(script_path, 
     wb_path        = "/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
 
     ASLVariable    = ["perfusion_calib", "arrival"]
@@ -171,10 +172,10 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
 
     for idx in range(2):
         non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "false"]
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false"]
 
         pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "true"]
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "true"]
         
         subprocess.run(non_pvcorr_cmd)
         subprocess.run(pvcorr_cmd)

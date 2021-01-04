@@ -14,9 +14,9 @@ FinalASLResolution="$6" #`opts_GetOpt1 "--aslres" $@`  # "${14}" FinalASLResolut
 SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM="2"
 GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
 RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
-script_path="${10}" #
-CARET7DIR="${11}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
-pvcorr="${12}"
+# script_path="${10}" #
+CARET7DIR="${10}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
+pvcorr="${11}"
 
 # log_Msg "Path: ${Path}"
 # log_Msg "Subject: ${Subject}"
@@ -58,7 +58,7 @@ ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 # log_Msg "mkdir -p ${ResultsFolder}/OutputtoCIFTI"
 mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
 mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
-"$script_path"/VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
+VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
         "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
         "$AtlasResultsFolder"/"OutputtoCIFTI" "$T1wFolder"/"$NativeFolder" \
         "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
@@ -66,26 +66,26 @@ mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-"$script_path"/SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+#"$script_path"/
+SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
         "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
-python "$script_path"/results_to_mni.py "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
+results_to_mni "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
         "$InitialASLResults"/"${ASLVariable}.nii.gz" "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
         "/usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"asl_grid_mni.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}_MNI.nii.gz"
 
-
 #Subcortical Processing
 # log_Msg "Subcortical Processing"
-"$script_path"/SubcorticalProcessing.sh "$InitialASLResults" "$ASLVariable" "$AtlasSpaceFolder" \
+SubcorticalProcessing.sh "$ASLVariable" "$AtlasSpaceFolder" \
         "$AtlasResultsFolder"/"OutputtoCIFTI" "$FinalASLResolution" "$SmoothingFWHM" \
         "$GrayordinatesResolution" "$ROIFolder" "$CARET7DIR"
 
 #Generation of Dense Timeseries
 # log_Msg "Generation of Dense Scalar"
-"$script_path"/CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
         "$ROIFolder" "$LowResMesh" "$GrayordinatesResolution" "$SmoothingFWHM" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$DownSampleFolder" "$CARET7DIR"
