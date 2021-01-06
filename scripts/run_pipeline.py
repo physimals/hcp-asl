@@ -22,6 +22,7 @@ from pathlib import Path
 import subprocess
 import argparse
 from multiprocessing import cpu_count
+import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, 
                     gradients, use_t1=False, pvcorr=False, cores=cpu_count(), 
@@ -141,7 +142,18 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             ]
             subprocess.run(sebased_cmd, check=True)
         if use_sebased and (target=='structural'):
-            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz'
+            # reapply banding corrections now that the series has been bias corrected
+            series = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
+            scaling_factors = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
+            series_corr = nb.nifti1.Nifti1Image(series.get_fdata()*scaling_factors.get_fdata(),
+                                                affine=series.affine)
+            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
+            nb.save(series_corr, series)
+            calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
+            mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
+            calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
+            calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
+            nb.save(calib_corr, calib_corr_name)
         elif target=='structural':
             series = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
         else:

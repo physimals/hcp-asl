@@ -132,7 +132,7 @@ def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False,
         pvwm_name = structasl_dir / 'PVEs/pve_WM.nii.gz'
         csf_mask_name = structasl_dir / 'PVEs/vent_csf_mask.nii.gz'
         if use_sebased:
-            calib_name = structasl_dir / 'TIs/BiasCorr/calib0_secorr.nii.gz'
+            calib_name = structasl_dir / 'TIs/BiasCorr/calib0_corr.nii.gz'
         else:
             calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
         brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
