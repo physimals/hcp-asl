@@ -24,9 +24,9 @@ import argparse
 from multiprocessing import cpu_count
 import nibabel as nb
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, 
-                    gradients, use_t1=False, pvcorr=False, cores=cpu_count(), 
-                    interpolation=3, use_sebased=False, wmparc=None, ribbon=None):
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
+                    fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
+                    cores=cpu_count(), interpolation=3):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -53,6 +53,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     gradients : str
         pathlib.Path to a gradient coefficients file for use in 
         gradient distortion correction.
+    wmparc : str
+        pathlib.Path to wmparc.nii.gz from FreeSurfer for use in 
+        SE-based bias correction.
+    ribbon : str
+        pathlib.Path to ribbon.nii.gz from FreeSurfer for use in 
+        SE-based bias correction.
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
@@ -60,10 +66,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
-    use_sebased : bool, optional
-        Whether or not to use HCP's SE-based bias-correction 
-        to refine the bias correction obtained using FAST at 
-        the beginning of the pipeline. Default is False.
     cores : int, optional
         Number of cores to use.
         When applying motion correction, this is the number 
@@ -95,6 +97,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     
     hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
     for target in ('asl', 'structural'):
+        # apply distortion corrections and get into target space
         dist_corr_call = [
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
@@ -107,10 +110,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
-        if use_sebased and (target=='structural'):
-            dist_corr_call.append('--sebased')
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
+            # perform partial volume estimation
             pv_est_call = [
                 "pv_est",
                 str(subject_dir.parent),
@@ -118,7 +120,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 "--cores", str(cores)
             ]
             subprocess.run(pv_est_call, check=True)
-        if use_sebased and (target=='structural'):
+            # estimate bias field using SE-based
             calib_name = subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
             asl_name = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
             mask_name = subject_dir/'hcp_asl/ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
@@ -141,7 +143,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 '--debug'
             ]
             subprocess.run(sebased_cmd, check=True)
-        if use_sebased and (target=='structural'):
             # reapply banding corrections now that the series has been bias corrected
             series = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
             scaling_factors = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
@@ -154,12 +155,17 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
             calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
             calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
             nb.save(calib_corr, calib_corr_name)
-        elif target=='structural':
-            series = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
         else:
+            # get name of series if target space is ASL
             series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
+        
+        # perform differencing accounting for scaling
         tag_control_differencing(series, subject_dir, target=target)
+        
+        # estimate perfusion
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+
+        # project perfusion results
         if target == 'structural':
             project_to_surface(subject_dir, target=target)
 
@@ -280,25 +286,16 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        '--sebased',
-        help="If this flag is provided, the distortion warps and motion "
-            +"estimates will be applied to the MT-corrected but not bias-"
-            +"corrected calibration and ASL images. The bias-field will "
-            +"then be estimated from the calibration image using HCP's "
-            +"SE-based algorithm and applied in subsequent steps.",
-        action='store_true'
-    )
-    parser.add_argument(
         '--wmparc',
         help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
         default=None,
-        required="--sebased" in sys.argv
+        required=True
     )
     parser.add_argument(
         '--ribbon',
         help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
         default=None,
-        required="--sebased" in sys.argv
+        required=True
     )
     parser.add_argument(
         "-c",
@@ -382,7 +379,6 @@ def main():
                     fmaps=fmaps,
                     use_t1=args.use_t1,
                     pvcorr=args.pvcorr,
-                    use_sebased=args.sebased,
                     wmparc=args.wmparc,
                     ribbon=args.ribbon
                     )

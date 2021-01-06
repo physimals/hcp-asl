@@ -222,20 +222,11 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        '--sebased',
-        help="If this flag is provided, the distortion warps and motion "
-            +"estimates will be applied to the MT-corrected but not bias-"
-            +"corrected calibration and ASL images. The bias-field will "
-            +"then be estimated from the calibration image using HCP's "
-            +"SE-based algorithm and applied in subsequent steps.",
-        action='store_true'
-    )
-    parser.add_argument(
         "--mtname",
         help="Filename of the empirically estimated MT-correction"
             + "scaling factors.",
         default=None,
-        required="--sebased" in sys.argv
+        required=True
     )
     parser.add_argument(
         "-c",
@@ -264,7 +255,6 @@ def main():
     pa_sefm = args.fmap_pa
     ap_sefm = args.fmap_ap
     use_t1 = args.use_t1
-    use_sebased = args.sebased
     mt_factors = args.mtname
 
     # For debug, re-use existing intermediate files 
@@ -459,7 +449,7 @@ def main():
         nb.save(mt_calibstruct_img, mt_sfs_calib_name)
 
     # apply registrations to fmapmag.nii.gz
-    if use_sebased and target=='structural':
+    if target=='structural':
         fmap_reg_dir = op.join(t1_asl_dir, "reg", "fmap")
         bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
         fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
