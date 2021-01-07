@@ -226,7 +226,7 @@ def main():
         help="Filename of the empirically estimated MT-correction"
             + "scaling factors.",
         default=None,
-        required=True
+        required=not "--nobandingcorr" in sys.argv
     )
     parser.add_argument(
         "-c",
@@ -246,6 +246,13 @@ def main():
         default=3,
         type=int,
         choices=range(0, 5+1)
+    )
+    parser.add_argument(
+        "--nobandingcorr",
+        help="If this option is provided, the MT and ST banding corrections "
+            +"won't be applied. This is to be used to compare the difference "
+            +"our banding corrections make.",
+        action="store_true"
     )
     args = parser.parse_args()
     study_dir = args.study_dir
@@ -270,7 +277,7 @@ def main():
     pvs_dir = op.join(t1_asl_dir, "PVEs")
     t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources", 
                      "Structural_preproc", "files", f"{sub_id}_V1_MR","T1w")
-    asl_dir = op.join(sub_base, "hcp_asl", "ASL", "TIs", "STCorr2")
+    asl_dir = op.join(sub_base, "hcp_asl", "ASL", "TIs", "STCorr2") if not args.nobandingcorr else op.join(sub_base, "hcp_asl", "ASL", "TIs", "MoCo")
     asl_out_dir = op.join(t1_asl_dir, "TIs", "DistCorr")
     calib_out_dir = op.join(t1_asl_dir, "Calib", "Calib0", "DistCorr") if target=='structural' else op.join(sub_base, "hcp_asl", "ASL", "Calib", "Calib0", "DistCorr")
     [ os.makedirs(d, exist_ok=True) 
@@ -278,11 +285,11 @@ def main():
                   asl_out_dir, calib_out_dir] ]
         
     # Images required for processing 
-    asl = op.join(asl_dir, "tis_stcorr.nii.gz")
+    asl = op.join(asl_dir, "tis_stcorr.nii.gz")if not args.nobandingcorr else op.join(asl_dir, "reg_gdc_dc_tis_biascorr.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
     struct_brain = op.join(t1_dir, "T1w_acpc_dc_restore_brain.nii.gz")
     struct_brain_mask = op.join(t1_dir, "brainmask_fs.nii.gz")
-    asl_vol0 = op.join(asl_dir, "tis_stcorr_vol1.nii.gz")
+    asl_vol0 = op.join(asl_dir, "tis_vol1.nii.gz")
     if (not op.exists(asl_vol0) or force_refresh) and target=='asl':
         cmd = "fslroi {} {} 0 1".format(asl, asl_vol0)
         sp.run(cmd.split(" "), check=True)
@@ -316,7 +323,7 @@ def main():
         t1_asl_grid_spc.save_image(t1_asl_grid_mask_array, t1_asl_grid_mask) 
 
     # MCFLIRT ASL using the calibration as reference 
-    calib = op.join(sub_base, "hcp_asl", 'ASL', 'Calib', 'Calib0', 'MTCorr', 'calib0_mtcorr.nii.gz')
+    calib = op.join(sub_base, "hcp_asl", 'ASL', 'Calib', 'Calib0', 'calib0.nii.gz')
     asl = op.join(sub_base, "hcp_asl", 'ASL', 'TIs', 'tis.nii.gz')
     mcdir = op.join(sub_base, "hcp_asl", 'ASL', 'TIs', 'MoCo', 'asln2m0.mat')
     asl2calib_mc = rt.MotionCorrection.from_mcflirt(mcdir, asl, calib)
@@ -433,20 +440,6 @@ def main():
                                                          order=args.interpolation)
         
         nb.save(calib_corrected, calib_outpath)
-    
-    # apply calib->structural registration to mt scaling factors
-    mt_sfs_calib_name = op.join(calib_out_dir, "mt_scaling_factors_calibstruct.nii.gz")
-    if (not op.exists(mt_sfs_calib_name) or force_refresh) and target=='structural':
-        # create MT scaling factor image in calibration image space
-        calib_img = nb.load(calib)
-        mt_sfs = np.loadtxt(mt_factors)
-        mt_img = nb.nifti1.Nifti1Image(np.tile(mt_sfs, (86, 86, 1)),
-                                       affine=calib_img.affine)
-        calib2struct = rt.chain(calib2asl0, asl2struct_reg)
-        mt_calibstruct_img = calib2struct.apply_to_image(src=mt_img,
-                                                         ref=reference,
-                                                         order=args.interpolation)
-        nb.save(mt_calibstruct_img, mt_sfs_calib_name)
 
     # apply registrations to fmapmag.nii.gz
     if target=='structural':
@@ -456,16 +449,6 @@ def main():
         fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
         fmap_struct_name = op.join(fmap_reg_dir, "fmapmag_aslstruct.nii.gz")
         nb.save(fmap_struct, fmap_struct_name)
-
-    # Final scaling factors transforms: moco, grad dc, 
-    # epi dc (incorporating asl->struct reg)
-    sfs_name = op.join(asl_dir, "combined_scaling_factors.nii.gz")
-    sfs_outpath = op.join(distcorr_out_dir, "combined_scaling_factors.nii.gz")
-    if (not op.exists(sfs_outpath) or force_refresh) and target=="structural":
-        sfs_corrected = asl2struct_reg.apply_to_image(src=sfs_name, 
-                                                      ref=reference, 
-                                                      cores=args.cores)
-        nb.save(sfs_corrected, sfs_outpath)
     
     # apply registrations to satrecov-estimated T1 image for use with oxford_asl
     reg_est_t1_name = op.join(reg_dir, "mean_T1t_filt.nii.gz")
@@ -492,6 +475,32 @@ def main():
                                                   ref=reference,
                                                   order=0)
         nb.save(ti_t1_img, ti_t1)
+
+    # register scaling factors to ASL-gridded T1 space
+    if not args.nobandingcorr:
+        # apply calib->structural registration to mt scaling factors
+        mt_sfs_calib_name = op.join(calib_out_dir, "mt_scaling_factors_calibstruct.nii.gz")
+        if (not op.exists(mt_sfs_calib_name) or force_refresh) and target=='structural':
+            # create MT scaling factor image in calibration image space
+            calib_img = nb.load(calib)
+            mt_sfs = np.loadtxt(mt_factors)
+            mt_img = nb.nifti1.Nifti1Image(np.tile(mt_sfs, (86, 86, 1)),
+                                        affine=calib_img.affine)
+            calib2struct = rt.chain(calib2asl0, asl2struct_reg)
+            mt_calibstruct_img = calib2struct.apply_to_image(src=mt_img,
+                                                            ref=reference,
+                                                            order=args.interpolation)
+            nb.save(mt_calibstruct_img, mt_sfs_calib_name)
+
+    # Final scaling factors transforms: moco, grad dc, 
+    # epi dc (incorporating asl->struct reg)
+    sfs_name = op.join(asl_dir, "combined_scaling_factors.nii.gz")
+    sfs_outpath = op.join(distcorr_out_dir, "combined_scaling_factors.nii.gz")
+    if (not op.exists(sfs_outpath) or force_refresh) and target=="structural":
+        sfs_corrected = asl2struct_reg.apply_to_image(src=sfs_name, 
+                                                    ref=reference, 
+                                                    cores=args.cores)
+        nb.save(sfs_corrected, sfs_outpath)
 
 if __name__  == '__main__':
 

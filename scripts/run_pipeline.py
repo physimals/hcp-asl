@@ -26,7 +26,7 @@ import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                     fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
-                    cores=cpu_count(), interpolation=3):
+                    cores=cpu_count(), interpolation=3, nobandingcorr=False):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -76,6 +76,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         Regtricks passes this on to scipy's map_coordinates. 
         The meaning of the value can be found in the scipy 
         documentation. Default is 3.
+    nobandingcorr : bool, optional
+        If this is True, the banding correction options in the 
+        pipeline will be switched off. Default is False (i.e. 
+        banding corrections are applied by default).
     """
     subject_dir = (studydir / subid).resolve(strict=True)
     names = initial_processing(subject_dir, 
@@ -93,16 +97,16 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr)
     
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
+    # correct ASL series for motion and banding
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr)
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space
         dist_corr_call = [
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
             "--sub_id", subject_dir.stem,
-            '--mtname', mt_factors,
             "--target", target, 
             "--grads", gradients,
             "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
@@ -110,6 +114,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
+        if nobandingcorr:
+            dist_corr_call.append('--nobandingcorr')
+        else:
+            dist_corr_call.append(*['--mtname', mt_factors])
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             # perform partial volume estimation
@@ -150,17 +158,20 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                                                 affine=series.affine)
             series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
             nb.save(series_corr, series)
-            calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
-            mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
-            calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
-            calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
-            nb.save(calib_corr, calib_corr_name)
-        else:
+            if not nobandingcorr:
+                calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
+                mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
+                calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
+                calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
+                nb.save(calib_corr, calib_corr_name)
+        elif not nobandingcorr:
             # get name of series if target space is ASL
             series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
+        else:
+            series = subject_dir/'hcp_asl/ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
         
         # perform differencing accounting for scaling
-        tag_control_differencing(series, subject_dir, target=target)
+        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr)
         
         # estimate perfusion
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
@@ -191,7 +202,7 @@ def main():
         "--mtname",
         help="Filename of the empirically estimated MT-correction"
             + "scaling factors.",
-        required=True
+        required=not "--nobandingcorr" in sys.argv
     )
     parser.add_argument(
         "-g",
@@ -317,13 +328,23 @@ def main():
         choices=range(0, 5+1)
     )
     parser.add_argument(
+        "--nobandingcorr",
+        help="If this option is provided, the MT and ST banding corrections "
+            +"won't be applied. This is to be used to compare the difference "
+            +"our banding corrections make.",
+        action="store_true"
+    )
+    parser.add_argument(
         "--fabberdir",
         help="User Fabber executable in <fabberdir>/bin/ for users"
             + "with FSL < 6.0.4"
     )
     # assign arguments to variables
     args = parser.parse_args()
-    mtname = Path(args.mtname).resolve(strict=True)
+    if args.mtname:
+        mtname = Path(args.mtname).resolve(strict=True)
+    else:
+        mtname = None
     studydir = Path(args.studydir).resolve(strict=True)
     subid = args.subid
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
@@ -380,7 +401,8 @@ def main():
                     use_t1=args.use_t1,
                     pvcorr=args.pvcorr,
                     wmparc=args.wmparc,
-                    ribbon=args.ribbon
+                    ribbon=args.ribbon,
+                    nobandingcorr=args.nobandingcorr
                     )
 
 if __name__ == '__main__':

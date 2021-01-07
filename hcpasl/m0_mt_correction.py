@@ -82,7 +82,8 @@ def parse_LUT(LUT_name):
     return labels
 
 def correct_M0(subject_dir, mt_factors, wmparc, ribbon, 
-               corticallut, subcorticallut, interpolation=3):
+               corticallut, subcorticallut, interpolation=3,
+               nobandingcorr=False):
     """
     Correct the M0 images.
     
@@ -99,6 +100,10 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     mt_factors : pathlib.Path
         Path to the empirically estimated MT correction 
         scaling factors.
+    nobandingcorr : bool, optional
+        If this is True, the banding correction options in the 
+        pipeline will be switched off. Default is False (i.e. 
+        banding corrections are applied by default).
     """
     # load json containing info on where files are stored
     json_dict = load_json(subject_dir/"hcp_asl")
@@ -165,20 +170,24 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         nb.save(gdc_dc_calib_img, gdc_dc_calib_name)
 
         # apply mt scaling factors to the gradient distortion-corrected calibration image
-        mt_sfs = np.loadtxt(mt_factors)
-        assert (len(mt_sfs) == gdc_dc_calib_img.shape[2])
-        mt_gdc_dc_calib_img = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata()*mt_sfs, 
-                                                 gdc_dc_calib_img.affine)
-        mtcorr_dir = calib_dir/"MTCorr"
-        mtcorr_dir.mkdir(exist_ok=True)
-        mt_gdc_dc_calib_name = mtcorr_dir/f"mtcorr_gdc_dc_{calib_name_stem}.nii.gz"
-        nb.save(mt_gdc_dc_calib_img, mt_gdc_dc_calib_name)
+        if not nobandingcorr:
+            mt_sfs = np.loadtxt(mt_factors)
+            assert (len(mt_sfs) == gdc_dc_calib_img.shape[2])
+            mt_gdc_dc_calib_img = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata()*mt_sfs, 
+                                                    gdc_dc_calib_img.affine)
+            mtcorr_dir = calib_dir/"MTCorr"
+            mtcorr_dir.mkdir(exist_ok=True)
+            mt_gdc_dc_calib_name = mtcorr_dir/f"mtcorr_gdc_dc_{calib_name_stem}.nii.gz"
+            nb.save(mt_gdc_dc_calib_img, mt_gdc_dc_calib_name)
+            calib_corr_name = mt_gdc_dc_calib_name
+        else:
+            calib_corr_name = gdc_dc_calib_name
 
         # get registration to structural
         # initial
         asl_reg_cmd = [
             "asl_reg",
-            "-i", mt_gdc_dc_calib_name, "-o", distcorr_dir,
+            "-i", calib_corr_name, "-o", distcorr_dir,
             "-s", struct_name, f"--sbet={struct_brain_name}",
             f"--tissseg={wmmask_name}", "--mainonly"
         ]
@@ -200,7 +209,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         # refined
         asl_reg_cmd = [
             "asl_reg",
-            "-i", str(mt_gdc_dc_calib_name), "-o", str(distcorr_dir),
+            "-i", str(calib_corr_name), "-o", str(distcorr_dir),
             "-s", str(struct_name), f"--sbet={str(struct_brain_name)}",
             f"--tissseg={str(wmmask_name)}", "-m", str(mask_name),
             f"--imat={str(calib2struct_init)}", "--finalonly"
@@ -256,16 +265,20 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         bc_calib = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata() / bias_img.get_fdata(),
                                          gdc_dc_calib_img.affine)
         biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
-        mt_bc_calib = nb.nifti1.Nifti1Image(bc_calib.get_fdata()*mt_sfs,
-                                            bc_calib.affine)
-        mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
-        [nb.save(image, name) for image, name in zip((bc_calib, mt_bc_calib),
-                                                     (biascorr_name, mtcorr_name))]
+        nb.save(bc_calib, biascorr_name)
+
+        if not nobandingcorr:
+            mt_bc_calib = nb.nifti1.Nifti1Image(bc_calib.get_fdata()*mt_sfs,
+                                                bc_calib.affine)
+            mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
+            nb.save(mt_bc_calib, mtcorr_name)
+            calib_corr_name = mtcorr_name
+        else:
+            calib_corr_name = biascorr_name
         
         # add locations of above files to the json
         important_names = {
             f'{calib_name_stem}_bias' : str(dilall_name),
-            f'{calib_name_stem}_bc' : str(biascorr_name),
-            f'{calib_name_stem}_mc' : str(mtcorr_name)
+            f'{calib_name_stem}_corr' : str(calib_corr_name)
         }
         update_json(important_names, json_dict)
