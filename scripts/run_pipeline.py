@@ -26,7 +26,8 @@ import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                     fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
-                    cores=cpu_count(), interpolation=3, nobandingcorr=False):
+                    cores=cpu_count(), interpolation=3, nobandingcorr=False,
+                    outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -80,13 +81,16 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         If this is True, the banding correction options in the 
         pipeline will be switched off. Default is False (i.e. 
         banding corrections are applied by default).
+    outdir : str, optional
+        Name of the main results directory. Default is 'hcp_asl'.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
     names = initial_processing(subject_dir, 
                                mbpcasl=mbpcasl, 
                                structural=structural, 
                                surfaces=surfaces,
-                               fmaps=fmaps)
+                               fmaps=fmaps,
+                               outdir=outdir)
 
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
@@ -130,11 +134,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             ]
             subprocess.run(pv_est_call, check=True)
             # estimate bias field using SE-based
-            calib_name = subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/'hcp_asl/ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/'hcp_asl/ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr'
+            calib_name = subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/outdir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/outdir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/outdir/'ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/outdir/'ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
             subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -153,23 +157,23 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             ]
             subprocess.run(sebased_cmd, check=True)
             # reapply banding corrections now that the series has been bias corrected
-            series = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
-            scaling_factors = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
+            series = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
+            scaling_factors = nb.load(subject_dir/outdir/'ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
             series_corr = nb.nifti1.Nifti1Image(series.get_fdata()*scaling_factors.get_fdata(),
                                                 affine=series.affine)
-            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
+            series = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
             nb.save(series_corr, series)
             if not nobandingcorr:
-                calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
-                mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
+                calib = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
+                mt_sfs = nb.load(subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
                 calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
-                calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
+                calib_corr_name = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
                 nb.save(calib_corr, calib_corr_name)
         elif not nobandingcorr:
             # get name of series if target space is ASL
-            series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
+            series = subject_dir/outdir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         else:
-            series = subject_dir/'hcp_asl/ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
+            series = subject_dir/outdir/'ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
         
         # perform differencing accounting for scaling
         tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr)
@@ -340,6 +344,12 @@ def main():
         help="User Fabber executable in <fabberdir>/bin/ for users"
             + "with FSL < 6.0.4"
     )
+    parser.add_argument(
+        "--outdir",
+        help="Name of the directory within which we will store all of the "
+            +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
+        default="hcp_asl"
+    )
     # assign arguments to variables
     args = parser.parse_args()
     if args.mtname:
@@ -387,6 +397,9 @@ def main():
         print("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
+    # create main results directory
+    Path(args.outdir).mkdir(exist_ok=True)
+
     # process subject
     print(f"Processing subject {studydir/subid}.")
     process_subject(studydir=studydir,
@@ -403,7 +416,8 @@ def main():
                     pvcorr=args.pvcorr,
                     wmparc=args.wmparc,
                     ribbon=args.ribbon,
-                    nobandingcorr=args.nobandingcorr
+                    nobandingcorr=args.nobandingcorr,
+                    outdir=args.outdir
                     )
 
 if __name__ == '__main__':

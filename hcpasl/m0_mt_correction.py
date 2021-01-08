@@ -83,7 +83,7 @@ def parse_LUT(LUT_name):
 
 def correct_M0(subject_dir, mt_factors, wmparc, ribbon, 
                corticallut, subcorticallut, interpolation=3,
-               nobandingcorr=False):
+               nobandingcorr=False, outdir="hcp_asl"):
     """
     Correct the M0 images.
     
@@ -104,9 +104,11 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         If this is True, the banding correction options in the 
         pipeline will be switched off. Default is False (i.e. 
         banding corrections are applied by default).
+    outdir : str
+        Name of the main results directory. Default is 'hcp_asl'.
     """
     # load json containing info on where files are stored
-    json_dict = load_json(subject_dir/"hcp_asl")
+    json_dict = load_json(subject_dir/outdir)
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
