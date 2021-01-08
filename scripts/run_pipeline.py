@@ -117,7 +117,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         if nobandingcorr:
             dist_corr_call.append('--nobandingcorr')
         else:
-            dist_corr_call.append(*['--mtname', mt_factors])
+            dist_corr_call.append('--mtname')
+            dist_corr_call.append(mt_factors)
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
             # perform partial volume estimation
