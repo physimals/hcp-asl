@@ -31,31 +31,32 @@ def main():
             +"wish to estimate the MT scaling factors.",
         required=True
     )
-    parser.add_argument("--method",
-        help="Method of bias correction to use. Default is "
-            +"'calib'.",
-        default='calib',
-        choices=('calib', 't1', 'sebased')
-    )
     parser.add_argument("--roi",
         help="Tissue in which to estimate the MT scaling factors.",
         default="combined",
         choices=("combined", "wm", "gm", "csf", "all")
     )
-    parser.add_argument("--distcorr",
-        help="Perform gradient and epi distortion correction "
-            +"steps. Default is False.",
-        action="store_true"
+    parser.add_argument("--method",
+        help="Whether to estimate the MT scaling factors for the central "
+            +"4 bands separately or together.",
+        default="separate",
+        choices=("separate", "together")
     )
     parser.add_argument("-g", "--grads",
         help="Filename of the gradient coefficients for gradient"
             +"distortion correction.",
-        required="--distcorr" in sys.argv
+        required=True
     )
     parser.add_argument("-o", "--out",
         help="Directory in which to save MT estimates. By default "
             +"they will be saved in the current working directory.",
         default=Path.cwd()
+    )
+    parser.add_argument("--ignore_dropouts",
+        help="Whether to ignore Dropout voxels (as estimated by the "
+            +"SE-based approach) when estimating the MT scaling "
+            +"factors.",
+        action="store_true"
     )
     parser.add_argument("-c", "--cores",
         help="Number of cores to use. Default is the number "
@@ -103,10 +104,9 @@ def main():
         
     # do setup
     setup_call = partial(
-        setup_mtestimation, rois=rois, biascorr_method=args.method, 
-        distcorr=args.distcorr, coeffs_path=args.grads, 
-        interpolation=args.interpolation, force_refresh=args.no_refresh, 
-        fslanat_refresh=False
+        setup_mtestimation, rois=rois, coeffs_path=args.grads, 
+        interpolation=args.interpolation, ignore_dropouts=args.ignore_dropouts, 
+        force_refresh=args.no_refresh
     )
     with mp.Pool(args.cores) as pool:
         results = pool.map(setup_call, subjects)
@@ -115,12 +115,12 @@ def main():
 
     if args.time:
         end = time.time()
-        print(f"Time per subject: {(end-start)/(len(subjects)*60*args.cores)} minutes.")
+        print(f"Time per subject: {(end-start)*args.cores/(len(subjects)*60)} minutes.")
     # do estimation
-    errors = estimate_mt(
-        subjects, rois=rois, tr=TR, method='separate', 
-        biascorr_method=args.method, outdir=args.out, 
-        distcorr=args.distcorr
-    )
+    errors = estimate_mt(subjects, rois=rois, tr=TR, method=args.method, 
+                         outdir=args.out, ignore_dropouts=args.ignore_dropouts)
     for error in errors:
         print(error)
+
+if __name__ == "__main__":
+    main()

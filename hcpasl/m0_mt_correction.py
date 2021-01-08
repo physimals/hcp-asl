@@ -9,7 +9,7 @@ from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
 import numpy as np
 from .initial_bookkeeping import create_dirs
-from .utils import generate_wmmask
+from .tissue_masks import generate_tissue_mask
 from .distortion_correction import register_fmap, generate_asl_mask
 import subprocess
 import regtricks as rt
@@ -82,7 +82,8 @@ def parse_LUT(LUT_name):
     return labels
 
 def correct_M0(subject_dir, mt_factors, wmparc, ribbon, 
-               corticallut, subcorticallut, interpolation=3):
+               corticallut, subcorticallut, interpolation=3,
+               nobandingcorr=False):
     """
     Correct the M0 images.
     
@@ -99,9 +100,13 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     mt_factors : pathlib.Path
         Path to the empirically estimated MT correction 
         scaling factors.
+    nobandingcorr : bool, optional
+        If this is True, the banding correction options in the 
+        pipeline will be switched off. Default is False (i.e. 
+        banding corrections are applied by default).
     """
     # load json containing info on where files are stored
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
     
     # do for both m0 images for the subject, calib0 and calib1
     calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
@@ -110,14 +115,14 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     struct_name, struct_brain_name = [json_dict[key] for key in ("T1w_acpc", "T1w_acpc_brain")]
 
     # generate white matter mask in T1w space for use in registration
-    t1reg_dir = Path(json_dict["T1w_dir"])/"ASL/reg"
+    t1reg_dir = Path(json_dict["structasl"])/"reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
     aparc_aseg = Path(json_dict["T1w_dir"])/"aparc+aseg.nii.gz"
-    wmmask_img = generate_wmmask(aparc_aseg)
+    wmmask_img = generate_tissue_mask(aparc_aseg, "wm")
     wmmask_name = t1reg_dir/"wmmask.nii.gz"
-    rt.ImageSpace.save_like(struct_name, wmmask_img, str(wmmask_name))
+    nb.save(wmmask_img, wmmask_name)
 
-    # find gradient distortion correction warp and fieldmaps
+    # find gradient distortion correction warp, fieldmaps and PA epidc warp
     gdc_name = Path(json_dict['ASL_dir'])/'gradient_unwarp/fullWarp_abs.nii.gz'
     gdc_warp = rt.NonLinearRegistration.from_fnirt(
         str(gdc_name), calib_names[0], calib_names[0],
@@ -126,8 +131,13 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     topup_dir = Path(json_dict["ASL_dir"])/"topup"
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
                                    for ext in ('', 'mag', 'magbrain')]
+    epi_dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(topup_dir/"WarpField_01.nii.gz"),
+                                                      src=str(fmap),
+                                                      ref=str(fmap),
+                                                      intensity_correct=True,
+                                                      constrain_jac=(0.01, 100))
 
-    # register fieldmaps to structural image for use with epi_reg later
+    # register fieldmapmag to structural image for use in SE-based later
     fmap_struct_dir = topup_dir/"fmap_struct_reg"
     bbr_fmap2struct = register_fmap(fmapmag, fmapmagbrain, struct_name, 
                                     struct_brain_name, fmap_struct_dir, 
@@ -151,28 +161,33 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         calib_dir = calib_path.parent
         calib_name_stem = calib_path.stem.split('.')[0]
 
-        # apply gradient distortion correction to the calibration image
-        gdc_calib_img = gdc_warp.apply_to_image(calib_name, calib_name, order=interpolation)
+        # apply gdc and epidc to the calibration image
+        gdc_dc_warp = rt.chain(gdc_warp, epi_dc_warp)
+        gdc_dc_calib_img = gdc_dc_warp.apply_to_image(calib_name, calib_name, order=interpolation)
         distcorr_dir = calib_dir/"DistCorr"
         distcorr_dir.mkdir(exist_ok=True)
-        gdc_calib_name = distcorr_dir/f"gdc_{calib_name_stem}.nii.gz"
-        nb.save(gdc_calib_img, gdc_calib_name)
+        gdc_dc_calib_name = distcorr_dir/f"gdc_dc_{calib_name_stem}.nii.gz"
+        nb.save(gdc_dc_calib_img, gdc_dc_calib_name)
 
         # apply mt scaling factors to the gradient distortion-corrected calibration image
-        mt_sfs = np.loadtxt(mt_factors)
-        assert (len(mt_sfs) == gdc_calib_img.shape[2])
-        mt_gdc_calib_img = nb.nifti1.Nifti1Image(gdc_calib_img.get_fdata()*mt_sfs, 
-                                                 gdc_calib_img.affine)
-        mtcorr_dir = calib_dir/"MTCorr"
-        mtcorr_dir.mkdir(exist_ok=True)
-        mt_gdc_calib_name = mtcorr_dir/f"mtcorr_gdc_{calib_name_stem}.nii.gz"
-        nb.save(mt_gdc_calib_img, mt_gdc_calib_name)
+        if not nobandingcorr:
+            mt_sfs = np.loadtxt(mt_factors)
+            assert (len(mt_sfs) == gdc_dc_calib_img.shape[2])
+            mt_gdc_dc_calib_img = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata()*mt_sfs, 
+                                                    gdc_dc_calib_img.affine)
+            mtcorr_dir = calib_dir/"MTCorr"
+            mtcorr_dir.mkdir(exist_ok=True)
+            mt_gdc_dc_calib_name = mtcorr_dir/f"mtcorr_gdc_dc_{calib_name_stem}.nii.gz"
+            nb.save(mt_gdc_dc_calib_img, mt_gdc_dc_calib_name)
+            calib_corr_name = mt_gdc_dc_calib_name
+        else:
+            calib_corr_name = gdc_dc_calib_name
 
         # get registration to structural
         # initial
         asl_reg_cmd = [
             "asl_reg",
-            "-i", mt_gdc_calib_name, "-o", distcorr_dir,
+            "-i", calib_corr_name, "-o", distcorr_dir,
             "-s", struct_name, f"--sbet={struct_brain_name}",
             f"--tissseg={wmmask_name}", "--mainonly"
         ]
@@ -194,12 +209,10 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         # refined
         asl_reg_cmd = [
             "asl_reg",
-            "-i", str(mt_gdc_calib_name), "-o", str(distcorr_dir),
+            "-i", str(calib_corr_name), "-o", str(distcorr_dir),
             "-s", str(struct_name), f"--sbet={str(struct_brain_name)}",
-            f"--tissseg={str(wmmask_name)}", "--echospacing=0.00057", "--pedir=y",
-            f"--fmap={str(fmap_struct)}", f"--fmapmag={str(fmapmag_struct)}", 
-            f"--fmapmagbrain={str(fmapmagbrain_struct)}", "--nofmapreg", 
-            f"--imat={str(calib2struct_init)}", "--finalonly", "-m", str(mask_name)
+            f"--tissseg={str(wmmask_name)}", "-m", str(mask_name),
+            f"--imat={str(calib2struct_init)}", "--finalonly"
         ]
         print("Running second asl_reg")
         subprocess.run(asl_reg_cmd, check=True)
@@ -207,12 +220,6 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         struct2calib_reg = rt.Registration.from_flirt(str(struct2calib_name), 
                                                       str(struct_name),
                                                       str(calib_name))
-        calib2struct_name = distcorr_dir/"asl2struct_warp.nii.gz"
-        calib2struct_warp = rt.NonLinearRegistration.from_fnirt(str(calib2struct_name),
-                                                                str(calib_name),
-                                                                str(struct_name),
-                                                                intensity_correct=True,
-                                                                constrain_jac=(0.01, 100))
         
         # register fmapmag to calibration image space
         fmap2calib_reg = rt.chain(bbr_fmap2struct, struct2calib_reg)
@@ -225,26 +232,21 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         fmapmag_cspc_name = sebased_dir/f"fmapmag_{calib_name_stem}spc.nii.gz"
         nb.save(fmapmag_calibspc, fmapmag_cspc_name)
 
-        # apply all distortion corrections to calibration image
-        dc_warp = rt.chain(gdc_warp, calib2struct_warp, struct2calib_reg)
-        dc_calib = dc_warp.apply_to_image(calib_name, 
-                                          calib_name,
-                                          order=interpolation)
-        dc_calib_name = distcorr_dir/f"dc_{calib_name_stem}.nii.gz"
-        nb.save(dc_calib, dc_calib_name)
-
         # get brain mask in calibration image space
-        mask = generate_asl_mask(str(struct_brain_name), 
-                                 str(calib_name), 
-                                 struct2calib_reg.inverse())
-        mask_name = calib_dir/"mask.nii.gz"
-        rt.ImageSpace.save_like(calib_name, mask, str(mask_name))
+        fs_brainmask = Path(json_dict["T1w_dir"])/"brainmask_fs.nii.gz"
+        aslfs_mask_name = calib_dir/"aslfs_mask.nii.gz"
+        aslfs_mask = struct2calib_reg.apply_to_image(src=str(fs_brainmask), 
+                                                     ref=str(calib_name),
+                                                     order=0)
+        aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
+                                           affine=gdc_dc_calib_img.affine)
+        nb.save(aslfs_mask, aslfs_mask_name)
 
         # get sebased bias estimate
         sebased_cmd = [
             "get_sebased_bias",
-            "-i", dc_calib_name, "-f", fmapmag_cspc_name,
-            "-m", mask_name, "-o", sebased_dir, 
+            "-i", gdc_dc_calib_name, "-f", fmapmag_cspc_name,
+            "-m", aslfs_mask_name, "-o", sebased_dir, 
             "--ribbon", ribbon, "--wmparc", wmparc,
             "--corticallut", corticallut, "--subcorticallut", subcorticallut,
             "--struct2calib", struct2calib_name, "--structural", struct_name, 
@@ -258,21 +260,25 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
         subprocess.run(dilall_cmd, check=True)
 
-        # apply mt scaling factors to dc calib bias field
+        # bias correct and mt correct the gdc_dc_calib image
         bias_img = nb.load(dilall_name)
-        bc_calib = nb.nifti1.Nifti1Image(dc_calib.get_fdata() / bias_img.get_fdata(),
-                                         dc_calib.affine)
+        bc_calib = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata() / bias_img.get_fdata(),
+                                         gdc_dc_calib_img.affine)
         biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
-        mt_bc_calib = nb.nifti1.Nifti1Image(bc_calib.get_fdata()*mt_sfs,
-                                            bc_calib.affine)
-        mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
-        [nb.save(image, name) for image, name in zip((bc_calib, mt_bc_calib),
-                                                     (biascorr_name, mtcorr_name))]
+        nb.save(bc_calib, biascorr_name)
+
+        if not nobandingcorr:
+            mt_bc_calib = nb.nifti1.Nifti1Image(bc_calib.get_fdata()*mt_sfs,
+                                                bc_calib.affine)
+            mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr.nii.gz'
+            nb.save(mt_bc_calib, mtcorr_name)
+            calib_corr_name = mtcorr_name
+        else:
+            calib_corr_name = biascorr_name
         
         # add locations of above files to the json
         important_names = {
             f'{calib_name_stem}_bias' : str(dilall_name),
-            f'{calib_name_stem}_bc' : str(biascorr_name),
-            f'{calib_name_stem}_mc' : str(mtcorr_name)
+            f'{calib_name_stem}_corr' : str(calib_corr_name)
         }
         update_json(important_names, json_dict)

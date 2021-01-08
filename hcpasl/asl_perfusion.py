@@ -89,12 +89,12 @@ def run_fabber_asl(subject_dir, target='structural'):
     }
     update_json(important_names, json_dict)
 
-def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False, use_sebased=False):
+def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False, use_sebased=False, nobandingcorr=False):
     """
     Run oxford_asl on the HCP's ASL data.
     """
     # load subject's json
-    json_dict = load_json(subject_dir)
+    json_dict = load_json(subject_dir/"hcp_asl")
 
     # base oxford_asl options common to both cases
     cmd = [
@@ -132,7 +132,10 @@ def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False,
         pvwm_name = structasl_dir / 'PVEs/pve_WM.nii.gz'
         csf_mask_name = structasl_dir / 'PVEs/vent_csf_mask.nii.gz'
         if use_sebased:
-            calib_name = structasl_dir / 'TIs/BiasCorr/calib0_secorr.nii.gz'
+            if not nobandingcorr:
+                calib_name = structasl_dir / 'TIs/BiasCorr/calib0_corr.nii.gz'
+            else:
+                calib_name = structasl_dir / 'TIs/BiasCorr/calib0_secorr.nii.gz'
         else:
             calib_name = structasl_dir / 'Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
         brain_mask = structasl_dir / 'reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'

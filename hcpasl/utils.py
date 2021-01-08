@@ -61,31 +61,34 @@ def setup(subject_dir):
     calib_dirs = [subject_dir/f'ASL/Calib/{c}' for c in ('Calib0', 'Calib1')]
     create_dirs(calib_dirs)
 
-    # _A and _B directories
-    a_dir = (subject_dir/f'{subid}_V1_A/scans').resolve(strict=True)
-    b_dir = (subject_dir/f'{subid}_V1_B/scans').resolve(strict=True)
+    # mbPCASLhr_unproc and Structural_preproc directories
+    mbpcasl_dir = subject_dir/f"{subid}_V1_MR/resources/mbPCASLhr_unproc/files"
+    struct_dir = subject_dir/f"{subid}_V1_MR/resources/Structural_preproc/files"
 
     # find T1 structural image
-    t1_dir = list((a_dir).glob('**/*T1w'))[0]
-    t1_dir = t1_dir/'resources/NIFTI/files'
-    t1_name = list(t1_dir.glob(f'**/{subid}_*.nii.gz'))[0].resolve(strict=True)
+    t1_dir = struct_dir/f"{subid}_V1_MR/T1w"
+    t1, t1_brain = [
+        (t1_dir/f"T1w_acpc_dc_restore{suf}.nii.gz").resolve(strict=True)
+        for suf in ("", "_brain")
+    ]
+    aparc_aseg, ribbon, wmparc = [
+        (t1_dir/f"{name}.nii.gz").resolve(strict=True)
+        for name in ("aparc+aseg", "ribbon", "wmparc")
+    ]
 
     # create directories
     calib_dirs = [subject_dir/f'ASL/Calib/{c}' for c in ('Calib0', 'Calib1')]
     create_dirs(calib_dirs)
-    aslt1_dir = t1_dir/"ASL"
+    aslt1_dir = subject_dir/"T1wASL"
     aslt1_dir.mkdir(exist_ok=True)
 
     # find mbpcasl sequence and sefms
-    b_contents = b_dir.glob('**/*')
-    for name in b_contents:
-        if "mbPCASLhr_PA.nii.gz" in str(name):
-            mbpcasl = name
-        elif "PCASLhr_SpinEchoFieldMap_PA.nii.gz" in str(name):
-            pa_sefm = name
-        elif "PCASLhr_SpinEchoFieldMap_AP.nii.gz" in str(name):
-            ap_sefm = name
-            
+    mbpcasl = (mbpcasl_dir/f"{subid}_V1_MR_mbPCASLhr_PA.nii.gz").resolve(strict=True)
+    pa_sefm, ap_sefm = [
+        (mbpcasl_dir/f"{subid}_V1_MR_PCASLhr_SpinEchoFieldMap_{suf}.nii.gz").resolve(strict=True)
+        for suf in ("PA", "AP")
+    ]
+
     # split mbpcasl sequence into its calibration images
     calib_names = [d/f'calib{n}.nii.gz' for n, d in enumerate(calib_dirs)]
     [fslroi(str(mbpcasl), calib_name, n, 1) for calib_name, n in zip(calib_names, (88, 89))]
@@ -97,7 +100,11 @@ def setup(subject_dir):
         "calib1_dir": calib_dirs[1],
         "calib1_name": calib_names[1],
         "t1_dir": t1_dir,
-        "t1_name": t1_name,
+        "t1_name": t1,
+        "t1_brain_name": t1_brain,
+        "aparc_aseg": aparc_aseg,
+        "ribbon": ribbon,
+        "wmparc": wmparc,
         "aslt1_dir": aslt1_dir,
         "pa_sefm": pa_sefm,
         "ap_sefm": ap_sefm
@@ -116,32 +123,13 @@ def binarise(pve_name, threshold=0.5):
     seg = Image(np.where(pve.data>threshold, 1., 0.), header=pve.header)
     return seg
 
-def generate_wmmask(aparc_aseg):
-    """ 
-    Generate binary WM mask in space of T1 image using FS aparc+aseg
-
-    Args: 
-        aparc_aseg: path to aparc_aseg in T1 space (not FS 256 1mm space!)
-
-    Returns: 
-        np.array logical WM mask in space of T1 image 
-    """
-
-    aseg_array = nb.load(aparc_aseg).get_data()
-    wm = np.logical_or(aseg_array == 41, aseg_array == 2)
-    return wm 
-
-def linear_asl_reg(calib_name, results_dir, t1_name, t1_brain_name, wmpve_name):
-    # get white matter segmentation for registration
-    wmseg = binarise(wmpve_name)
-    wmseg_name = results_dir/"wm_seg.nii.gz"
-    wmseg.save(str(wmseg_name))
+def linear_asl_reg(calib_name, results_dir, t1_name, t1_brain_name, wm_mask):
     # run asl_reg
     aslreg_cmd = [
         "asl_reg", 
         "-i", calib_name, "-o", results_dir, 
         "-s", t1_name, "--sbet", t1_brain_name, 
-        "--tissseg", wmseg_name
+        "--tissseg", wm_mask
     ]
     subprocess.run(aslreg_cmd, check=True)
 

@@ -15,7 +15,7 @@ SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM
 GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
 RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
 script_path="${10}" #
-CARET7DIR="${11}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
+CARET7DIR="${11}" #workbench binary directory, should be environment variable $CARET7DIR 
 pvcorr="${12}"
 
 # log_Msg "Path: ${Path}"
@@ -29,8 +29,9 @@ pvcorr="${12}"
 # log_Msg "RUN: ${RUN}"
 
 #Naming Conventions
-AtlasSpaceFolder="MNINonLinear"
-T1wFolder="T1w"
+StructuralPreprocFolder="${Subject}_V1_MR/resources/Structural_preproc/files/${Subject}_V1_MR"
+AtlasSpaceFolder="${StructuralPreprocFolder}/MNINonLinear"
+T1wFolder="${StructuralPreprocFolder}/T1w"
 NativeFolder="Native"
 ResultsFolder="Results"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
@@ -40,11 +41,12 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"
+ASLT1wFolder="$Path"/"$Subject"/"hcp_asl/ASLT1w"
+T1wSpcResultsFolder="$Path"/"$Subject"/"hcp_asl"/"ASLT1w"/"$ResultsFolder"
 if [ "$pvcorr" = false ] ; then
-    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
+    InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
 else
-    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space/pvcorr"
+    InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
 #InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space" 

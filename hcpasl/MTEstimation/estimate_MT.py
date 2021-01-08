@@ -66,20 +66,17 @@ def fit_linear_model(slice_means, method='separate', resolution=10000):
     elif method=='together':
         X_pred = np.tile(np.arange(0, 10, 10/resolution), 4)[..., np.newaxis]
         y_train = np.vstack(np.split(slice_means, 6)[1:5])
-        y_train = y_train.mean(axis=0).reshape(-1, 1)
+        y_train = np.nanmean(y_train, axis=0).reshape(-1, 1)
         model = LinearRegression()
         model.fit(X, y_train)
-        scaling_factors[band, :] = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
+        sfs = model.intercept_ / model.predict(np.tile(X, (4, 1))).flatten()
+        scaling_factors[1:5, :] = sfs.reshape(4, 10)
         y_pred[resolution : resolution*5] = model.predict(X_pred)
     scaling_factors[[0, 5], :] = scaling_factors[1:5, :].mean(axis=0)
     scaling_factors = scaling_factors.flatten()
     return scaling_factors, X_pred, y_pred
 
-def estimate_mt(
-    subject_dirs, distcorr=False, rois=['wm', ], 
-    tr=8, method='separate', biascorr_method='calib', 
-    outdir=None
-    ):
+def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=None, ignore_dropouts=False):
     """
     Estimates the slice-dependent MT effect on the given subject's 
     calibration images. Performs the estimation using a linear 
@@ -87,8 +84,8 @@ def estimate_mt(
     correct the effect.
     """
     outdir = Path(outdir).resolve(strict=True) if outdir else Path.cwd()
-    suffix = "_distcorr" if distcorr else ""
     errors = []
+    suf = "_ignoredropouts" if ignore_dropouts else ""
     for tissue in rois:
         # initialise array to store image-level means
         mean_array = np.zeros((60, 2*len(subject_dirs)))
@@ -97,10 +94,8 @@ def estimate_mt(
         for n1, subject_dir in enumerate(subject_dirs):
             try:
                 print(subject_dir)
-                mask_dirs = [
-                    subject_dir/"ASL/Calib"/c/f"{biascorr_method}{suffix}"/"masks"
-                    for c in ("Calib0", "Calib1")
-                ]
+                mask_dirs = [subject_dir/"ASL/Calib"/c/f"SEbased_MT_t1mask{suf}/DistCorr/masks" 
+                             for c in ("Calib0", "Calib1")]
                 tissues = ("gm", "wm") if tissue=="combined" else (tissue,)
                 masked_names = [
                     [mask_dir/tissue/f"calib{n}_{t}_masked.nii.gz" for t in tissues]
@@ -160,17 +155,17 @@ def estimate_mt(
         if tissue == 'combined':
             plt.title(f'Mean signal per slice in GM and WM across 47 subjects.')
         else:
-            plt.title(f'Mean signal per slice in {tissue} across 47 subjects.')
+            plt.title(f'Mean signal per slice in {tissue} ({method}) across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean signal')
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = outdir / f'{tissue}_mean_per_slice_t1.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_t1.png'
         plt.savefig(plt_name)
         # add linear models on top
         plt.scatter(np.arange(10, 50, 0.001), y_pred.flatten()[10000:50000], color='k', s=0.1)
-        plt_name = outdir / f'{tissue}_mean_per_slice_with_lin_{biascorr_method}{suffix}.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_with_lin_sebased.png'
         plt.savefig(plt_name)
 
         # plot rescaled slice-means
@@ -188,7 +183,7 @@ def estimate_mt(
         for x_coord in x_coords:
             plt.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         # save plot
-        plt_name = outdir / f'{tissue}_mean_per_slice_rescaled_{biascorr_method}{suffix}.png'
+        plt_name = outdir / f'{method}_{tissue}_mean_per_slice_rescaled_sebased.png'
         plt.savefig(plt_name)
 
         # plot slicewise mean tissue count for WM and GM
@@ -202,7 +197,7 @@ def estimate_mt(
                 ' PVE $\geqslant$ 70% across 47 subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
-        plt_name = outdir / f'mean_voxel_count_{biascorr_method}{suffix}.png'
+        plt_name = outdir / f'mean_voxel_count_sebased.png'
         plt.savefig(plt_name)
 
         # # the scaling factors have been estimated on images which have been 
@@ -212,25 +207,24 @@ def estimate_mt(
         # scaling_factors = undo_st_correction(scaling_factors, tissue, tr)
 
         # save scaling factors as a .txt file
-        sfs_savename = outdir/f'{method}_{tissue}_scaling_factors_{biascorr_method}{suffix}.txt'
+        sfs_savename = outdir/f'{method}_{tissue}_scaling_factors_sebased.txt'
         np.savetxt(sfs_savename, scaling_factors, fmt='%.5f')
         # create array from scaling_factors
         scaling_factors = np.tile(scaling_factors, (86, 86, 1))
         for subject_dir in subject_dirs:
             # load bias (and possibly distortion) corrected calibration image
-            method_dir = subject_dir/"ASL/Calib/Calib0"/f"{biascorr_method}{suffix}"
-            print(method_dir)
+            method_dir = subject_dir/f"ASL/Calib/Calib0/SEbased_MT_t1mask{suf}/DistCorr"
             calib_name = method_dir/"calib0_restore.nii.gz"
             calib_img = Image(str(calib_name))
             # create and save scaling factors image
             scaling_img = Image(scaling_factors, header=calib_img.header)
             mtcorr_dir = method_dir/"MTCorr"
             mtcorr_dir.mkdir(exist_ok=True)
-            scaling_name = mtcorr_dir / f'MTcorr_SFs_{tissue}_{biascorr_method}{suffix}.nii.gz'
+            scaling_name = mtcorr_dir / f'MTcorr_SFs_{method}_{tissue}_sebased.nii.gz'
             scaling_img.save(scaling_name)
             
             # apply scaling factors to image to perform MT correction
-            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{tissue}_{biascorr_method}{suffix}.nii.gz'
+            mtcorr_name = mtcorr_dir / f'calib0_mtcorr_{method}_{tissue}_sebased.nii.gz'
             mtcorr_img = Image(
                 calib_img.data * scaling_factors,
                 header=calib_img.header

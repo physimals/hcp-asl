@@ -22,10 +22,11 @@ from pathlib import Path
 import subprocess
 import argparse
 from multiprocessing import cpu_count
+import nibabel as nb
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, fmaps, 
-                    gradients, use_t1=False, pvcorr=False, cores=cpu_count(), 
-                    interpolation=3, use_sebased=False, wmparc=None, ribbon=None):
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
+                    fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
+                    cores=cpu_count(), interpolation=3, nobandingcorr=False):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -52,6 +53,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     gradients : str
         pathlib.Path to a gradient coefficients file for use in 
         gradient distortion correction.
+    wmparc : str
+        pathlib.Path to wmparc.nii.gz from FreeSurfer for use in 
+        SE-based bias correction.
+    ribbon : str
+        pathlib.Path to ribbon.nii.gz from FreeSurfer for use in 
+        SE-based bias correction.
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
@@ -59,10 +66,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         Whether or not to run oxford_asl using pvcorr when 
         performing perfusion estimation in (ASL-gridded) T1 
         space.
-    use_sebased : bool, optional
-        Whether or not to use HCP's SE-based bias-correction 
-        to refine the bias correction obtained using FAST at 
-        the beginning of the pipeline. Default is False.
     cores : int, optional
         Number of cores to use.
         When applying motion correction, this is the number 
@@ -73,9 +76,17 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         Regtricks passes this on to scipy's map_coordinates. 
         The meaning of the value can be found in the scipy 
         documentation. Default is 3.
+    nobandingcorr : bool, optional
+        If this is True, the banding correction options in the 
+        pipeline will be switched off. Default is False (i.e. 
+        banding corrections are applied by default).
     """
     subject_dir = (studydir / subid).resolve(strict=True)
-    names = initial_processing(subject_dir, mbpcasl=mbpcasl, structural=structural, surfaces=surfaces)
+    names = initial_processing(subject_dir, 
+                               mbpcasl=mbpcasl, 
+                               structural=structural, 
+                               surfaces=surfaces,
+                               fmaps=fmaps)
 
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
@@ -86,15 +97,16 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation)
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr)
     
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation)
+    # correct ASL series for motion and banding
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr)
     for target in ('asl', 'structural'):
+        # apply distortion corrections and get into target space
         dist_corr_call = [
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
             "--sub_id", subject_dir.stem,
-            '--mtname', mt_factors,
             "--target", target, 
             "--grads", gradients,
             "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
@@ -102,10 +114,14 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
-        if use_sebased and (target=='structural'):
-            dist_corr_call.append('--sebased')
+        if nobandingcorr:
+            dist_corr_call.append('--nobandingcorr')
+        else:
+            dist_corr_call.append('--mtname')
+            dist_corr_call.append(mt_factors)
         subprocess.run(dist_corr_call, check=True)
         if target == 'structural':
+            # perform partial volume estimation
             pv_est_call = [
                 "pv_est",
                 str(subject_dir.parent),
@@ -113,12 +129,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 "--cores", str(cores)
             ]
             subprocess.run(pv_est_call, check=True)
-        if use_sebased and (target=='structural'):
-            calib_name = subject_dir/'T1w/ASL/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/'T1w/ASL/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/'T1w/ASL/reg/fmap/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/'T1w/ASL/TIs/BiasCorr'
+            # estimate bias field using SE-based
+            calib_name = subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/'hcp_asl/ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/'hcp_asl/ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
             subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -136,15 +152,32 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                 '--debug'
             ]
             subprocess.run(sebased_cmd, check=True)
-        if use_sebased and (target=='structural'):
-            series = subject_dir/'T1w/ASL/TIs/BiasCorr/tis_secorr.nii.gz'
-        elif target=='structural':
-            series = subject_dir/'T1w/ASL/TIs/DistCorr/tis_distcorr.nii.gz'
+            # reapply banding corrections now that the series has been bias corrected
+            series = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
+            scaling_factors = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
+            series_corr = nb.nifti1.Nifti1Image(series.get_fdata()*scaling_factors.get_fdata(),
+                                                affine=series.affine)
+            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
+            nb.save(series_corr, series)
+            if not nobandingcorr:
+                calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
+                mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
+                calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
+                calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
+                nb.save(calib_corr, calib_corr_name)
+        elif not nobandingcorr:
+            # get name of series if target space is ASL
+            series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         else:
-            series = subject_dir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
-        tag_control_differencing(series, subject_dir, target=target)
+            series = subject_dir/'hcp_asl/ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
+        
+        # perform differencing accounting for scaling
+        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr)
+        
+        estimate perfusion
         run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
-        project_to_surface(studydir, subid)
+        if target == 'structural':
+            project_to_surface(studydir, subid)
 
 def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", SmoothingFWHM="2",
                         GreyOrdsRes="2", RegName="MSMSulc"):
@@ -163,8 +196,8 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
     """
     # Projection scripts path:
     script_path    = os.path.abspath(os.path.dirname(__file__))
-    script         = os.path.join(script_path, "PerfusionCITIProcessingPipeline.sh")
-    wb_path        = "/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
+    script         = os.path.join(script_path, "PerfusionCIFTIProcessingPipeline.sh")
+    wb_path        = os.environ["CARET7DIR"] 
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
@@ -201,7 +234,7 @@ def main():
         "--mtname",
         help="Filename of the empirically estimated MT-correction"
             + "scaling factors.",
-        required=True
+        required=not "--nobandingcorr" in sys.argv
     )
     parser.add_argument(
         "-g",
@@ -296,25 +329,16 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        '--sebased',
-        help="If this flag is provided, the distortion warps and motion "
-            +"estimates will be applied to the MT-corrected but not bias-"
-            +"corrected calibration and ASL images. The bias-field will "
-            +"then be estimated from the calibration image using HCP's "
-            +"SE-based algorithm and applied in subsequent steps.",
-        action='store_true'
-    )
-    parser.add_argument(
         '--wmparc',
         help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
         default=None,
-        required="--sebased" in sys.argv
+        required=True
     )
     parser.add_argument(
         '--ribbon',
         help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
         default=None,
-        required="--sebased" in sys.argv
+        required=True
     )
     parser.add_argument(
         "-c",
@@ -336,13 +360,23 @@ def main():
         choices=range(0, 5+1)
     )
     parser.add_argument(
+        "--nobandingcorr",
+        help="If this option is provided, the MT and ST banding corrections "
+            +"won't be applied. This is to be used to compare the difference "
+            +"our banding corrections make.",
+        action="store_true"
+    )
+    parser.add_argument(
         "--fabberdir",
         help="User Fabber executable in <fabberdir>/bin/ for users"
             + "with FSL < 6.0.4"
     )
     # assign arguments to variables
     args = parser.parse_args()
-    mtname = Path(args.mtname).resolve(strict=True)
+    if args.mtname:
+        mtname = Path(args.mtname).resolve(strict=True)
+    else:
+        mtname = None
     studydir = Path(args.studydir).resolve(strict=True)
     subid = args.subid
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
@@ -398,9 +432,9 @@ def main():
                     fmaps=fmaps,
                     use_t1=args.use_t1,
                     pvcorr=args.pvcorr,
-                    use_sebased=args.sebased,
                     wmparc=args.wmparc,
-                    ribbon=args.ribbon
+                    ribbon=args.ribbon,
+                    nobandingcorr=args.nobandingcorr
                     )
 
 if __name__ == '__main__':

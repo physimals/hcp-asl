@@ -84,6 +84,7 @@ setup(
         'scikit-learn',
         'toblerone @ git+https://github.com/tomfrankkirk/toblerone.git',
         'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git',
+        'matplotlib',
         'pandas'
     ],
     entry_points={

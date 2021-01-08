@@ -39,7 +39,7 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
 
-def initial_processing(subject_dir, mbpcasl, structural, surfaces):
+def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps):
     """
     Perform initial processing for the subject directory provided.
     
@@ -62,23 +62,25 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     surfaces : dict
         Dictionary containing pathlib.Paths to important surface 
         files.
+    fmaps : dict
+        Dictionary containing pathlib.Paths to the PA and AP SEFMs.
     """
     # get subject name
-    subject_name = subject_dir.parts[-1]
+    subid = subject_dir.parts[-1]
 
-    # create ${subject_dir}/ASL and ${subject_dir}/T1w/Results/ASL 
+    # create ${subject_dir}/ASL and ${subject_dir}/ASLT1w
     # directories
-    asl_dir = subject_dir / 'ASL'
+    asl_dir = subject_dir / 'hcp_asl/ASL'
     tis_dir = asl_dir / 'TIs'
     calib_dir = asl_dir / 'Calib'
     calib0_dir = calib_dir / 'Calib0'
     calib1_dir = calib_dir / 'Calib1'
-    strucasl_dir = subject_dir / 'T1w/ASL'
+    strucasl_dir = subject_dir / 'hcp_asl/ASLT1w'
     create_dirs([asl_dir, tis_dir, calib0_dir, calib1_dir, strucasl_dir])
 
     # find sub-directories
     # structural
-    t1_dir = subject_dir / 'T1w'
+    t1_dir = subject_dir/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/T1w/"
     t1_name = structural['struct']
     t1_brain_name = structural['sbrain']
     
@@ -93,12 +95,7 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces):
     fslroi(str(mbpcasl), calib1_name, 89, 1)
 
     # find spin-echo fieldmaps
-    b_dir = (subject_dir/f'{subject_name}_V1_B/scans').resolve(strict=True)
-    for name in b_dir.glob('**/*'):
-        if "PCASLhr_SpinEchoFieldMap_PA.nii.gz" in str(name):
-            pa_sefm = name
-        elif "PCASLhr_SpinEchoFieldMap_AP.nii.gz" in str(name):
-            ap_sefm = name
+    pa_sefm, ap_sefm = [fmaps[key] for key in ("PA", "AP")]
 
     # add filenames to a dictionary to be saved to a json
     json_name = asl_dir / 'ASL.json'
