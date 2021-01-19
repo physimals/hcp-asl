@@ -17,7 +17,7 @@ from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.asl_perfusion import run_fabber_asl, run_oxford_asl
-from hcpasl.projection import project_to_surface
+# from hcpasl.projection import project_to_surface
 from pathlib import Path
 import subprocess
 import argparse
@@ -189,7 +189,41 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
         # project perfusion results
         if target == 'structural':
-            project_to_surface(subject_dir, target=target, outdir=outdir)
+            project_to_surface(studydir, subid, outdir=outdir)
+
+def project_to_surface(studydir, subid, outdir, lowresmesh="32", FinalASLRes="2.5", 
+                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
+    """
+    Project perfusion results to the cortical surface and generate
+    CIFTI representation which includes both low res mesh surfaces
+    in MSMSulc Atlas space, and subcortical structures in MNI 
+    voxel space
+
+    Parameters
+    ----------
+    studydir : pathlib.Path
+        Path to the study's base directory.
+    subid : str
+        Subject id for the subject of interest.
+    """
+    # Projection scripts path:
+    # script_path    = os.path.abspath(os.path.dirname(__file__))
+    script         = "PerfusionCIFTIProcessingPipeline.sh" # os.path.join(script_path, 
+    wb_path        = os.path.join(os.path.expanduser("~"), "modules", 
+                                  "workbench_dev", "bin_macosx64")
+
+    ASLVariable    = ["perfusion_calib", "arrival"]
+    ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
+
+    for idx in range(2):
+        non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false", outdir]
+
+        pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "true", outdir]
+        
+        subprocess.run(non_pvcorr_cmd)
+        subprocess.run(pvcorr_cmd)
 
 def main():
     """
