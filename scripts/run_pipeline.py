@@ -95,18 +95,22 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
     asl_dir = Path(names["ASL_dir"])
+    print("Running gradient_unwarp and topup.")
     gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
     # run m0 correction (includes sebased bias estimation)
+    print("Running M0 corrections.")
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr)
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr, outdir=outdir)
     
     # correct ASL series for motion and banding
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr)
+    print("Estimating ASL motion.")
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr, outdir=outdir)
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space
+        print("Running distcorr_warps")
         dist_corr_call = [
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
@@ -114,7 +118,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             "--target", target, 
             "--grads", gradients,
             "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
-            "--cores", str(cores), "--interpolation", str(interpolation)
+            "--cores", str(cores), "--interpolation", str(interpolation),
+            "--outdir", outdir
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
@@ -130,7 +135,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                 "pv_est",
                 str(subject_dir.parent),
                 subject_dir.stem,
-                "--cores", str(cores)
+                "--cores", str(cores),
+                "--outdir", outdir
             ]
             subprocess.run(pv_est_call, check=True)
             # estimate bias field using SE-based
@@ -176,14 +182,14 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             series = subject_dir/outdir/'ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
         
         # perform differencing accounting for scaling
-        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr)
+        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr, outdir=outdir)
         
         # estimate perfusion
-        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr, outdir=outdir)
 
         # project perfusion results
         if target == 'structural':
-            project_to_surface(subject_dir, target=target)
+            project_to_surface(subject_dir, target=target, outdir=outdir)
 
 def main():
     """
