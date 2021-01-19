@@ -30,8 +30,9 @@ Outdir="${12}"
 # log_Msg "RUN: ${RUN}"
 
 #Naming Conventions
-AtlasSpaceFolder="MNINonLinear"
-T1wFolder="T1w"
+StructuralPreprocFolder="${Subject}_V1_MR/resources/Structural_preproc/files/${Subject}_V1_MR"
+AtlasSpaceFolder="${StructuralPreprocFolder}/MNINonLinear"
+T1wFolder="${StructuralPreprocFolder}/T1w"
 NativeFolder="Native"
 ResultsFolder="Results"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
@@ -41,16 +42,16 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
+ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"
+T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"/"$ResultsFolder"
 if [ "$pvcorr" = false ] ; then
-    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
-    T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"
-    AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
+    InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
 else
-    InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space/pvcorr"
-    T1wSpcResultsFolder="$T1wFolder"/"ASL"/"$ResultsFolder"/"pvcorr"
-    AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder"/"pvcorr" #"$AtlasSpaceFolder"
+    InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
+#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
+AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLMNI"/"$ResultsFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 
