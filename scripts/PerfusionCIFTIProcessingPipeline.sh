@@ -17,6 +17,7 @@ RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc"
 script_path="${10}" #
 CARET7DIR="${11}" #workbench binary directory, should be environment variable $CARET7DIR 
 pvcorr="${12}"
+Outdir="${13}"
 
 # log_Msg "Path: ${Path}"
 # log_Msg "Subject: ${Subject}"
@@ -41,16 +42,16 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-ASLT1wFolder="$Path"/"$Subject"/"hcp_asl/ASLT1w"
-T1wSpcResultsFolder="$Path"/"$Subject"/"hcp_asl"/"ASLT1w"/"$ResultsFolder"
+ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"
+T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"/"$ResultsFolder"
 if [ "$pvcorr" = false ] ; then
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
 else
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
-#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space" 
-AtlasResultsFolder="$AtlasSpaceFolder"/"ASL"/"$ResultsFolder" #"$AtlasSpaceFolder"
+#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
+AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLMNI"/"$ResultsFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 
@@ -60,11 +61,19 @@ ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 # log_Msg "mkdir -p ${ResultsFolder}/OutputtoCIFTI"
 mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
 mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
-"$script_path"/VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
-        "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
-        "$AtlasResultsFolder"/"OutputtoCIFTI" "$T1wFolder"/"$NativeFolder" \
-        "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
-        "$DownSampleFolder" "$CARET7DIR"
+"$script_path"/VolumetoSurface.sh \
+        "$Subject" \
+        "$InitialASLResults" \
+        "$ASLVariable" \
+        "$ASLVariableVar" \
+        "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
+        "$AtlasResultsFolder"/"OutputtoCIFTI" \
+        "$T1wFolder"/"$NativeFolder" \
+        "$AtlasSpaceFolder"/"$NativeFolder" \
+        "$LowResMesh" \
+        "${RegName}" \
+        "$DownSampleFolder" \
+        "$CARET7DIR"
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
@@ -72,8 +81,11 @@ mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
         "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
-python "$script_path"/results_to_mni.py "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
-        "$InitialASLResults"/"${ASLVariable}.nii.gz" "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
+echo "Running results_to_mni.py"
+python "$script_path"/results_to_mni.py \
+        "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
+        "$InitialASLResults"/"${ASLVariable}.nii.gz" \
+        "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
         "/usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"asl_grid_mni.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}_MNI.nii.gz"
@@ -81,9 +93,17 @@ python "$script_path"/results_to_mni.py "$AtlasSpaceFolder"/"xfms"/"acpc_dc2stan
 
 #Subcortical Processing
 # log_Msg "Subcortical Processing"
-"$script_path"/SubcorticalProcessing.sh "$InitialASLResults" "$ASLVariable" "$AtlasSpaceFolder" \
-        "$AtlasResultsFolder"/"OutputtoCIFTI" "$FinalASLResolution" "$SmoothingFWHM" \
-        "$GrayordinatesResolution" "$ROIFolder" "$CARET7DIR"
+echo "Running SubcorticalProcessing.sh"
+"$script_path"/SubcorticalProcessing.sh \
+        "$InitialASLResults" \
+        "$ASLVariable" \
+        "$AtlasSpaceFolder" \
+        "$AtlasResultsFolder"/"OutputtoCIFTI" \
+        "$FinalASLResolution" \
+        "$SmoothingFWHM" \
+        "$GrayordinatesResolution" \
+        "$ROIFolder" \
+        "$CARET7DIR"
 
 #Generation of Dense Timeseries
 # log_Msg "Generation of Dense Scalar"

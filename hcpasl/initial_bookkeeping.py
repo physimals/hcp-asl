@@ -39,7 +39,7 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
 
-def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps):
+def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp_asl"):
     """
     Perform initial processing for the subject directory provided.
     
@@ -64,18 +64,20 @@ def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps):
         files.
     fmaps : dict
         Dictionary containing pathlib.Paths to the PA and AP SEFMs.
+    outdir : str
+        Name of the main results directory. Default is 'hcp_asl'.
     """
     # get subject name
     subid = subject_dir.parts[-1]
 
     # create ${subject_dir}/ASL and ${subject_dir}/ASLT1w
     # directories
-    asl_dir = subject_dir / 'hcp_asl/ASL'
+    asl_dir = subject_dir / f'{outdir}/ASL'
     tis_dir = asl_dir / 'TIs'
     calib_dir = asl_dir / 'Calib'
     calib0_dir = calib_dir / 'Calib0'
     calib1_dir = calib_dir / 'Calib1'
-    strucasl_dir = subject_dir / 'hcp_asl/ASLT1w'
+    strucasl_dir = subject_dir / f'{outdir}/ASLT1w'
     create_dirs([asl_dir, tis_dir, calib0_dir, calib1_dir, strucasl_dir])
 
     # find sub-directories

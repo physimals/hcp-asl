@@ -26,7 +26,8 @@ import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                     fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
-                    cores=cpu_count(), interpolation=3, nobandingcorr=False):
+                    cores=cpu_count(), interpolation=3, nobandingcorr=False,
+                    outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -80,29 +81,36 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         If this is True, the banding correction options in the 
         pipeline will be switched off. Default is False (i.e. 
         banding corrections are applied by default).
+    outdir : str, optional
+        Name of the main results directory. Default is 'hcp_asl'.
     """
     subject_dir = (studydir / subid).resolve(strict=True)
     names = initial_processing(subject_dir, 
                                mbpcasl=mbpcasl, 
                                structural=structural, 
                                surfaces=surfaces,
-                               fmaps=fmaps)
+                               fmaps=fmaps,
+                               outdir=outdir)
 
     # run gradient_unwarp and topup
     calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
     asl_dir = Path(names["ASL_dir"])
+    print("Running gradient_unwarp and topup.")
     gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
 
     # run m0 correction (includes sebased bias estimation)
+    print("Running M0 corrections.")
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr)
+    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr, outdir=outdir)
     
     # correct ASL series for motion and banding
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr)
+    print("Estimating ASL motion.")
+    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr, outdir=outdir)
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space
+        print("Running distcorr_warps")
         dist_corr_call = [
             "hcp_asl_distcorr",
             "--study_dir", str(subject_dir.parent), 
@@ -110,7 +118,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             "--target", target, 
             "--grads", gradients,
             "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
-            "--cores", str(cores), "--interpolation", str(interpolation)
+            "--cores", str(cores), "--interpolation", str(interpolation),
+            "--outdir", outdir
         ]
         if use_t1 and (target=='structural'):
             dist_corr_call.append('--use_t1')
@@ -126,15 +135,16 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                 "pv_est",
                 str(subject_dir.parent),
                 subject_dir.stem,
-                "--cores", str(cores)
+                "--cores", str(cores),
+                "--outdir", outdir
             ]
             subprocess.run(pv_est_call, check=True)
             # estimate bias field using SE-based
-            calib_name = subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/'hcp_asl/ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/'hcp_asl/ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr'
+            calib_name = subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
+            asl_name = subject_dir/outdir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
+            mask_name = subject_dir/outdir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
+            fmapmag_name = subject_dir/outdir/'ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            out_dir = subject_dir/outdir/'ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
             subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -153,34 +163,34 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             ]
             subprocess.run(sebased_cmd, check=True)
             # reapply banding corrections now that the series has been bias corrected
-            series = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
-            scaling_factors = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
+            series = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
+            scaling_factors = nb.load(subject_dir/outdir/'ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
             series_corr = nb.nifti1.Nifti1Image(series.get_fdata()*scaling_factors.get_fdata(),
                                                 affine=series.affine)
-            series = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
+            series = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
             nb.save(series_corr, series)
             if not nobandingcorr:
-                calib = nb.load(subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
-                mt_sfs = nb.load(subject_dir/'hcp_asl/ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
+                calib = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
+                mt_sfs = nb.load(subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
                 calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
-                calib_corr_name = subject_dir/'hcp_asl/ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
+                calib_corr_name = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
                 nb.save(calib_corr, calib_corr_name)
         elif not nobandingcorr:
             # get name of series if target space is ASL
-            series = subject_dir/'hcp_asl/ASL/TIs/STCorr2/tis_stcorr.nii.gz'
+            series = subject_dir/outdir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
         else:
-            series = subject_dir/'hcp_asl/ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
+            series = subject_dir/outdir/'ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
         
         # perform differencing accounting for scaling
-        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr)
+        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr, outdir=outdir)
         
-        estimate perfusion
-        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr)
+        # estimate perfusion
+        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr, outdir=outdir)
         if target == 'structural':
-            project_to_surface(studydir, subid)
+            project_to_surface(studydir, subid, outdir=outdir)
 
-def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", SmoothingFWHM="2",
-                        GreyOrdsRes="2", RegName="MSMSulc"):
+def project_to_surface(studydir, subid, outdir, lowresmesh="32", FinalASLRes="2", 
+                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
@@ -197,17 +207,20 @@ def project_to_surface(studydir, subid, lowresmesh="32", FinalASLRes="2", Smooth
     # Projection scripts path:
     script_path    = os.path.abspath(os.path.dirname(__file__))
     script         = os.path.join(script_path, "PerfusionCIFTIProcessingPipeline.sh")
-    wb_path        = os.environ["CARET7DIR"] 
+    wb_path        = os.path.join(os.path.expanduser("~"), 
+                                  "modules", 
+                                  "workbench_dev", 
+                                  "bin_macosx64")#os.environ["CARET7DIR"] 
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
 
     for idx in range(2):
         non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "false"]
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "false", outdir]
 
         pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "true"]
+                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, script_path, wb_path, "true", outdir]
         
         subprocess.run(non_pvcorr_cmd)
         subprocess.run(pvcorr_cmd)
@@ -371,6 +384,12 @@ def main():
         help="User Fabber executable in <fabberdir>/bin/ for users"
             + "with FSL < 6.0.4"
     )
+    parser.add_argument(
+        "--outdir",
+        help="Name of the directory within which we will store all of the "
+            +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
+        default="hcp_asl"
+    )
     # assign arguments to variables
     args = parser.parse_args()
     if args.mtname:
@@ -418,6 +437,9 @@ def main():
         print("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
+    # create main results directory
+    Path(args.outdir).mkdir(exist_ok=True)
+
     # process subject
     print(f"Processing subject {studydir/subid}.")
     process_subject(studydir=studydir,
@@ -434,7 +456,8 @@ def main():
                     pvcorr=args.pvcorr,
                     wmparc=args.wmparc,
                     ribbon=args.ribbon,
-                    nobandingcorr=args.nobandingcorr
+                    nobandingcorr=args.nobandingcorr,
+                    outdir=args.outdir
                     )
 
 if __name__ == '__main__':

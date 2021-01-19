@@ -17,7 +17,7 @@ from pathlib import Path
 import subprocess
 import numpy as np
 
-def tag_control_differencing(series, subject_dir, target='structural', nobandingcorr=False):
+def tag_control_differencing(series, subject_dir, target='structural', nobandingcorr=False, outdir="hcp_asl"):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -31,6 +31,8 @@ def tag_control_differencing(series, subject_dir, target='structural', nobanding
         Path to the subject's base directory.
     target : str, {'structural', 'asl'}
         Target space.
+    outdir : str
+        Name of the main results directory. Default is 'hcp_asl'.
 
     .. [1] Suzuki, Yuriko, et al. "A framework for motion 
        correction of background suppressed arterial spin labeling 
@@ -39,7 +41,7 @@ def tag_control_differencing(series, subject_dir, target='structural', nobanding
        1553-1565.
     """
     # load subject's json
-    json_dict = load_json(subject_dir/"hcp_asl")
+    json_dict = load_json(subject_dir/outdir)
 
     # load motion- and distortion- corrected data, Y_moco
     if target == 'structural':

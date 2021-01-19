@@ -89,12 +89,13 @@ def run_fabber_asl(subject_dir, target='structural'):
     }
     update_json(important_names, json_dict)
 
-def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False, use_sebased=False, nobandingcorr=False):
+def run_oxford_asl(subject_dir, target='structural', use_t1=False, pvcorr=False, 
+                   use_sebased=False, nobandingcorr=False, outdir="hcp_asl"):
     """
     Run oxford_asl on the HCP's ASL data.
     """
     # load subject's json
-    json_dict = load_json(subject_dir/"hcp_asl")
+    json_dict = load_json(subject_dir/outdir)
 
     # base oxford_asl options common to both cases
     cmd = [

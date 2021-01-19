@@ -336,7 +336,8 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), interpolation=3, nobandingcorr=False):
+def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), 
+                 interpolation=3, nobandingcorr=False, outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -378,6 +379,8 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
         If this is True, the banding correction options in the 
         pipeline will be switched off. Default is False (i.e. 
         banding corrections are applied by default).
+    outdir : str
+        Name of the main results directory. Default is 'hcp_asl'.
     """
     assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
     assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
@@ -391,7 +394,7 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), i
     sliceband = 10
     n_slices = 60
     # load json containing important file info
-    json_dict = load_json(subject_dir/"hcp_asl")
+    json_dict = load_json(subject_dir/outdir)
     # original ASL series and bias field names
     asl_name = Path(json_dict['ASL_seq'])
     bias_name = json_dict['calib0_bias']
