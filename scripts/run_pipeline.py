@@ -211,7 +211,7 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
     """
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
-    wb_path        = str(Path(wbdevdir.resolve(strict=True)))
+    wb_path        = str(Path(wbdevdir).resolve(strict=True))
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
