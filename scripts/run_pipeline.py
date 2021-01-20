@@ -25,9 +25,9 @@ from multiprocessing import cpu_count
 import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
-                    fmaps, gradients, wmparc, ribbon, use_t1=False, pvcorr=False, 
-                    cores=cpu_count(), interpolation=3, nobandingcorr=False,
-                    outdir="hcp_asl"):
+                    fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
+                    pvcorr=False, cores=cpu_count(), interpolation=3,
+                    nobandingcorr=False, outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -60,6 +60,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     ribbon : str
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in 
         SE-based bias correction.
+    wbdevdir : str
+        path to development version of wb_command's bin directory 
+        e.g. workbench/bin_macosx64
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
@@ -189,10 +192,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
         # project perfusion results
         if target == 'structural':
-            project_to_surface(studydir, subid, outdir=outdir)
+            project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
 
-def project_to_surface(studydir, subid, outdir, lowresmesh="32", FinalASLRes="2.5", 
-                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
+def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
+                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
@@ -208,8 +211,7 @@ def project_to_surface(studydir, subid, outdir, lowresmesh="32", FinalASLRes="2.
     """
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
-    wb_path        = os.path.join(os.path.expanduser("~"), "modules", 
-                                  "workbench_dev", "bin_macosx64")
+    wb_path        = str(Path(wbdevdir.resolve(strict=True)))
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
@@ -384,6 +386,12 @@ def main():
             + "with FSL < 6.0.4"
     )
     parser.add_argument(
+        "--wbdevdir",
+        help="Location of development version of wb_command/bin_macosx64 "
+            +"(dev_latest from 8th Dec 2020).",
+        required=True
+    )
+    parser.add_argument(
         "--outdir",
         help="Name of the directory within which we will store all of the "
             +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
@@ -456,7 +464,8 @@ def main():
                     wmparc=args.wmparc,
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
-                    outdir=args.outdir
+                    outdir=args.outdir,
+                    wbdevdir=args.wbdevdir
                     )
 
 if __name__ == '__main__':
