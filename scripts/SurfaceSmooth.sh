@@ -2,9 +2,6 @@
 set -e
 echo -e "\n START: SurfaceSmoothing"
 
-# StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test" 
-# SubjectID="HCA6002236"
-
 ASLVariable="$2" 
 Subject="$1"
 DownSampleFolder="$3" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k" #
@@ -13,7 +10,7 @@ SmoothingFWHM="$5"
 
 Sigma=`echo "$SmoothingFWHM / ( 2 * ( sqrt ( 2 * l ( 2 ) ) ) )" | bc -l`
 
-CARET7DIR="$6" #"/Applications/workbench/bin_macosx64"
+CARET7DIR="$6" #"workbench/bin_macosx64" directory
 
 Subject="${Subject}_V1_MR"
 

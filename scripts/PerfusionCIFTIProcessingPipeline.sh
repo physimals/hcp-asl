@@ -5,8 +5,8 @@ set -e
 #log_Msg "Parsing Command Line Options"
 
 # parse arguments
-Path="$1" #`opts_GetOpt1 "--path" $@`  # "$1" StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test" 
-Subject="$2" #`opts_GetOpt1 "--subject" $@`  # "$2" SubjectID="HCA6002236"
+Path="$1" #`opts_GetOpt1 "--path" $@`  # "$1"  
+Subject="$2" #`opts_GetOpt1 "--subject" $@`  # "$2" 
 ASLVariable="$3" #`opts_GetOpt1 "--aslvariable" $@`  # "$6" ASLVariable="perfusion_calib"
 ASLVariableVar="$4"
 LowResMesh="$5" #`opts_GetOpt1 "--lowresmesh" $@`  # "$6" LowResMesh=32
@@ -14,8 +14,7 @@ FinalASLResolution="$6" #`opts_GetOpt1 "--aslres" $@`  # "${14}" FinalASLResolut
 SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM="2"
 GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
 RegName="$9" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
-# script_path="${10}" #
-CARET7DIR="${10}" #"/Users/florakennedymcconnell/Downloads/workbench/bin_macosx64" 
+CARET7DIR="${10}" #"workbench/bin_macosx64 directory" 
 pvcorr="${11}"
 Outdir="${12}"
 
@@ -38,7 +37,6 @@ ResultsFolder="Results"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
 ROIFolder="ROIs"
 OutputAtlasDenseScalar="${ASLVariable}_Atlas"
-#"/Applications/workbench/bin_macosx64"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
@@ -50,7 +48,6 @@ else
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
-#InitialASLResults="$T1wFolder"/"ASL/TIs/OxfordASL/native_space"
 AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLMNI"/"$ResultsFolder"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
@@ -69,7 +66,6 @@ VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-#"$script_path"/
 SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
         "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
 

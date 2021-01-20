@@ -207,8 +207,7 @@ def project_to_surface(studydir, subid, outdir, lowresmesh="32", FinalASLRes="2.
         Subject id for the subject of interest.
     """
     # Projection scripts path:
-    # script_path    = os.path.abspath(os.path.dirname(__file__))
-    script         = "PerfusionCIFTIProcessingPipeline.sh" # os.path.join(script_path, 
+    script         = "PerfusionCIFTIProcessingPipeline.sh"
     wb_path        = os.path.join(os.path.expanduser("~"), "modules", 
                                   "workbench_dev", "bin_macosx64")
 
