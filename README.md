@@ -18,12 +18,11 @@ FSL version 6.0.4 is required to use new features in fabber, added for this pipe
 The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` set in order for the (Sub-)Cortical LUTs to be used in SE-based bias correction.
 
 ## Installation
-A dependency of the hcpasl pipeline requires igl which is installable via conda. It is advised that the pipeline is installed in a conda environment which has igl installed, for example following the steps below:
+It is advised that the pipeline is installed in a conda environment, for example following the steps below:
 
 ```
 git clone https://github.com/ibme-qubic/hcp-asl.git
 cd hcp-asl
-conda install igl -c conda-forge
 python -m pip install --user .
 ```
 
