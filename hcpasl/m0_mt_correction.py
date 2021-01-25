@@ -16,6 +16,62 @@ import regtricks as rt
 import nibabel as nb
 import pandas as pd
 
+import os
+import os.path as op
+
+def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
+    """
+    Generate the linear transformation between ASL-space and T1w-space
+    using FS bbregister. Note that struct is required only for saving 
+    the output in the right convention, it is not actually used by 
+    bbregister. 
+    
+    Args:
+        asl_vol0: path to first volume of ASL 
+        struct: path to T1w image (eg T1w_acdc_restore.nii.gz)
+        fsdir: path to subject's FreeSurfer output directory 
+        reg_dir: path to registration directory, for output 
+
+    Returns: 
+        n/a, file 'asl2struct.mat' will be saved in reg_dir
+    """
+
+    # We need to do some hacky stuff to get bbregister to work...
+    # Split the path to the FS directory into a fake $SUBJECTS_DIR
+    # and subject_id. We temporarily set the environment variable
+    # before making the call, and then revert back afterwards  
+    new_sd, sid = op.split(fsdir)
+    old_sd = os.environ.get('SUBJECTS_DIR')
+    pwd = os.getcwd()
+    orig_mgz = op.join(fsdir, 'mri', 'orig.mgz')
+
+    # Run inside the regdir. Save the output in fsl format, by default 
+    # this targets the orig.mgz, NOT THE T1 IMAGE ITSELF! 
+    os.chdir(reg_dir)
+    omat_path = op.join(reg_dir, "asl2struct.mat")
+    cmd = os.environ['SUBJECTS_DIR'] = new_sd
+    cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t2 "
+    cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path} --init-fsl"
+    subprocess.run(cmd, shell=True)
+
+    try:
+        asl2orig_fsl = rt.Registration.from_flirt(str(omat_path), str(asl_vol0), str(orig_mgz))
+    except RuntimeError as e:
+        # final row != [0 0 0 1], round to 5 d.p. and try again
+        print(e)
+        print("Rounding to 5 d.p.")
+        arr = np.loadtxt(omat_path)
+        np.savetxt(omat_path, arr, fmt='%.5f')
+        asl2orig_fsl = rt.Registration.from_flirt(str(omat_path), str(asl_vol0), str(orig_mgz))
+
+    # Return to original working directory, and flip the FSL matrix to target
+    # asl -> T1, not orig.mgz. Save output. 
+    os.chdir(pwd)
+    if old_sd:
+        os.environ['SUBJECTS_DIR'] = old_sd
+    asl2struct_fsl = asl2orig_fsl.to_flirt(str(asl_vol0), str(struct))
+    np.savetxt(op.join(reg_dir, 'asl2struct.mat'), asl2struct_fsl)
+
 def load_json(subject_dir):
     """
     Load json but with some error-checking to make sure it exists.
@@ -141,21 +197,12 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
 
     # register fieldmapmag to structural image for use in SE-based later
     fmap_struct_dir = topup_dir/"fmap_struct_reg"
-    bbr_fmap2struct = register_fmap(fmapmag, fmapmagbrain, struct_name, 
-                                    struct_brain_name, fmap_struct_dir, 
-                                    wmmask_name)
-    bbr_fmap2struct = rt.Registration.from_flirt(bbr_fmap2struct, 
+    Path(fmap_struct_dir).mkdir(exist_ok=True)
+    fsdir = Path(json_dict["T1w_dir"])/f"{subject_dir.parts[-1]}_V1_MR"
+    generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
+    bbr_fmap2struct = rt.Registration.from_flirt(str(fmap_struct_dir/"asl2struct.mat"), 
                                                  src=str(fmapmag), 
-                                                 ref=str(struct_name))
-    fmap_struct, fmapmag_struct, fmapmagbrain_struct = [
-        fmap_struct_dir/f"fmap{ext}_struct.nii.gz" for ext in ("", "mag", "magbrain")
-    ]
-    for fmap_name, fmapstruct_name in zip((fmap, fmapmag, fmapmagbrain),
-                                          (fmap_struct, fmapmag_struct, fmapmagbrain_struct)):
-        fmapstruct_img = bbr_fmap2struct.apply_to_image(str(fmap_name), 
-                                                        str(struct_name), 
-                                                        order=interpolation)
-        nb.save(fmapstruct_img, fmapstruct_name)    
+                                                 ref=str(struct_name)) 
 
     for calib_name in calib_names:
         # get calib_dir and other info
@@ -186,42 +233,15 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
             calib_corr_name = gdc_dc_calib_name
 
         # get registration to structural
-        # initial
-        asl_reg_cmd = [
-            "asl_reg",
-            "-i", calib_corr_name, "-o", distcorr_dir,
-            "-s", struct_name, f"--sbet={struct_brain_name}",
-            f"--tissseg={wmmask_name}", "--mainonly"
-        ]
-        print("Running first asl_reg")
-        subprocess.run(asl_reg_cmd, check=True)
-
-        # get brain mask in calibration image space
-        calib2struct_init = distcorr_dir/"asl2struct.mat"
-        struct2calib_reg = rt.Registration.from_flirt(str(calib2struct_init),
-                                                      str(calib_name),
-                                                      str(struct_name)
-                                                      ).inverse()
-        mask = generate_asl_mask(str(struct_brain_name), 
-                                 str(calib_name), 
-                                 struct2calib_reg.inverse())
-        mask_name = calib_dir/"mask.nii.gz"
-        rt.ImageSpace.save_like(calib_name, mask, str(mask_name))
-
-        # refined
-        asl_reg_cmd = [
-            "asl_reg",
-            "-i", str(calib_corr_name), "-o", str(distcorr_dir),
-            "-s", str(struct_name), f"--sbet={str(struct_brain_name)}",
-            f"--tissseg={str(wmmask_name)}", "-m", str(mask_name),
-            f"--imat={str(calib2struct_init)}", "--finalonly"
-        ]
-        print("Running second asl_reg")
-        subprocess.run(asl_reg_cmd, check=True)
+        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
+        asl2struct_name = distcorr_dir/"asl2struct.mat"
+        asl2struct_reg = rt.Registration.from_flirt(src2ref=str(distcorr_dir/"asl2struct.mat"),
+                                                    src=str(calib_corr_name),
+                                                    ref=str(struct_name))
+        # invert for struct2calib registration
+        struct2calib_reg = asl2struct_reg.inverse()
         struct2calib_name = distcorr_dir/"struct2asl.mat"
-        struct2calib_reg = rt.Registration.from_flirt(str(struct2calib_name), 
-                                                      str(struct_name),
-                                                      str(calib_name))
+        np.savetxt(struct2calib_name, struct2calib_reg.to_flirt(str(struct_name), str(calib_corr_name)))
         
         # register fmapmag to calibration image space
         fmap2calib_reg = rt.chain(bbr_fmap2struct, struct2calib_reg)

@@ -146,7 +146,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
             calib_name = subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
             asl_name = subject_dir/outdir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
             mask_name = subject_dir/outdir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/outdir/'ASLT1w/reg/fmap/fmapmag_aslstruct.nii.gz'
+            fmapmag_name = subject_dir/outdir/'ASL/topup/fmap_struct_reg/fmapmag_aslstruct.nii.gz'
             out_dir = subject_dir/outdir/'ASLT1w/TIs/BiasCorr'
             hcppipedir = Path(os.environ["HCPPIPEDIR"])
             corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'

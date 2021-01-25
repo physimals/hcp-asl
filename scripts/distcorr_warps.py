@@ -20,59 +20,7 @@ from hcpasl.distortion_correction import (
     generate_gdc_warp, generate_topup_params, generate_fmaps, 
     generate_epidc_warp, register_fmap
 )
-
-def generate_asl2struct_initial(asl_vol0, struct, fsdir, reg_dir):
-    """
-    Generate the initial linear transformation between ASL-space and T1w-space
-    using FS bbregister. This is further refined later on using asl_reg. Note
-    that struct is required only for saving the output in the right convention, 
-    it is not actually used by bbregister. 
-    
-    Args:
-        asl_vol0: path to first volume of ASL 
-        struct: path to T1w image (eg T1w_acdc_restore.nii.gz)
-        fsdir: path to subject's FreeSurfer output directory 
-        reg_dir: path to registration directory, for output 
-
-    Returns: 
-        n/a, file 'asl2struct_initial_bbr_fsl.mat' will be saved in reg_dir
-    """
-
-    # We need to do some hacky stuff to get bbregister to work...
-    # Split the path to the FS directory into a fake $SUBJECTS_DIR
-    # and subject_id. We temporarily set the environment variable
-    # before making the call, and then revert back afterwards  
-    new_sd, sid = op.split(fsdir)
-    old_sd = os.environ.get('SUBJECTS_DIR')
-    pwd = os.getcwd()
-    orig_mgz = op.join(fsdir, 'mri', 'orig.mgz')
-
-    # Run inside the regdir. Save the output in fsl format, by default 
-    # this targets the orig.mgz, NOT THE T1 IMAGE ITSELF! 
-    os.chdir(reg_dir)
-    omat_path = op.join(reg_dir, "asl2orig_mgz_initial_bbr_fsl.mat")
-    cmd = os.environ['SUBJECTS_DIR'] = new_sd
-    cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t1 "
-    cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path}"
-    sp.run(cmd, shell=True)
-
-    try:
-        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
-    except RuntimeError as e:
-        # final row != [0 0 0 1], round to 5 d.p. and try again
-        print(e)
-        print("Rounding to 5 d.p.")
-        arr = np.loadtxt(omat_path)
-        np.savetxt(omat_path, arr, fmt='%.5f')
-        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
-
-    # Return to original working directory, and flip the FSL matrix to target
-    # asl -> T1, not orig.mgz. Save output. 
-    os.chdir(pwd)
-    if old_sd:
-        os.environ['SUBJECTS_DIR'] = old_sd
-    asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
-    np.savetxt(op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat'), asl2struct_fsl)
+from hcpasl.m0_mt_correction import generate_asl2struct
 
 def generate_asl_mask(struct_brain, asl, asl2struct):
     """
@@ -369,16 +317,14 @@ def main():
     # set correct output directory
     distcorr_out_dir = asl_out_dir if target=='structural' else distcorr_dir
 
-    # Initial (linear) asl to structural registration, via bbregister
+    # get asl to structural registration, via bbregister
     # only need this if target space == structural
-    asl2struct_initial_path = op.join(reg_dir, 'asl2struct_final_bbr_fsl.mat')
-    if (not op.exists(asl2struct_initial_path) or force_refresh) and target=='structural':
-        asl2struct_initial_path_temp = op.join(reg_dir, 'asl2struct_initial_bbr_fsl.mat')
+    asl2struct_path = op.join(reg_dir, 'asl2struct.mat')
+    if (not op.exists(asl2struct_path) or force_refresh) and target=='structural':
         fsdir = op.join(t1_dir, f"{sub_id}_V1_MR")
-        generate_asl2struct_initial(unreg_img, struct, fsdir, reg_dir)
-        os.replace(asl2struct_initial_path_temp, asl2struct_initial_path)
+        generate_asl2struct(unreg_img, struct, fsdir, reg_dir)
     if target == 'structural':
-        asl2struct_initial = rt.Registration.from_flirt(asl2struct_initial_path, 
+        asl2struct_reg = rt.Registration.from_flirt(asl2struct_path, 
                                                         src=unreg_img, 
                                                         ref=struct)
     elif target == 'asl':
@@ -386,41 +332,17 @@ def main():
         calib2struct = rt.Registration.from_flirt(calib2struct_name,
                                                   calib,
                                                   struct_brain)
-        asl2struct_initial = rt.chain(calib2asl0.inverse(), calib2struct)
+        asl2struct_reg = rt.chain(calib2asl0.inverse(), calib2struct)
 
-    # Get brain mask in asl space
-    if target == 'asl':
-        mask_name = op.join(reg_dir, "asl_vol1_mask_init.nii.gz")
-    else:
-        mask_name = op.join(reg_dir, "asl_vol1_mask_final.nii.gz")
-    if not op.exists(mask_name) or force_refresh:
-        asl_mask = asl2struct_initial.inverse().apply_to_image(struct_brain_mask,
+    # Get brain mask in asl space for use with oxford_asl later
+    mask_name = op.join(reg_dir, "asl_vol1_mask_init.nii.gz")
+    if (not op.exists(mask_name) or force_refresh) and target=="asl":
+        asl_mask = asl2struct_reg.inverse().apply_to_image(struct_brain_mask,
                                                                unreg_img, 
                                                                order=0)
         asl_mask = nb.nifti1.Nifti1Image(np.where(asl_mask.get_fdata()>0.25, 1., 0.),
                                          affine=asl_mask.affine)
         nb.save(asl_mask, mask_name)
-
-    # get binary WM mask name (using FS' aparc+aseg)
-    wmmask = op.join(t1_asl_dir, "reg", "wmmask.nii.gz")
-    
-    # get refined registration to the structural image
-    asl2struct_name = op.join(distcorr_dir, "asl2struct.mat")
-    if (not op.exists(asl2struct_name) or force_refresh) and target=="structural":
-        asl_reg_cmd = ["asl_reg",
-                       "-i", unreg_img,
-                       "-o", distcorr_dir,
-                       "-s", struct,
-                       f"--sbet={struct_brain}",
-                       f"--tissseg={wmmask}",
-                       "-m", mask_name,
-                       f"--imat={asl2struct_initial_path}",
-                       "--finalonly"]
-        sp.run(asl_reg_cmd, check=True)
-    if target=="structural":
-        asl2struct_reg = rt.Registration.from_flirt(src2ref=asl2struct_name,
-                                                    src=unreg_img,
-                                                    ref=struct)
 
     # Final ASL transforms: moco, grad dc, 
     # epi dc (incorporating asl->struct reg)
@@ -449,11 +371,12 @@ def main():
 
     # apply registrations to fmapmag.nii.gz
     if target=='structural':
-        fmap_reg_dir = op.join(t1_asl_dir, "reg", "fmap")
-        bbr_mat = register_fmap(fmapmag, fmapmagbrain, struct, struct_brain, fmap_reg_dir, wmmask)
-        fmap2struct_bbr = rt.Registration.from_flirt(bbr_mat, src=fmapmag, ref=struct)
+        fmap_struct_dir = op.join(sub_base, args.outdir, "ASL", "topup", "fmap_struct_reg")
+        fmap2struct_bbr = rt.Registration.from_flirt(op.join(fmap_struct_dir, "asl2struct.mat"),
+                                                     src=str(fmapmag),
+                                                     ref=str(struct))
         fmap_struct = fmap2struct_bbr.apply_to_image(src=fmapmag, ref=reference)
-        fmap_struct_name = op.join(fmap_reg_dir, "fmapmag_aslstruct.nii.gz")
+        fmap_struct_name = op.join(fmap_struct_dir, "fmapmag_aslstruct.nii.gz")
         nb.save(fmap_struct, fmap_struct_name)
     
     # apply registrations to satrecov-estimated T1 image for use with oxford_asl
