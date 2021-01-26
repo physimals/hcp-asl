@@ -15,7 +15,6 @@ from fsl.data.image import Image
 import regtricks as rt
 import nibabel as nb
 
-from hcpasl.initial_bookkeeping import create_dirs
 from hcpasl import distortion_correction
 from hcpasl.bias_estimation import bias_estimation, METHODS
 from hcpasl.utils import (create_dirs, linear_asl_reg, setup,

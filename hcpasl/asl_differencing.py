@@ -10,7 +10,7 @@ simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A.
 Chappell, M.J.P. van Osch
 """
 
-from .initial_bookkeeping import create_dirs
+from .utils import create_dirs
 from .m0_mt_correction import load_json, update_json
 from fsl.data.image import Image
 from pathlib import Path

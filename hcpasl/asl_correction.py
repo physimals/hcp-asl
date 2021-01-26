@@ -29,7 +29,7 @@ Corrections to be applied include:
         fully-corrected, registered ASL series)
 """
 
-from .initial_bookkeeping import create_dirs
+from .utils import create_dirs
 from .m0_mt_correction import load_json, update_json
 from .distortion_correction import generate_asl_mask
 from fsl.wrappers import fslmaths, LOAD

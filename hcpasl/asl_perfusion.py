@@ -1,5 +1,5 @@
 from .m0_mt_correction import load_json, update_json
-from .initial_bookkeeping import create_dirs
+from .utils import create_dirs
 from pathlib import Path
 import subprocess
 import numpy as np

@@ -8,7 +8,7 @@ from pathlib import Path
 from fsl.wrappers import fslmaths, LOAD, bet, fast
 from fsl.data.image import Image
 import numpy as np
-from .initial_bookkeeping import create_dirs
+from .utils import create_dirs
 from .tissue_masks import generate_tissue_mask
 from .distortion_correction import register_fmap, generate_asl_mask
 import subprocess

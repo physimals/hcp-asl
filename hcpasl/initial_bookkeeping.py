@@ -13,31 +13,8 @@ subject. These set-up tasks include:
 from pathlib import Path
 from fsl.wrappers.misc import fslroi
 from fsl.wrappers.fsl_anat import fsl_anat
+from .utils import create_dirs
 import json
-
-def create_dirs(dir_list, parents=True, exist_ok=True):
-    """
-    Creates directories in a list.
-
-    Default behaviour is to create parent directories if these 
-    don't yet exist and not throw an error if a directory 
-    already exists.
-
-    Parameters
-    ----------
-    dir_list : list of pathlib.Path objects
-        The directories to be created.
-    parents : bool
-        Create parent directories if they do not yet exist. 
-        See pathlib.Path.mkdir() for more details. Default 
-        here is `True`.
-    exist_ok : bool
-        Don't throw an error if the directory already exists.
-        See pathlib.Path.mkdir() for more details. Default 
-        here is `True`.
-    """
-    for directory in dir_list:
-        directory.mkdir(parents=parents, exist_ok=exist_ok)
 
 def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp_asl"):
     """
