@@ -42,6 +42,30 @@ import subprocess
 import numpy as np
 import regtricks as rt
 import multiprocessing as mp
+
+def create_ti_image(asl, tis, sliceband, slicedt, outname):
+    """
+    Create a 4D series of actual TIs at each voxel.
+
+    Args:
+        asl: path to image in the space we wish to create the TI series
+        tis: list of TIs in the acquisition
+        sliceband: number of slices per band in the acquisition
+        slicedt: time taken to acquire each slice
+        outname: path to which the ti image is saved
+    
+    Returns:
+        n/a, file outname is created in output directory
+    """
+
+    asl_spc = rt.ImageSpace(asl)
+    n_slice = asl_spc.size[2]
+    slice_in_band = np.tile(np.arange(0, sliceband), 
+                            n_slice//sliceband).reshape(1, 1, n_slice, 1)
+    ti_array = np.array([np.tile(x, asl_spc.size) for x in tis]).transpose(1, 2, 3, 0)
+    ti_array = ti_array + (slice_in_band * slicedt)
+    rt.ImageSpace.save_like(asl, ti_array, outname)
+
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
     """
     Wrapper for fabber's saturation recovery model.
@@ -337,8 +361,9 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
         out_n.unlink()
 
 def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
-                 gradunwarp_dir, topup_dir, cores=mp.cpu_count(), 
-                 interpolation=3, nobandingcorr=False, outdir="hcp_asl"):
+                 calib2struct, gradunwarp_dir, topup_dir, t1w_dir, 
+                 cores=mp.cpu_count(), interpolation=3, nobandingcorr=False, 
+                 outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -360,9 +385,10 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     ASL series;
     #. Second fit of the 'satrecov' model on motion-corrected 
     series;
-    #. Apply motion estimates to resulting T1 map so that it is 
-    aligned with each of the volumes in the ASL series;
-    #. Refined slice-timing correction
+    #. Refined slice-timing correction;
+    #. Use calib2struct and asl2m0 registrations to get brain mask 
+    in ASL0 space for use in oxford_asl;
+    #. Create timing image in ASL0 space for use with oxford_asl.
 
     Parameters
     ----------
@@ -378,6 +404,9 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     calib_name : str
         Path to the corrected calibration image to which we will 
         register using mcflirt.
+    calib2struct : str
+        Path to the .mat giving the registration from the 
+        calibration image to the T1w structural image.
     gradunwarp_dir : pathlib.Path
         Path to the subject's gradient_unwarp run, for example 
         ${SubjectDir}/${OutDir}/ASL/gradient_unwarp.
@@ -574,6 +603,22 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         combined_factors_name = moco_dir / 'combined_scaling_factors.nii.gz'
         nb.save(combined_factors_img, combined_factors_name)
     
+    # get brain mask in ASL0 space
+    calib2struct_reg = rt.Registration.from_flirt(src2ref=str(calib2struct),
+                                                  src=str(calib_name),
+                                                  ref=str(asl_name))
+    struct2asl0_reg = rt.chain(calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse())
+    fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
+    aslfs_mask = struct2asl0_reg.apply_to_image(src=str(fs_brainmask),
+                                                ref=str(asl_name),
+                                                order=interpolation)
+    aslfs_mask_name = tis_dir/"aslfs_mask.nii.gz"
+    nb.save(aslfs_mask, aslfs_mask_name)
+
+    # create timing image in ASL0 space
+    ti_asl_name = tis_dir/"timing_img.nii.gz"
+    create_ti_image(str(asl_name), tis, sliceband, slicedt, str(ti_asl_name))
+
     # save locations of important files in the json
     important_names = {
         'ASL_corr': str(asl_corr),

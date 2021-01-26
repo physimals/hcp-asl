@@ -135,6 +135,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                outdir=outdir)
     
     # correct ASL series for distortion, bias, motion and banding
+    # giving an ASL series in ASL0 space
     print("Estimating ASL motion.")
     calib0_dir = Path(names["calib0_dir"])
     bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
@@ -142,11 +143,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         calib_corr = calib0_dir/"MTCorr/calib0_mtcorr.nii.gz"
     else:
         calib_corr = calib0_dir/"BiasCorr/calib0_restore.nii.gz"
+    calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
     hcp_asl_moco(subject_dir=subject_dir, 
                  tis_dir=Path(names["TIs_dir"]), 
                  mt_factors=mt_factors, 
                  bias_name=bias_field, 
                  calib_name=calib_corr, 
+                 calib2struct=calib2struct, 
                  gradunwarp_dir=gradunwarp_dir, 
                  topup_dir=topup_dir, 
                  cores=cores, 
