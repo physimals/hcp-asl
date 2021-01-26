@@ -138,6 +138,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     # giving an ASL series in ASL0 space
     print("Estimating ASL motion.")
     calib0_dir = Path(names["calib0_dir"])
+    tis_dir = Path(names["TIs_dir"])
     bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
     if not nobandingcorr:
         calib_corr = calib0_dir/"MTCorr/calib0_mtcorr.nii.gz"
@@ -145,7 +146,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         calib_corr = calib0_dir/"BiasCorr/calib0_restore.nii.gz"
     calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
     hcp_asl_moco(subject_dir=subject_dir, 
-                 tis_dir=Path(names["TIs_dir"]), 
+                 tis_dir=tis_dir, 
                  mt_factors=mt_factors, 
                  bias_name=bias_field, 
                  calib_name=calib_corr, 
@@ -156,6 +157,16 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  interpolation=interpolation, 
                  nobandingcorr=nobandingcorr, 
                  outdir=outdir)
+    
+    # perform tag-control subtraction in ASL0 space
+    if not nobandingcorr:
+        series = tis_dir/"STCorr2/tis_stcorr.nii.gz"
+        scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
+    else:
+        series = tis_dir/"MoCo/reg_gdc_dc_tis_biascorr.nii.gz"
+        scaling_factors = tis_dir/"MoCo/combined_scaling_factors.nii.gz"
+    betas_dir = tis_dir/"Betas"
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space

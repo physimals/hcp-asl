@@ -10,13 +10,13 @@ simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A.
 Chappell, M.J.P. van Osch
 """
 
-from .utils import create_dirs, load_json, update_json
-from fsl.data.image import Image
+from .utils import load_json, update_json
+import nibabel as nb
 from pathlib import Path
 import subprocess
 import numpy as np
 
-def tag_control_differencing(series, subject_dir, target='structural', nobandingcorr=False, outdir="hcp_asl"):
+def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl"):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -26,10 +26,12 @@ def tag_control_differencing(series, subject_dir, target='structural', nobanding
     ----------
     series : pathlib.Path
         Path to the ASL series we wish to difference.
+    scaling_factors : pathlib.Path
+        Path to the scaling factors used to de-band the ASL series.
+    betas_dir : pathlib.Path
+        Path to the directory in which to save the results.
     subject_dir : pathlib.Path
         Path to the subject's base directory.
-    target : str, {'structural', 'asl'}
-        Target space.
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
 
@@ -43,42 +45,36 @@ def tag_control_differencing(series, subject_dir, target='structural', nobanding
     json_dict = load_json(subject_dir/outdir)
 
     # load motion- and distortion- corrected data, Y_moco
-    if target == 'structural':
-        distcorr_dir = Path(json_dict['structasl']) / 'TIs/DistCorr'
-    elif target=='asl' and nobandingcorr:
-        distcorr_dir = Path(json_dict['TIs_dir']) / 'MoCo'
-    else:
-        distcorr_dir = Path(json_dict['TIs_dir']) / "STCorr2"
-    Y_moco = Image(str(series))
+    Y_moco = nb.load(series)
 
     # load registered scaling factors, S_st
-    sfs_name = distcorr_dir / 'combined_scaling_factors.nii.gz'
-    S_st = Image(str(sfs_name))
+    S_st = nb.load(scaling_factors)
 
     # calculate X_perf = X_tc * S_st
     X_tc = np.ones((1, 1, 1, 86)) * 0.5
     X_tc[0, 0, 0, 0::2] =  -0.5
-    X_perf = X_tc * S_st.data
+    X_perf = X_tc * S_st.get_fdata()
 
     # split X_perf and Y_moco into even and odd indices
     X_odd = X_perf[:, :, :, 1::2]
     X_even = X_perf[:, :, :, 0::2]
-    Y_odd = Y_moco.data[:, :, :, 1::2]
-    Y_even = Y_moco.data[:, :, :, 0::2]
+    Y_odd = Y_moco.get_data()[:, :, :, 1::2]
+    Y_even = Y_moco.get_data()[:, :, :, 0::2]
 
     # calculate B_perf and B_baseline
     B_perf = (Y_odd - Y_even) / (X_odd - X_even)
     B_baseline = (X_odd*Y_even - X_even*Y_odd) / (X_odd - X_even)
 
     # save both images
-    beta_dir_name = distcorr_dir.parent / 'Betas'
-    create_dirs([beta_dir_name, ])
-    B_perf_name = beta_dir_name / 'beta_perf.nii.gz'
-    B_perf_img = Image(B_perf, header=Y_moco.header)
-    B_perf_img.save(B_perf_name)
-    B_baseline_name = beta_dir_name / 'beta_baseline.nii.gz'
-    B_baseline_img = Image(B_baseline, header=Y_moco.header)
-    B_baseline_img.save(B_baseline_name)
+    betas_dir.mkdir(exist_ok=True)
+    B_perf_name = betas_dir / 'beta_perf.nii.gz'
+    B_perf_img = nb.nifti1.Nifti1Image(B_perf,
+                                       affine=Y_moco.affine)
+    nb.save(B_perf_img, B_perf_name)
+    B_baseline_name = betas_dir / 'beta_baseline.nii.gz'
+    B_baseline_img = nb.nifti1.Nifti1Image(B_baseline,
+                                           affine=Y_moco.affine)
+    nb.save(B_baseline_img, B_baseline_name)
 
     # add B_perf_name to the json as will be needed in oxford_asl
     important_names = {
