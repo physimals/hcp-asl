@@ -159,6 +159,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  outdir=outdir)
     
     # perform tag-control subtraction in ASL0 space
+    print("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
     if not nobandingcorr:
         series = tis_dir/"STCorr2/tis_stcorr.nii.gz"
         scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
@@ -169,6 +170,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     # estimate perfusion in ASL0 space using oxford_asl
+    print("Running oxford_asl in ASL0 space.")
     beta_perf = betas_dir/"beta_perf.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
     oxford_asl_call = [
