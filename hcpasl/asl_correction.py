@@ -33,7 +33,6 @@ from .utils import create_dirs, load_json, update_json
 from .distortion_correction import generate_asl_mask
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
-from fsl.data.image import Image
 import nibabel as nb
 from fabber import Fabber, percent_progress
 import sys
@@ -118,7 +117,7 @@ def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
     print("Run finished at: %s" % run.timestamp_str)
     # Write full contents out to a directory
     # load control image to get header for saving
-    control_img = Image(str(control_name))
+    control_img = nb.load(control_name)
     run.write_to_dir(out_dir, ref_nii=control_img)
 
 def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
@@ -243,9 +242,9 @@ def _slicetiming_correction(
 
     Returns
     -------
-    stcorr_img : fsl.image.Image
+    stcorr_img : nb.nifti1.Nifti1Image
         Slice-time corrected ASL sequence.
-    stcorr_factors_img : fsl.image.Image
+    stcorr_factors_img : nb.nifti1.Nifti1Image
         Scaling factors used to perform the slice-time 
         correction.
     """
@@ -259,13 +258,13 @@ def _slicetiming_correction(
     ).reshape(1, 1, -1, 1)
     slice_times = tis_array + (slicedt * slice_numbers)
     # load images
-    asl_img = Image(str(asl_name))
-    t1_img = Image(str(t1_name))
+    asl_img = nb.load(asl_name)
+    t1_img = nb.load(t1_name)
     # check dimensions of t1 image to see if time series or not
     if t1_img.ndim == 3:
-        t1_data = t1_img.data[..., np.newaxis]
+        t1_data = t1_img.get_fdata()[..., np.newaxis]
     elif t1_img.ndim == 4:
-        t1_data = t1_img.data
+        t1_data = t1_img.get_fdata()
     # multiply asl sequence by satrecov model evaluated at TI
     numexp = - tis_array / t1_data
     num = 1 - np.exp(numexp)
@@ -274,10 +273,12 @@ def _slicetiming_correction(
     den = 1 - np.exp(denexp)
     # evaluate scaling factors
     stcorr_factors = num / den
-    stcorr_factors_img = Image(stcorr_factors, header=asl_img.header)
+    stcorr_factors_img = nb.nifti1.Nifti1Image(stcorr_factors, 
+                                               affine=asl_img.affine)
     # correct asl series
-    stcorr_data = asl_img.data * stcorr_factors
-    stcorr_img = Image(stcorr_data, header=asl_img.header)
+    stcorr_data = asl_img.get_fdata() * stcorr_factors
+    stcorr_img = nb.nifti1.Nifti1Image(stcorr_data, 
+                                       affine=asl_img.affine)
     return stcorr_img, stcorr_factors_img
 
 def _register_param(param_name, transform_dir, reffile, param_reg_name):
@@ -335,15 +336,19 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(), 
+def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
+                 gradunwarp_dir, topup_dir, cores=mp.cpu_count(), 
                  interpolation=3, nobandingcorr=False, outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
 
-    This function performs the full motion-correction pipeline for 
-    the HCP ASL data. The steps of the pipeline are:
+    This function performs motion estimation for the HCP ASL data. 
+    The steps of the pipeline are:
+    #. Application of Gradient and EPI distortion correction, 
+        previously estimated via gradient_unwarp and topup 
+        respectively;
     #. Bias-field correction using the bias-field estimated from 
-    the first calibration image;
+        the first calibration image;
     #. MT correction using pre-calculated correction factors;
     #. An initial fit of the `satrecov` model on the bias and 
     MT-corrected series;
@@ -363,10 +368,22 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
     ----------
     subject_dir : pathlib.Path
         Path to the subject's base directory.
+    tis_dir : pathlib.Path
+        Path to the subject's ASL sequence directory.
     mt_factors : pathlib.Path
         Path to the pre-calculated MT correction scaling factors.
-    superfactor : int, optional
-        superfactor to use when using regtricks. Default is 1.
+    bias_name : str
+        Path to the SE-based bias field, estimated on the 
+        calibration image.
+    calib_name : str
+        Path to the corrected calibration image to which we will 
+        register using mcflirt.
+    gradunwarp_dir : pathlib.Path
+        Path to the subject's gradient_unwarp run, for example 
+        ${SubjectDir}/${OutDir}/ASL/gradient_unwarp.
+    topup_dir : pathlib.Path
+        Path to the subject's topup run, for example 
+        ${SubjectDir}/${OutDir}/ASL/topup.
     cores : int, optional
         Number of cores regtricks will use. Default is the number 
         of cores available.
@@ -392,21 +409,21 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
     slicedt = 0.059
     sliceband = 10
     n_slices = 60
+
     # load json containing important file info
     json_dict = load_json(subject_dir/outdir)
+
     # original ASL series and bias field names
-    asl_name = Path(json_dict['ASL_seq'])
-    bias_name = json_dict['calib0_bias']
-    calib_name = Path(json_dict['calib0_corr'])
+    asl_name = (tis_dir/"tis.nii.gz").resolve(strict=True)
+    
     # create directories for results
-    tis_dir_name = Path(json_dict['TIs_dir'])
-    bcorr_dir = tis_dir_name / 'BiasCorr'
-    distcorr_dir = tis_dir_name / 'DistCorr/FirstPass'
-    moco_dir = tis_dir_name / 'MoCo'
+    bcorr_dir = tis_dir / 'BiasCorr'
+    distcorr_dir = tis_dir / 'DistCorr/FirstPass'
+    moco_dir = tis_dir / 'MoCo'
     asln2m0_name = moco_dir / 'asln2m0.mat'
-    satrecov_dir = tis_dir_name / 'SatRecov'
+    satrecov_dir = tis_dir / 'SatRecov'
     create_dirs([
-        tis_dir_name,
+        tis_dir,
         bcorr_dir,
         distcorr_dir,
         moco_dir,
@@ -414,19 +431,19 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
         satrecov_dir
     ])
     if not nobandingcorr:
-        mtcorr_dir = tis_dir_name / 'MTCorr'
-        stcorr_dir = tis_dir_name / 'STCorr'
+        mtcorr_dir = tis_dir / 'MTCorr'
+        stcorr_dir = tis_dir / 'STCorr'
         create_dirs([mtcorr_dir, stcorr_dir])
 
     # apply distortion corrections to the ASL series
     print("Applying distortion corrections to original ASL series.")
-    gdc_name = Path(json_dict["ASL_dir"])/"gradient_unwarp/fullWarp_abs.nii.gz"
+    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
                                                    src=str(asl_name), 
                                                    ref=str(asl_name), 
                                                    intensity_correct=True,
                                                    constrain_jac=(0.01, 100))
-    dc_name = Path(json_dict["ASL_dir"])/"topup/WarpField_01.nii.gz"
+    dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(dc_name),
                                                   src=str(asl_name),
                                                   ref=str(asl_name),
@@ -452,10 +469,11 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
         mt_sfs = np.loadtxt(mt_factors)
         mt_arr = np.repeat(np.tile(mt_sfs, (86, 86, 1))[..., np.newaxis], 86, axis=-1)
         mt_img = nb.nifti1.Nifti1Image(mt_arr, affine=asl_gdc_dc.affine)
-        biascorr_img = Image(str(bcorr_img))
+        biascorr_img = nb.load(bcorr_img)
         assert (len(mt_sfs) == biascorr_img.shape[2])
-        mtcorr_img = Image(biascorr_img.data*mt_img.get_fdata(), header=biascorr_img.header)
-        mtcorr_img.save(str(mtcorr_name))
+        mtcorr_img = nb.nifti1.Nifti1Image(biascorr_img.get_fdata()*mt_img.get_fdata(), 
+                                           affine=biascorr_img.affine)
+        nb.save(mtcorr_img, mtcorr_name)
         asl_corr = mtcorr_name
     else:
         asl_corr = bcorr_img
@@ -470,15 +488,15 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
         print("Performing initial ST correction.")
         stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
-        stcorr_img.save(stcorr_name)
+        nb.save(stcorr_img, stcorr_name)
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
-        stfactors_img.save(stfactors_name)
+        nb.save(stfactors_img, stfactors_name)
         asl_corr = stcorr_name
 
     # register ASL series to calibration image
     print("Running mcflirt on calibration image and ASL series.")
     reg_name = moco_dir / 'initial_registration_TIs.nii.gz'
-    mcflirt(str(asl_corr), reffile=json_dict['calib0_corr'], mats=True, out=str(reg_name))
+    mcflirt(str(asl_corr), reffile=str(calib_name), mats=True, out=str(reg_name))
     # rename mcflirt matrices directory
     orig_mcflirt = moco_dir / 'initial_registration_TIs.nii.gz.mat'
     if asln2m0_name.exists():
@@ -489,11 +507,11 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
     print("Apply distortion and motion correction to original ASL series.")
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(mats=str(asln2m0_name),
                                                     src=str(asl_name),
-                                                    ref=json_dict['calib0_corr'])
+                                                    ref=str(calib_name))
     asln2asl0 = rt.chain(asln2m0_moco, asln2m0_moco.transforms[0].inverse())
     gdc_dc_asln2asl0 = rt.chain(gdc_dc_warp, asln2asl0)
     reg_gdc_dc = gdc_dc_asln2asl0.apply_to_image(str(asl_name), 
-                                                 json_dict['calib0_corr'],
+                                                 str(calib_name),
                                                  cores=cores,
                                                  order=interpolation)
     
@@ -501,7 +519,6 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
     if not nobandingcorr:
         print("Apply motion estimates to the MT scaling factors image")
         mt_reg_img = asln2asl0.apply_to_image(src=mt_img, ref=mt_img, order=interpolation)
-        print(mt_img.shape, mt_reg_img.shape)
 
     # apply bias-correction to motion- and distortion-corrected ASL series
     print("Apply bias correction to the distortion- and motion-corrected ASL series.")
@@ -523,8 +540,8 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
 
     # re-estimate satrecov model on distortion- and motion-corrected data
     print("Re-fitting the satrecov model since data has been motion-corrected.")
-    satrecov_dir = tis_dir_name / 'SatRecov2'
-    stcorr_dir = tis_dir_name / 'STCorr2'
+    satrecov_dir = tis_dir / 'SatRecov2'
+    stcorr_dir = tis_dir / 'STCorr2'
     create_dirs([satrecov_dir, stcorr_dir])
     t1_name = _saturation_recovery(asl_corr, satrecov_dir, ntis, iaf, ibf, tis, rpts)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
@@ -541,15 +558,15 @@ def hcp_asl_moco(subject_dir, mt_factors, superfactor=1, cores=mp.cpu_count(),
                                                             n_slices)
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
-        stcorr_img.save(str(stcorr_name))
-        stfactors_img.save(str(stfactors_name))
+        nb.save(stcorr_img, stcorr_name)
+        nb.save(stfactors_img, stfactors_name)
 
         # combined MT and ST scaling factors
         print("Combining the ST and MT scaling factors into one set of scaling factors.")
         combined_factors_name = stcorr_dir / 'combined_scaling_factors.nii.gz'
-        combined_factors_img = Image(stfactors_img.data*mt_reg_img.get_fdata(), header=stfactors_img.header)
-        combined_factors_img.save(str(combined_factors_name))
-
+        combined_factors_img = nb.nifti1.Nifti1Image(stfactors_img.get_fdata()*mt_reg_img.get_fdata(), 
+                                                     affine=stfactors_img.affine)
+        nb.save(combined_factors_img, combined_factors_name)
         asl_corr = stcorr_name
     else:
         combined_factors_img = nb.nifti1.Nifti1Image(np.ones_like(reg_gdc_dc_biascorr.get_fdata()),

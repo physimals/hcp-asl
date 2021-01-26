@@ -134,9 +134,26 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                nobandingcorr=nobandingcorr, 
                outdir=outdir)
     
-    # correct ASL series for motion and banding
+    # correct ASL series for distortion, bias, motion and banding
     print("Estimating ASL motion.")
-    hcp_asl_moco(subject_dir, mt_factors, cores=cores, interpolation=interpolation, nobandingcorr=nobandingcorr, outdir=outdir)
+    calib0_dir = Path(names["calib0_dir"])
+    bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
+    if not nobandingcorr:
+        calib_corr = calib0_dir/"MTCorr/calib0_mtcorr.nii.gz"
+    else:
+        calib_corr = calib0_dir/"BiasCorr/calib0_restore.nii.gz"
+    hcp_asl_moco(subject_dir=subject_dir, 
+                 tis_dir=Path(names["TIs_dir"]), 
+                 mt_factors=mt_factors, 
+                 bias_name=bias_field, 
+                 calib_name=calib_corr, 
+                 gradunwarp_dir=gradunwarp_dir, 
+                 topup_dir=topup_dir, 
+                 cores=cores, 
+                 interpolation=interpolation, 
+                 nobandingcorr=nobandingcorr, 
+                 outdir=outdir)
+
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space
         print("Running distcorr_warps")
