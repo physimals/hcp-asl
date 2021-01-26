@@ -100,7 +100,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                                fmaps=fmaps,
                                outdir=outdir)
 
-    # run gradient_unwarp and topup
+    # run gradient_unwarp and topup, storing results 
+    # in gradunwarp_dir and topup_dir respectively
     print("Running gradient_unwarp and topup.")
     asl_dir = Path(names["ASL_dir"])
     gradunwarp_dir = asl_dir/"gradient_unwarp"
