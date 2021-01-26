@@ -1,5 +1,4 @@
-from .utils import create_dirs
-from .m0_mt_correction import load_json, update_json
+from .utils import create_dirs, load_json, update_json
 from pathlib import Path
 import subprocess
 from fsl.wrappers.flirt import applyxfm

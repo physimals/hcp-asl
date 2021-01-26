@@ -33,6 +33,52 @@ def create_dirs(dir_list, parents=True, exist_ok=True):
     for directory in dir_list:
         directory.mkdir(parents=parents, exist_ok=exist_ok)
 
+def load_json(subject_dir):
+    """
+    Load json but with some error-checking to make sure it exists.
+    If it doesn't exist, instruct user to run the first part of 
+    the pipeline first.
+
+    Parameters
+    ----------
+    subject_dir : pathlib.Path
+        Path to subject's base directory.
+    
+    Returns
+    -------
+    dict
+        Dictionary containing important file paths.
+    """
+    json_name = subject_dir / 'ASL/ASL.json'
+    if json_name.exists():
+        with open(json_name, 'r') as infile:
+            json_dict = json.load(infile)
+    else:
+        raise Exception(f'File {json_name} does not exist.' + 
+                        'Please run initial_processing() first.')
+    return json_dict
+
+def update_json(new_dict, old_dict):
+    """
+    Add key-value pairs to the dictionary.
+
+    Add the key-value pairs in `new_dict` to `old_dict` 
+    and save the resulting dictionary to the json found in 
+    `old_dict['json_name']`.
+
+    Parameters
+    ----------
+    new_dict : dict
+        New key-value pairs to add to the json of important 
+        file names.
+    old_dict : dict
+        Dictionary to be updated. Also has a field containing 
+        the location of the json to update.
+    """
+    old_dict.update(new_dict)
+    with open(Path(old_dict['json_name']), 'w') as fp:
+        json.dump(old_dict, fp, sort_keys=True, indent=4)
+
 def setup(subject_dir):
     """
     Perform the initial set up for the MT Estimation pipeline.
@@ -166,3 +212,4 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     vent_t1_img = applywarp(vent_img, str(t1_brain), LOAD, warp=mni2struct)['out']
     vent_t1_img = fslmaths(vent_t1_img).thr(0.9).bin().run(LOAD)
     return vent_t1_img
+
