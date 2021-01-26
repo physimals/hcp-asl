@@ -168,6 +168,25 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     betas_dir = tis_dir/"Betas"
     tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
+    # estimate perfusion in ASL0 space using oxford_asl
+    beta_perf = betas_dir/"beta_perf.nii.gz"
+    oxford_asl_dir = tis_dir/"OxfordASL"
+    oxford_asl_call = [
+        "oxford_asl",
+        f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
+        f"-m {str(brain_mask)}", "--tis=1.7,2.2,2.7,3.2,3.7", 
+        "--slicedt=0.059", "--sliceband=10", "--casl", 
+        "--ibf=tis", "--iaf=diff", "--rpts=6,6,6,10,15",
+        "--fixbolus", "--bolus=1.5", "--te=19",
+        "--debug", "--spatial=off"
+    ]
+    if use_t1:
+        est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
+        oxford_asl_call = oxford_asl_call + f"--t1im {str(est_t1)}"
+    oxford_asl_call = " ".join(oxford_asl_call)
+    print(oxford_asl_call)
+    subprocess.run(oxford_asl_call, shell=True)
+
     for target in ('asl', 'structural'):
         # apply distortion corrections and get into target space
         print("Running distcorr_warps")
