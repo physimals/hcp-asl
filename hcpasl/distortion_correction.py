@@ -199,8 +199,8 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
         sp.run(cmd, check=True)
     return str(bbr_xform)
 
-def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm, 
-                         interpolation=1, force_refresh=True):
+def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir, 
+                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True):
     """
     Run gradient_unwarp and topup.
 
@@ -208,7 +208,8 @@ def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm,
     ----------
     vol: path to volume to correct
     coeffs_path: path to gradient coefficients
-    distcorr_dir: pathlib.Path to base results directory
+    gradunwarp_dir: Directory to save gradient_unwarp results
+    topup_dir: Directory to save topup results
     pa_sefm: path to PA spin-echo fieldmap image
     ap_sefm: path to AP spin-echo fieldmap image
     interpolation: integer order for image interpolation, default 1
@@ -216,14 +217,14 @@ def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm,
 
     Returns
     -------
-    n/a: Saves outputs to file in subdirectories within distcorr_dir.
+    n/a: Saves outputs to file in ${output_dir}/gradient_unwarp and 
+        ${output_dir}/topup.
     """
     # run gradient_unwarp
-    gdc_dir = distcorr_dir/"gradient_unwarp"
-    gdc_dir.mkdir(exist_ok=True)
-    gdc_warp_name = gdc_dir/"fullWarp_abs.nii.gz"
+    gradunwarp_dir.mkdir(exist_ok=True)
+    gdc_warp_name = gradunwarp_dir/"fullWarp_abs.nii.gz"
     if not gdc_warp_name.exists() or force_refresh:
-        generate_gdc_warp(vol, coeffs_path, gdc_dir, interpolation)
+        generate_gdc_warp(vol, coeffs_path, gradunwarp_dir, interpolation)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp_name),
                                                    src=str(pa_sefm),
                                                    ref=str(pa_sefm),
@@ -231,7 +232,6 @@ def gradunwarp_and_topup(vol, coeffs_path, distcorr_dir, pa_sefm, ap_sefm,
                                                    constrain_jac=(0.01, 100))
 
     # create topup results directory
-    topup_dir = distcorr_dir/"topup"
     topup_dir.mkdir(exist_ok=True)
     # apply gradient distortion correciton to fieldmap images
     sefms_gdc = [gdc_warp.apply_to_image(src=sefm, ref=sefm, order=interpolation)

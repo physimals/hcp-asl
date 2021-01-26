@@ -101,10 +101,17 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                                outdir=outdir)
 
     # run gradient_unwarp and topup
-    calib0, pa_sefm, ap_sefm = [names[key] for key in ("calib0_img", "pa_sefm", "ap_sefm")]
-    asl_dir = Path(names["ASL_dir"])
     print("Running gradient_unwarp and topup.")
-    gradunwarp_and_topup(calib0, gradients, asl_dir, pa_sefm, ap_sefm, interpolation)
+    asl_dir = Path(names["ASL_dir"])
+    gradunwarp_dir = asl_dir/"gradient_unwarp"
+    topup_dir = asl_dir/"topup"
+    gradunwarp_and_topup(vol=names["calib0_img"], 
+                         coeffs_path=gradients, 
+                         gradunwarp_dir=gradunwarp_dir, 
+                         topup_dir=topup_dir, 
+                         pa_sefm=names["pa_sefm"], 
+                         ap_sefm=names["ap_sefm"], 
+                         interpolation=interpolation)
 
     # run m0 correction (includes sebased bias estimation)
     print("Running M0 corrections.")
