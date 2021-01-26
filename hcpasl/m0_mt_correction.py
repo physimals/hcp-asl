@@ -71,26 +71,56 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     asl2struct_fsl = asl2orig_fsl.to_flirt(str(asl_vol0), str(struct))
     np.savetxt(op.join(reg_dir, 'asl2struct.mat'), asl2struct_fsl)
 
-
-def correct_M0(subject_dir, mt_factors, wmparc, ribbon, 
-               corticallut, subcorticallut, interpolation=3,
-               nobandingcorr=False, outdir="hcp_asl"):
+def correct_M0(subject_dir, calib_dir, mt_factors, 
+               t1w_dir, aslt1w_dir, gradunwarp_dir, topup_dir, 
+               wmparc, ribbon, corticallut, subcorticallut, 
+               interpolation=3, nobandingcorr=False, outdir="hcp_asl"):
     """
     Correct the M0 images.
     
     For each of the subject's two calibration images:
-    #. Use BET on the image;
-    #. Use FAST on the brain-extracted image to obtain the bias-field;
-    #. Perform bias correction;
-    #. Multiply by the provided 'mt_factors' for MT-effect correction.
+    #. Apply gradient and epi distortion corrections;
+    #. Apply MT banding correction;
+    #. Estimate registration to structural using FreeSurfer's bbregister;
+    #. Use SE-based on the gdc_dc calibration image to obtain the bias-field;
+    #. Apply bias correction and MT banding correction to gdc_dc calibration image.
     
     Parameters
     ----------
     subject_dir : pathlib.Path
         Path to the subject's base directory.
+    calib_dir : pathlib.Path
+        Path to the subject's ASL/Calib directory.
     mt_factors : pathlib.Path
         Path to the empirically estimated MT correction 
         scaling factors.
+    t1w_dir : pathlib.Path
+        Path to the subject's T1w directory (within the 
+        Structural_preproc directory).
+    aslt1w_dir : pathlib.Path
+        Path to the subject's structural output directory, for  
+        example ${SubjectDir}/${OutDir}/ASLT1w.
+    gradunwarp_dir : pathlib.Path
+        Path to the subject's gradient_unwarp run, for example 
+        ${SubjectDir}/${OutDir}/ASL/gradient_unwarp.
+    topup_dir : pathlib.Path
+        Path to the subject's topup run, for example 
+        ${SubjectDir}/${OutDir}/ASL/topup.
+    wmparc : pathlib.Path
+        Path to the subject's wmparc.nii.gz FreeSurfer output for 
+        use in SE-based bias correction.
+    ribbon : pathlib.Path
+        Path to the subject's ribbon.nii.gz FreeSurfer output for 
+        use in SE-based bias correction.
+    corticallut : pathlib.Path
+        FreeSurferCorticalLabelTableLut.txt for use in SE-based 
+        bias correction.
+    subcorticallut : pathlib.Path
+        FreeSurferSubcorticalLabelTableLut.txt for use in SE-based 
+        bias correction.
+    interpolation : int, {0, 5}
+        Order of interpolation to use when applying transformations.
+        Default is 3.
     nobandingcorr : bool, optional
         If this is True, the banding correction options in the 
         pipeline will be switched off. Default is False (i.e. 
@@ -100,28 +130,33 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     """
     # load json containing info on where files are stored
     json_dict = load_json(subject_dir/outdir)
-    
-    # do for both m0 images for the subject, calib0 and calib1
-    calib_names = [json_dict['calib0_img'], json_dict['calib1_img']]
 
+    # get calibration image names
+    calib0, calib1 = [
+        (calib_dir/f"Calib{n}/calib{n}.nii.gz").resolve(strict=True) 
+        for n in ("0", "1")
+    ]
+    
     # get structural image names
-    struct_name, struct_brain_name = [json_dict[key] for key in ("T1w_acpc", "T1w_acpc_brain")]
+    struct_name, struct_brain_name = [
+        (t1w_dir/f"T1w_acpc_dc_restore{suf}.nii.gz").resolve(strict=True)
+        for suf in ("", "_brain")
+    ]
 
     # generate white matter mask in T1w space for use in registration
-    t1reg_dir = Path(json_dict["structasl"])/"reg"
+    t1reg_dir = aslt1w_dir/"reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
-    aparc_aseg = Path(json_dict["T1w_dir"])/"aparc+aseg.nii.gz"
+    aparc_aseg = (t1w_dir/"aparc+aseg.nii.gz").resolve(strict=True)
     wmmask_img = generate_tissue_mask(aparc_aseg, "wm")
     wmmask_name = t1reg_dir/"wmmask.nii.gz"
     nb.save(wmmask_img, wmmask_name)
 
-    # find gradient distortion correction warp, fieldmaps and PA epidc warp
-    gdc_name = Path(json_dict['ASL_dir'])/'gradient_unwarp/fullWarp_abs.nii.gz'
+    # load gradient distortion correction warp, fieldmaps and PA epidc warp
+    gdc_name = (gradunwarp_dir/'fullWarp_abs.nii.gz').resolve(strict=True)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(
-        str(gdc_name), calib_names[0], calib_names[0],
+        str(gdc_name), calib0, calib0,
         intensity_correct=True, constrain_jac=(0.01, 100)
     )
-    topup_dir = Path(json_dict["ASL_dir"])/"topup"
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
                                    for ext in ('', 'mag', 'magbrain')]
     epi_dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(topup_dir/"WarpField_01.nii.gz"),
@@ -133,13 +168,14 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
     # register fieldmapmag to structural image for use in SE-based later
     fmap_struct_dir = topup_dir/"fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True)
-    fsdir = Path(json_dict["T1w_dir"])/f"{subject_dir.parts[-1]}_V1_MR"
+    fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     bbr_fmap2struct = rt.Registration.from_flirt(str(fmap_struct_dir/"asl2struct.mat"), 
                                                  src=str(fmapmag), 
                                                  ref=str(struct_name)) 
 
-    for calib_name in calib_names:
+    # iterate over the two calibration images, applying the corrections to both
+    for calib_name in (calib0, calib1):
         # get calib_dir and other info
         calib_path = Path(calib_name)
         calib_dir = calib_path.parent
@@ -158,7 +194,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
             mt_sfs = np.loadtxt(mt_factors)
             assert (len(mt_sfs) == gdc_dc_calib_img.shape[2])
             mt_gdc_dc_calib_img = nb.nifti1.Nifti1Image(gdc_dc_calib_img.get_fdata()*mt_sfs, 
-                                                    gdc_dc_calib_img.affine)
+                                                        gdc_dc_calib_img.affine)
             mtcorr_dir = calib_dir/"MTCorr"
             mtcorr_dir.mkdir(exist_ok=True)
             mt_gdc_dc_calib_name = mtcorr_dir/f"mtcorr_gdc_dc_{calib_name_stem}.nii.gz"
@@ -190,7 +226,7 @@ def correct_M0(subject_dir, mt_factors, wmparc, ribbon,
         nb.save(fmapmag_calibspc, fmapmag_cspc_name)
 
         # get brain mask in calibration image space
-        fs_brainmask = Path(json_dict["T1w_dir"])/"brainmask_fs.nii.gz"
+        fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
         aslfs_mask_name = calib_dir/"aslfs_mask.nii.gz"
         aslfs_mask = struct2calib_reg.apply_to_image(src=str(fs_brainmask), 
                                                      ref=str(calib_name),

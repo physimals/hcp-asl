@@ -94,11 +94,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     # split mbPCASL sequence into TIs and calibration images; and 
     # return dictionary with locations of important files.
     names = initial_setup(subject_dir, 
-                               mbpcasl=mbpcasl, 
-                               structural=structural, 
-                               surfaces=surfaces,
-                               fmaps=fmaps,
-                               outdir=outdir)
+                          mbpcasl=mbpcasl, 
+                          structural=structural, 
+                          surfaces=surfaces,
+                          fmaps=fmaps,
+                          outdir=outdir)
 
     # run gradient_unwarp and topup, storing results 
     # in gradunwarp_dir and topup_dir respectively
@@ -114,12 +114,25 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                          ap_sefm=names["ap_sefm"], 
                          interpolation=interpolation)
 
-    # run m0 correction (includes sebased bias estimation)
+    # apply corrections to the calibration images
     print("Running M0 corrections.")
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-    correct_M0(subject_dir, mt_factors, wmparc, ribbon, corticallut, subcorticallut, interpolation, nobandingcorr, outdir=outdir)
+    correct_M0(subject_dir=subject_dir, 
+               calib_dir=Path(names["calib_dir"]), 
+               mt_factors=mt_factors, 
+               t1w_dir=Path(names["T1w_dir"]), 
+               aslt1w_dir=Path(names["structasl"]), 
+               gradunwarp_dir=Path(gradunwarp_dir), 
+               topup_dir=Path(topup_dir), 
+               wmparc=wmparc, 
+               ribbon=ribbon, 
+               corticallut=corticallut, 
+               subcorticallut=subcorticallut, 
+               interpolation=interpolation, 
+               nobandingcorr=nobandingcorr, 
+               outdir=outdir)
     
     # correct ASL series for motion and banding
     print("Estimating ASL motion.")
