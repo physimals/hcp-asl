@@ -1,8 +1,7 @@
 """
 Set of functions for estimating the MT effect
 """
-from hcpasl.m0_mt_correction import load_json, update_json
-from hcpasl.utils import create_dirs
+from hcpasl.utils import create_dirs, load_json, update_json
 from fsl.data.image import Image
 import numpy as np
 from sklearn.linear_model import LinearRegression
