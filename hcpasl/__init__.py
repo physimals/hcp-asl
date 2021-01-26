@@ -1,4 +1,4 @@
-from .initial_bookkeeping import initial_processing
+from .initial_bookkeeping import initial_setup
 from .m0_mt_correction import correct_M0, generate_asl2struct
 from .asl_correction import hcp_asl_moco
 from .extract_fs_pvs import extract_fs_pvs

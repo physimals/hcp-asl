@@ -11,7 +11,7 @@ import sys
 import os
 from itertools import product
 
-from hcpasl.initial_bookkeeping import initial_processing
+from hcpasl.initial_bookkeeping import initial_setup
 from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco
@@ -87,8 +87,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     outdir : str, optional
         Name of the main results directory. Default is 'hcp_asl'.
     """
+
     subject_dir = (studydir / subid).resolve(strict=True)
-    names = initial_processing(subject_dir, 
+
+    # initial set-up for the pipeline: create results directories; 
+    # split mbPCASL sequence into TIs and calibration images; and 
+    # return dictionary with locations of important files.
+    names = initial_setup(subject_dir, 
                                mbpcasl=mbpcasl, 
                                structural=structural, 
                                surfaces=surfaces,

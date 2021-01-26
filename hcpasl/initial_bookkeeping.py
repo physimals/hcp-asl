@@ -16,15 +16,15 @@ from fsl.wrappers.fsl_anat import fsl_anat
 from .utils import create_dirs
 import json
 
-def initial_processing(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp_asl"):
+def initial_setup(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp_asl"):
     """
-    Perform initial processing for the subject directory provided.
+    Perform initial setup for the subject directory provided.
     
-    These initial processing steps include:
+    These initial setup steps include:
     - Creating ASL sub-directories in the subject's directory
     - Splitting mbPCASL sequence into its components of tis, 
     and calibration images
-    - Creating a json to keep track of import files and 
+    - Creating a json to keep track of important files and 
         directories
     
     Parameters
