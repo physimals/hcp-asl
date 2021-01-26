@@ -2,17 +2,16 @@
 """Script to extract PVs from FS binary volumetric segmentation"""
 
 import pathlib
-import sys 
 import argparse
 import multiprocessing as mp 
 import os.path as op
 import tempfile
-import os 
 
 import numpy as np 
 import nibabel as nib
 
 import regtricks as rt 
+from regtricks.application_helpers import sum_array_blocks
 from toblerone.pvestimation import cortex as estimate_cortex
 
 # Labels taken from standard FS LUT, subcortex: 
@@ -130,7 +129,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
     reg = rt.Registration.identity()
     vol_pvs = reg.apply_to_array(vol_pvs.reshape(*aseg.shape, 3), 
                                  aseg_spc, high_spc, order=1, cores=cores)
-    vol_pvs = (_sum_array_blocks(vol_pvs, 3 * [superfactor] + [1]) 
+    vol_pvs = (sum_array_blocks(vol_pvs, 3 * [superfactor] + [1]) 
                / (superfactor ** 3))
     vol_pvs = vol_pvs.reshape(-1,3)
     vol_pvs[:,2] = np.maximum(0, 1 - vol_pvs[:,:2].sum(1))
@@ -144,7 +143,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
     del to_stack
     subcorts = reg.apply_to_array(np.stack(values, axis=-1), 
                                   aseg_spc, high_spc, order=1, cores=cores)
-    subcorts = (_sum_array_blocks(subcorts, 3 * [superfactor] + [1]) 
+    subcorts = (sum_array_blocks(subcorts, 3 * [superfactor] + [1]) 
                                 / (superfactor ** 3))
     subcorts = np.moveaxis(subcorts, 3, 0)
     to_stack = dict(zip(keys, subcorts))
@@ -159,54 +158,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
     to_stack['vol_CSF'] = vol_pvs[...,2]
     result = stack_images(to_stack)
 
-    # Squash small values (looks like dodgy output otherwise, but
-    # is actually just an artefact of resampling)
-    pvmin = result.min()
-    if pvmin > 1e-9:
-        result[result < 1e-6] = 0 
-
     return ref_spc.make_nifti(result.reshape((*ref_spc.size, 3))) 
-
-
-def _sum_array_blocks(array, factor):
-    """Sum sub-arrays of a larger array, each of which is sized according to factor. 
-    The array is split into smaller subarrays of size given by factor, each of which 
-    is summed, and the results returned in a new array, shrunk accordingly. 
-    Args:
-        array: n-dimensional array of data to sum
-        factor: n-length tuple, size of sub-arrays to sum over
-    Returns:
-        array of size array.shape/factor, each element containing the sum of the 
-            corresponding subarray in the input
-    """
-
-    if len(factor) != len(array.shape):
-        raise RuntimeError("factor must be of same length as number of dimensions")
-
-    if np.any(np.mod(factor, np.ones_like(factor))):
-        raise RuntimeError("factor must be of integer values only")
-
-    factor = [ int(f) for f in factor ]
-
-    outshape = [ int(s/f) for (s,f) in zip(array.shape, factor) ]
-    out = np.copy(array)
-
-    for dim in range(3):
-        newshape = [0] * 4
-
-        for d in range(3):
-            if d < dim: 
-                newshape[d] = outshape[d]
-            elif d == dim: 
-                newshape[d+1] = factor[d]
-                newshape[d] = outshape[d]
-            else: 
-                newshape[d+1] = array.shape[d]
-
-        newshape = newshape + list(array.shape[3:])
-        out = out.reshape(newshape).sum(dim+1)
-
-    return out 
 
 
 def stack_images(images):
@@ -318,15 +270,6 @@ if __name__ == "__main__":
     --debug: for surface PV estimation (writes ones)
     """
 
-    cmd = ("--LWS testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.white.32k_fs_LR.surf.gii "
-           "--LPS testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.pial.32k_fs_LR.surf.gii "
-           "--RWS testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.white.32k_fs_LR.surf.gii "
-           "--RPS testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.pial.32k_fs_LR.surf.gii "
-           "--t1 testdata/T1w/T1w_acpc_dc_restore_brain.nii.gz --asl testdata/Calib/Calib0/calib0.nii.gz "
-           "--aparcseg testdata/T1w/aparc+aseg.nii.gz --out testdata/stacked.nii.gz --stack")
-
-    sys.argv[1:] = cmd.split()
-
     parser = argparse.ArgumentParser(usage=usage)
     parser.add_argument("--aparcseg", required=True)
     parser.add_argument("--LWS", required=True)
@@ -340,7 +283,7 @@ if __name__ == "__main__":
     parser.add_argument("--super", default=2, type=int)
     parser.add_argument("--cores", default=mp.cpu_count(), type=int)
 
-    args = parser.parse_args(sys.argv[1:])
+    args = parser.parse_args()
     surf_dict = dict([ (k, getattr(args, k)) for k in ['LWS', 'LPS', 'RPS', 'RWS'] ])
 
     pvs = extract_fs_pvs(args.aparcseg, surf_dict, args.t1, 
