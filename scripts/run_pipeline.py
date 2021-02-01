@@ -14,7 +14,7 @@ from itertools import product
 from hcpasl.initial_bookkeeping import initial_setup
 from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
-from hcpasl.asl_correction import hcp_asl_moco
+from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.asl_perfusion import run_fabber_asl, run_oxford_asl
 # from hcpasl.projection import project_to_surface
@@ -153,6 +153,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  calib2struct=calib2struct, 
                  gradunwarp_dir=gradunwarp_dir, 
                  topup_dir=topup_dir, 
+                 t1w_dir=Path(names["T1w_dir"]), 
                  cores=cores, 
                  interpolation=interpolation, 
                  nobandingcorr=nobandingcorr, 
@@ -172,11 +173,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     # estimate perfusion in ASL0 space using oxford_asl
     print("Running oxford_asl in ASL0 space.")
     beta_perf = betas_dir/"beta_perf.nii.gz"
+    asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
     oxford_asl_call = [
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
-        f"-m {str(brain_mask)}", "--tis=1.7,2.2,2.7,3.2,3.7", 
+        f"-m {str(asl0_brainmask)}", "--tis=1.7,2.2,2.7,3.2,3.7", 
         "--slicedt=0.059", "--sliceband=10", "--casl", 
         "--ibf=tis", "--iaf=diff", "--rpts=6,6,6,10,15",
         "--fixbolus", "--bolus=1.5", "--te=19",
@@ -189,88 +191,89 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     print(oxford_asl_call)
     subprocess.run(oxford_asl_call, shell=True)
 
-    for target in ('asl', 'structural'):
-        # apply distortion corrections and get into target space
-        print("Running distcorr_warps")
-        dist_corr_call = [
-            "hcp_asl_distcorr",
-            "--study_dir", str(subject_dir.parent), 
-            "--sub_id", subject_dir.stem,
-            "--target", target, 
-            "--grads", gradients,
-            "--fmap_ap", fmaps['AP'], "--fmap_pa", fmaps['PA'],
-            "--cores", str(cores), "--interpolation", str(interpolation),
-            "--outdir", outdir
-        ]
-        if use_t1 and (target=='structural'):
-            dist_corr_call.append('--use_t1')
-        if nobandingcorr:
-            dist_corr_call.append('--nobandingcorr')
-        else:
-            dist_corr_call.append('--mtname')
-            dist_corr_call.append(mt_factors)
-        subprocess.run(dist_corr_call, check=True)
-        if target == 'structural':
-            # perform partial volume estimation
-            pv_est_call = [
-                "pv_est",
-                str(subject_dir.parent),
-                subject_dir.stem,
-                "--cores", str(cores),
-                "--outdir", outdir
-            ]
-            subprocess.run(pv_est_call, check=True)
-            # estimate bias field using SE-based
-            calib_name = subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/calib0_dcorr.nii.gz'
-            asl_name = subject_dir/outdir/'ASLT1w/TIs/DistCorr/tis_distcorr.nii.gz'
-            mask_name = subject_dir/outdir/'ASLT1w/reg/ASL_grid_T1w_acpc_dc_restore_brain_mask.nii.gz'
-            fmapmag_name = subject_dir/outdir/'ASL/topup/fmap_struct_reg/fmapmag_aslstruct.nii.gz'
-            out_dir = subject_dir/outdir/'ASLT1w/TIs/BiasCorr'
-            hcppipedir = Path(os.environ["HCPPIPEDIR"])
-            corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
-            subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
-            sebased_cmd = [
-                'get_sebased_bias',
-                '-i', calib_name,
-                '--asl', asl_name,
-                '-f', fmapmag_name,
-                '-m', mask_name,
-                '--wmparc', wmparc,
-                '--ribbon', ribbon,
-                '--corticallut', corticallut,
-                '--subcorticallut', subcorticallut,
-                '-o', out_dir,
-                '--debug'
-            ]
-            subprocess.run(sebased_cmd, check=True)
-            # reapply banding corrections now that the series has been bias corrected
-            series = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr.nii.gz')
-            scaling_factors = nb.load(subject_dir/outdir/'ASLT1w/TIs/DistCorr/combined_scaling_factors.nii.gz')
-            series_corr = nb.nifti1.Nifti1Image(series.get_fdata()*scaling_factors.get_fdata(),
-                                                affine=series.affine)
-            series = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/tis_secorr_corr.nii.gz'
-            nb.save(series_corr, series)
-            if not nobandingcorr:
-                calib = nb.load(subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_secorr.nii.gz')
-                mt_sfs = nb.load(subject_dir/outdir/'ASLT1w/Calib/Calib0/DistCorr/mt_scaling_factors_calibstruct.nii.gz')
-                calib_corr = nb.Nifti1Image(calib.get_fdata()*mt_sfs.get_fdata(), affine=calib.affine)
-                calib_corr_name = subject_dir/outdir/'ASLT1w/TIs/BiasCorr/calib0_corr.nii.gz'
-                nb.save(calib_corr, calib_corr_name)
-        elif not nobandingcorr:
-            # get name of series if target space is ASL
-            series = subject_dir/outdir/'ASL/TIs/STCorr2/tis_stcorr.nii.gz'
-        else:
-            series = subject_dir/outdir/'ASL/TIs/MoCo/reg_gdc_dc_tis_biascorr.nii.gz'
-        
-        # perform differencing accounting for scaling
-        tag_control_differencing(series, subject_dir, target=target, nobandingcorr=nobandingcorr, outdir=outdir)
-        
-        # estimate perfusion
-        run_oxford_asl(subject_dir, target=target, use_t1=use_t1, pvcorr=pvcorr, outdir=outdir)
+    # get data in ASLT1w space
+    print("Get data into ASLT1w space and re-estimate bias field.")
+    if not nobandingcorr:
+        asl_scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
+        mt_name = mt_factors
+    else:
+        asl_scaling_factors, mt_name = None, None
+    if use_t1:
+        t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
+    else:
+        t1_est = None
+    asl_to_aslt1w(asl_name=names["ASL_seq"],
+                  calib_name=names["calib0_img"],
+                  subject_dir=subject_dir,
+                  t1w_dir=Path(names["T1w_dir"]),
+                  aslt1w_dir=Path(names["structasl"]),
+                  moco_dir=tis_dir/"MoCo/asln2m0.mat",
+                  perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
+                  gradunwarp_dir=gradunwarp_dir,
+                  topup_dir=topup_dir,
+                  ribbon=ribbon,
+                  wmparc=wmparc,
+                  corticallut=corticallut,
+                  subcorticallut=subcorticallut,
+                  asl_scaling_factors=asl_scaling_factors,
+                  mt_factors=mt_name,
+                  t1_est=t1_est,
+                  nobandingcorr=nobandingcorr,
+                  interpolation=interpolation,
+                  cores=cores)
 
-        # project perfusion results
-        if target == 'structural':
-            project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
+    # perform partial volume estimation
+    print("Performing partial volume estimation.")
+    pv_est_call = [
+        "pv_est",
+        str(subject_dir.parent),
+        subject_dir.stem,
+        "--cores", str(cores),
+        "--outdir", outdir
+    ]
+    subprocess.run(pv_est_call, check=True)
+    
+    # perform tag-control subtraction in ASLT1w space
+    print("Performing tag-control subtraction of the corrected ASL series in ASLT1w space.")
+    aslt1w_dir = Path(names["structasl"])
+    series = aslt1w_dir/"TIs/asl_corr.nii.gz"
+    scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
+    betas_dir = aslt1w_dir/"TIs/Betas"
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+
+    # final perfusion estimation in ASLT1w space
+    pve_dir = aslt1w_dir/"PVEs"
+    oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
+    oxford_aslt1w_call = [
+        "oxford_asl",
+        f"-i {str(betas_dir/'beta_perf.nii.gz')}",
+        f"-o {str(oxford_aslt1w_dir)}",
+        f"--pvgm={str(pve_dir/'pve_GM.nii.gz')}",
+        f"--pvwm={str(pve_dir/'pve_WM.nii.gz')}",
+        f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
+        f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
+        f"-m {str(aslt1w_dir/'TIs/reg/ASL_grid_T1w_brain_mask.nii.gz')}",
+        f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
+        "--casl",
+        "--ibf=tis",
+        "--iaf=diff",
+        "--rpts=6,6,6,10,15",
+        "--fixbolus",
+        "--bolus=1.5",
+        "--te=19",
+        "--debug",
+        "--spatial=off"
+    ]
+    if use_t1:
+        est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt.nii.gz"
+        oxford_aslt1w_call.append(f"--t1im {str(est_t1)}")
+    if pvcorr:
+        oxford_aslt1w_call.append("--pvcorr")
+    oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
+    print(oxford_aslt1w_call)
+    subprocess.run(oxford_aslt1w_call, shell=True)
+
+    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
 
 def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):

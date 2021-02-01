@@ -4,6 +4,7 @@ Estimate PVs in this space
 Prepare ventricle mask in this space for final calibration 
 """
 
+import os
 import os.path as op 
 import sys 
 import argparse
@@ -128,23 +129,26 @@ def main():
         nib.save(
             rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc), 
             t1_asl_grid)
+    
+    # Create PVEs directory
+    pve_dir = op.join(sub_base, args.outdir, "ASLT1w", "PVEs")
+    os.makedirs(pve_dir, exist_ok=True)
 
     # Create a ventricle CSF mask in T1 ASL space 
-    ventricle_mask = op.join(sub_base, args.outdir, "ASLT1w", "PVEs",
-                             "vent_csf_mask.nii.gz")
+    ventricle_mask = op.join(pve_dir, "vent_csf_mask.nii.gz")
     if not op.exists(ventricle_mask) or force_refresh: 
         aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
         vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
         rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
 
     # Estimate PVs in T1 ASL space 
-    pv_gm = op.join(sub_base, args.outdir, "T1w", "ASL", "PVEs", "pve_GM.nii.gz")
+    pv_gm = op.join(pve_dir, "pve_GM.nii.gz")
     if not op.exists(pv_gm) or force_refresh:
         aparc_seg = op.join(t1_dir, "aparc+aseg.nii.gz")
         pvs_stacked = estimate_pvs(t1_dir, t1_asl_grid)
 
         # Save output with tissue suffix 
-        fileroot = op.join(sub_base, args.outdir, "ASLT1w", "PVEs", "pve")
+        fileroot = op.join(pve_dir, "pve")
         for idx, suffix in enumerate(['GM', 'WM', 'CSF']):
             p = "{}_{}.nii.gz".format(fileroot, suffix)
             rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[...,idx], p)

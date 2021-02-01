@@ -128,9 +128,6 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
     """
-    # load json containing info on where files are stored
-    json_dict = load_json(subject_dir/outdir)
-
     # get calibration image names
     calib0, calib1 = [
         (calib_dir/f"Calib{n}/calib{n}.nii.gz").resolve(strict=True) 
@@ -154,7 +151,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     # load gradient distortion correction warp, fieldmaps and PA epidc warp
     gdc_name = (gradunwarp_dir/'fullWarp_abs.nii.gz').resolve(strict=True)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(
-        str(gdc_name), calib0, calib0,
+        str(gdc_name), str(calib0), str(calib0),
         intensity_correct=True, constrain_jac=(0.01, 100)
     )
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
@@ -177,13 +174,12 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     # iterate over the two calibration images, applying the corrections to both
     for calib_name in (calib0, calib1):
         # get calib_dir and other info
-        calib_path = Path(calib_name)
-        calib_dir = calib_path.parent
-        calib_name_stem = calib_path.stem.split('.')[0]
+        calib_dir = calib_name.parent
+        calib_name_stem = calib_name.stem.split('.')[0]
 
         # apply gdc and epidc to the calibration image
         gdc_dc_warp = rt.chain(gdc_warp, epi_dc_warp)
-        gdc_dc_calib_img = gdc_dc_warp.apply_to_image(calib_name, calib_name, order=interpolation)
+        gdc_dc_calib_img = gdc_dc_warp.apply_to_image(str(calib_name), str(calib_name), order=interpolation)
         distcorr_dir = calib_dir/"DistCorr"
         distcorr_dir.mkdir(exist_ok=True)
         gdc_dc_calib_name = distcorr_dir/f"gdc_dc_{calib_name_stem}.nii.gz"
@@ -269,9 +265,3 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         else:
             calib_corr_name = biascorr_name
         
-        # add locations of above files to the json
-        important_names = {
-            f'{calib_name_stem}_bias' : str(dilall_name),
-            f'{calib_name_stem}_corr' : str(calib_corr_name)
-        }
-        update_json(important_names, json_dict)

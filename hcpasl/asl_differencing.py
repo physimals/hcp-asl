@@ -41,8 +41,6 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
        EPI." Magnetic resonance in medicine 81.3 (2019): 
        1553-1565.
     """
-    # load subject's json
-    json_dict = load_json(subject_dir/outdir)
 
     # load motion- and distortion- corrected data, Y_moco
     Y_moco = nb.load(series)
@@ -75,9 +73,3 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
     B_baseline_img = nb.nifti1.Nifti1Image(B_baseline,
                                            affine=Y_moco.affine)
     nb.save(B_baseline_img, B_baseline_name)
-
-    # add B_perf_name to the json as will be needed in oxford_asl
-    important_names = {
-        'beta_perf': str(B_perf_name)
-    }
-    update_json(important_names, json_dict)

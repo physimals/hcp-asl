@@ -77,7 +77,6 @@ def initial_setup(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp
     pa_sefm, ap_sefm = [fmaps[key] for key in ("PA", "AP")]
 
     # add filenames to a dictionary to be saved to a json
-    json_name = asl_dir / 'ASL.json'
     fields = [
         "T1w_dir",
         "T1w_acpc",
@@ -98,8 +97,7 @@ def initial_setup(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp
         "L_white",
         "R_white",
         "pa_sefm",
-        "ap_sefm",
-        "json_name"
+        "ap_sefm"
     ]
     field_values = [
         t1_dir,
@@ -121,13 +119,10 @@ def initial_setup(subject_dir, mbpcasl, structural, surfaces, fmaps, outdir="hcp
         surfaces['L_white'],
         surfaces['R_white'],
         pa_sefm,
-        ap_sefm,
-        json_name
+        ap_sefm
     ]
     names_dict = {}
     for key, value in zip(fields, field_values):
         names_dict[key] = str(value)
-    with open(json_name, 'w') as fp:
-        json.dump(names_dict, fp, sort_keys=True, indent=4)
     
     return names_dict

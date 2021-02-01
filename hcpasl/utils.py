@@ -8,6 +8,7 @@ import nibabel as nb
 import numpy as np
 
 import subprocess
+import json
 
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """

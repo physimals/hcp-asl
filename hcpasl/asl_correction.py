@@ -31,6 +31,7 @@ Corrections to be applied include:
 
 from .utils import create_dirs, load_json, update_json
 from .distortion_correction import generate_asl_mask
+from .m0_mt_correction import generate_asl2struct
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 import nibabel as nb
@@ -42,6 +43,16 @@ import subprocess
 import numpy as np
 import regtricks as rt
 import multiprocessing as mp
+
+# asl sequence parameters
+NTIS = 5
+IAF = "tc"
+IBF = "tis"
+TIS = [1.7, 2.2, 2.7, 3.2, 3.7]
+RPTS = [6, 6, 6, 10, 15]
+SLICEDT = 0.059
+SLICEBAND = 10
+NSLICES = 60
 
 def create_ti_image(asl, tis, sliceband, slicedt, outname):
     """
@@ -429,18 +440,6 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     """
     assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
     assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
-    # asl sequence parameters
-    ntis = 5
-    iaf = "tc"
-    ibf = "tis"
-    tis = [1.7, 2.2, 2.7, 3.2, 3.7]
-    rpts = [6, 6, 6, 10, 15]
-    slicedt = 0.059
-    sliceband = 10
-    n_slices = 60
-
-    # load json containing important file info
-    json_dict = load_json(subject_dir/outdir)
 
     # original ASL series and bias field names
     asl_name = (tis_dir/"tis.nii.gz").resolve(strict=True)
@@ -509,13 +508,13 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
 
     # estimate satrecov model on distortion-, bias- and MT- corrected ASL series
     print("First satrecov model fit.")
-    t1_name = _saturation_recovery(asl_corr, satrecov_dir, ntis, iaf, ibf, tis, rpts)
+    t1_name = _saturation_recovery(asl_corr, satrecov_dir, NTIS, IAF, IBF, TIS, RPTS)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
 
     # perform slice-time correction using estimated tissue params
     if not nobandingcorr:
         print("Performing initial ST correction.")
-        stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, tis, rpts, slicedt, sliceband, n_slices)
+        stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, TIS, RPTS, SLICEDT, SLICEBAND, NSLICES)
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
         nb.save(stcorr_img, stcorr_name)
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
@@ -547,7 +546,12 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     # apply moco to MT scaling factors image
     if not nobandingcorr:
         print("Apply motion estimates to the MT scaling factors image")
-        mt_reg_img = asln2asl0.apply_to_image(src=mt_img, ref=mt_img, order=interpolation)
+        mt_reg_img = asln2asl0.apply_to_image(src=mt_img, 
+                                              ref=mt_img, 
+                                              cores=cores, 
+                                              order=interpolation)
+        mt_reg_img_name = moco_dir / "reg_mt_scaling_factors.nii.gz"
+        nb.save(mt_reg_img, mt_reg_img_name)
 
     # apply bias-correction to motion- and distortion-corrected ASL series
     print("Apply bias correction to the distortion- and motion-corrected ASL series.")
@@ -572,7 +576,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     satrecov_dir = tis_dir / 'SatRecov2'
     stcorr_dir = tis_dir / 'STCorr2'
     create_dirs([satrecov_dir, stcorr_dir])
-    t1_name = _saturation_recovery(asl_corr, satrecov_dir, ntis, iaf, ibf, tis, rpts)
+    t1_name = _saturation_recovery(asl_corr, satrecov_dir, NTIS, IAF, IBF, TIS, RPTS)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
     
     if not nobandingcorr:
@@ -580,11 +584,11 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         print("ST correcting the ASL series.")
         stcorr_img, stfactors_img = _slicetiming_correction(temp_reg_gdc_dc_mtcorr, 
                                                             t1_filt_name, 
-                                                            tis, 
-                                                            rpts, 
-                                                            slicedt, 
-                                                            sliceband, 
-                                                            n_slices)
+                                                            TIS, 
+                                                            RPTS, 
+                                                            SLICEDT, 
+                                                            SLICEBAND, 
+                                                            NSLICES)
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
         nb.save(stcorr_img, stcorr_name)
@@ -604,25 +608,189 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         nb.save(combined_factors_img, combined_factors_name)
     
     # get brain mask in ASL0 space
+    fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
     calib2struct_reg = rt.Registration.from_flirt(src2ref=str(calib2struct),
                                                   src=str(calib_name),
-                                                  ref=str(asl_name))
+                                                  ref=str(fs_brainmask))
     struct2asl0_reg = rt.chain(calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse())
-    fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
     aslfs_mask = struct2asl0_reg.apply_to_image(src=str(fs_brainmask),
                                                 ref=str(asl_name),
-                                                order=interpolation)
+                                                order=0)
+    aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
+                                        affine=aslfs_mask.affine)
     aslfs_mask_name = tis_dir/"aslfs_mask.nii.gz"
     nb.save(aslfs_mask, aslfs_mask_name)
-
-    # create timing image in ASL0 space
-    ti_asl_name = tis_dir/"timing_img.nii.gz"
-    create_ti_image(str(asl_name), tis, sliceband, slicedt, str(ti_asl_name))
-
-    # save locations of important files in the json
-    important_names = {
-        'ASL_corr': str(asl_corr),
-        'scaling_factors' : str(combined_factors_name)
-    }
-    update_json(important_names, json_dict)
     
+def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir, 
+                  perfusion_name, gradunwarp_dir, topup_dir, aslt1w_dir, 
+                  ribbon, wmparc, corticallut, subcorticallut, 
+                  asl_scaling_factors=None, mt_factors=None, t1_est=None,
+                  nobandingcorr=False, interpolation=3, cores=1):
+    # get registration from perfusion image to T1w_acpc_dc_restore
+    # using FreeSurfer's bbregister
+    reg_dir = aslt1w_dir/"TIs/reg"
+    reg_dir.mkdir(exist_ok=True, parents=True)
+    struct_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
+    fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
+    generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
+    asl2struct_reg = rt.Registration.from_flirt(src2ref=str(reg_dir/"asl2struct.mat"),
+                                                src=str(perfusion_name),
+                                                ref=str(struct_name))
+    
+    # get brain mask in ASL-gridded T1w space
+    struct_brain_mask = t1w_dir/"brainmask_fs.nii.gz"
+    asl_spc = rt.ImageSpace(str(asl_name))
+    t1w_spc = rt.ImageSpace(str(struct_brain_mask))
+    asl_gridded_t1w_spc = t1w_spc.resize_voxels(asl_spc.vox_size/t1w_spc.vox_size)
+    aslt1_brain_mask = rt.Registration.identity().apply_to_image(src=str(struct_brain_mask),
+                                                                 ref=asl_gridded_t1w_spc,
+                                                                 order=0)
+    aslt1_brain_mask = nb.nifti1.Nifti1Image(np.where(aslt1_brain_mask.get_fdata()>0., 1., 0.),
+                                             affine=aslt1_brain_mask.affine)
+    aslt1_brain_mask_name = reg_dir/"ASL_grid_T1w_brain_mask.nii.gz"
+    nb.save(aslt1_brain_mask, aslt1_brain_mask_name)
+
+    # load gradient_unwarp gradient distortion correction warp
+    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
+    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
+                                                    src=str(asl_name), 
+                                                    ref=str(asl_name), 
+                                                    intensity_correct=True,
+                                                    constrain_jac=(0.01, 100))
+    dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
+    dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(dc_name),
+                                                    src=str(asl_name),
+                                                    ref=str(asl_name),
+                                                    intensity_correct=True,
+                                                    constrain_jac=(0.01, 100))
+    gdc_dc_warp = rt.chain(gdc_warp, dc_warp)
+
+    # load asl motion correction
+    asln2m0_moco = rt.MotionCorrection.from_mcflirt(mats=str(moco_dir),
+                                                    src=str(asl_name),
+                                                    ref=str(calib_name))
+    m02asl0 = asln2m0_moco.transforms[0].inverse()
+    asln2asl0 = rt.chain(asln2m0_moco, m02asl0)
+
+    # register calibration image to structural and obtain new 
+    # SE-based bias estimates
+
+    # register original calibration image to ASL-gridded T1w space
+    calib_distcorr_dir = aslt1w_dir/"Calib/Calib0/DistCorr"
+    calib_distcorr_dir.mkdir(exist_ok=True, parents=True)
+    m02struct = rt.chain(m02asl0, asl2struct_reg)
+    calib_gdc_dc2struct = rt.chain(gdc_dc_warp, m02struct)
+    calib_gdc_dc_aslt1w = calib_gdc_dc2struct.apply_to_image(src=str(calib_name),
+                                                             ref=str(aslt1_brain_mask_name),
+                                                             order=interpolation)
+    calib_gdc_dc_aslt1w_name = calib_distcorr_dir/"calib0_gdc_dc.nii.gz"
+    nb.save(calib_gdc_dc_aslt1w, calib_gdc_dc_aslt1w_name)
+
+    # register fieldmap magnitude image to ASL-gridded T1w space
+    fmapmag = (topup_dir/"fmapmag.nii.gz").resolve(strict=True)
+    fmap2struct_name = (topup_dir/"fmap_struct_reg/asl2struct.mat").resolve(strict=True)
+    fmap2struct_reg = rt.Registration.from_flirt(src2ref=str(fmap2struct_name),
+                                                 src=str(fmapmag),
+                                                 ref=str(struct_name))
+    fmap_aslt1w = fmap2struct_reg.apply_to_image(src=str(fmapmag),
+                                                 ref=str(aslt1_brain_mask_name),
+                                                 order=interpolation)
+    fmap_aslt1w_name = reg_dir/"fmapmag_aslt1w.nii.gz"
+    nb.save(fmap_aslt1w, fmap_aslt1w_name)
+
+    # get ASLT1w space SE-based bias estimate
+    sebased_dir = aslt1w_dir/"Calib/Calib0/SEbased"
+    sebased_dir.mkdir(exist_ok=True)
+    sebased_cmd = ["get_sebased_bias",
+                    "-i", calib_gdc_dc_aslt1w_name,
+                    "-f", fmap_aslt1w_name,
+                    "-m", aslt1_brain_mask_name,
+                    "-o", sebased_dir,
+                    "--ribbon", ribbon,
+                    "--wmparc", wmparc,
+                    "--corticallut", corticallut,
+                    "--subcorticallut", subcorticallut,
+                    "--debug"]
+    subprocess.run(sebased_cmd, check=True)
+    bias_name = sebased_dir/"sebased_bias_dil.nii.gz"
+    dilall_name = sebased_dir/"sebased_bias_dilall.nii.gz"
+    dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
+    subprocess.run(dilall_cmd, check=True)
+
+    # register calibration image's MT scaling factors to ASL-gridded T1w space
+    if mt_factors:
+        mt_sfs = np.loadtxt(mt_factors)
+        mt_arr = np.tile(mt_sfs, (86, 86, 1))
+        calib_mt_sfs_aslt1w = m02struct.apply_to_array(data=mt_arr,
+                                                       src=str(calib_name),
+                                                       ref=str(aslt1_brain_mask_name),
+                                                       order=interpolation)
+        calib_mt_sfs_aslt1w = nb.nifti1.Nifti1Image(calib_mt_sfs_aslt1w,
+                                                    affine=calib_gdc_dc_aslt1w.affine)
+        calib_mt_sfs_aslt1w_name = calib_distcorr_dir/"calib_mt_scaling_factors.nii.gz"
+        nb.save(calib_mt_sfs_aslt1w, calib_mt_sfs_aslt1w_name)
+
+        # correct the registered, gdc_dc, bias-corrected calibration image for MT effect
+        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
+        calib_mtcorr = nb.nifti1.Nifti1Image(calib_biascorr.get_fdata()*calib_mt_sfs_aslt1w.get_fdata(),
+                                            affine=calib_biascorr.affine)
+        calib_mtcorr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
+        nb.save(calib_mtcorr, calib_mtcorr_name)
+    else:
+        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
+        calib_corr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
+        nb.save(calib_biascorr, calib_corr_name)
+
+    # get ASL series in ASL-gridded T1w space along with the scaling factors 
+    # used to perform banding correction.
+    # also apply new bias field estimated above.
+
+    # register ASL series to ASL-gridded T1w space
+    distcorr_dir = aslt1w_dir/"TIs/DistCorr"
+    distcorr_dir.mkdir(exist_ok=True, parents=True)
+    asl2struct_gdc_dc_moco = rt.chain(gdc_dc_warp, asln2asl0, asl2struct_reg)
+    asl_gdc_dc_moco = asl2struct_gdc_dc_moco.apply_to_image(src=str(asl_name),
+                                                            ref=str(aslt1_brain_mask_name),
+                                                            cores=cores,
+                                                            order=interpolation)
+    asl_gdc_dc_moco_name = distcorr_dir/"tis_gdc_dc_moco.nii.gz"
+    nb.save(asl_gdc_dc_moco, asl_gdc_dc_moco_name)
+
+    # register ASL scaling factors to ASL-gridded T1w space
+    if asl_scaling_factors:
+        aslt1w_sfs = asl2struct_reg.apply_to_image(src=str(asl_scaling_factors),
+                                                   ref=str(aslt1_brain_mask_name),
+                                                   cores=cores,
+                                                   order=interpolation)
+    else:
+        aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape),
+                                           affine=asl_gdc_dc_moco)
+    aslt1w_sfs_name = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
+    nb.save(aslt1w_sfs, aslt1w_sfs_name)
+
+    # apply bias field and banding corrections to ASL series
+    bias = nb.load(bias_name)
+    asl_corr = nb.nifti1.Nifti1Image(
+        np.where(bias.get_fdata()[..., np.newaxis]!=0, 
+                 (asl_gdc_dc_moco.get_fdata()*aslt1w_sfs.get_fdata())/bias.get_fdata()[..., np.newaxis],
+                 0.),
+        affine=asl_gdc_dc_moco.affine
+    )
+    asl_corr_name = aslt1w_dir/"TIs/asl_corr.nii.gz"
+    nb.save(asl_corr, asl_corr_name)
+
+    # create TI timing image in ASL space and register to ASL-gridded T1w space
+    ti_aslt1w_name = aslt1w_dir/"TIs/timing_img_aslt1w.nii.gz"
+    create_ti_image(str(asl_name), TIS, SLICEBAND, SLICEDT, str(ti_aslt1w_name))
+    ti_aslt1w = asl2struct_reg.apply_to_image(src=str(ti_aslt1w_name),
+                                              ref=str(aslt1_brain_mask_name),
+                                              order=0)
+    nb.save(ti_aslt1w, ti_aslt1w_name)
+
+    # register T1 image, estimated by the satrecov model, to ASL-gridded T1w space
+    if t1_est:
+        t1_est_aslt1w = asl2struct_reg.apply_to_image(src=str(t1_est),
+                                                      ref=str(aslt1_brain_mask_name),
+                                                      order=interpolation)
+        t1_est_aslt1w_name = reg_dir/"mean_T1t_filt_aslt1w.nii.gz"
+        nb.save(t1_est_aslt1w, t1_est_aslt1w_name)
