@@ -531,17 +531,34 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         shutil.rmtree(asln2m0_name)
     orig_mcflirt.rename(asln2m0_name)
 
-    # register pre-ST-correction ASLn to ASL0
-    print("Apply distortion and motion correction to original ASL series.")
+    # get brain mask in ASL0 space
+    print("Create brain mask in ASL0 space")
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(mats=str(asln2m0_name),
                                                     src=str(asl_name),
                                                     ref=str(calib_name))
+    fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
+    calib2struct_reg = rt.Registration.from_flirt(src2ref=str(calib2struct),
+                                                  src=str(calib_name),
+                                                  ref=str(fs_brainmask))
+    struct2asl0_reg = rt.chain(calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse())
+    aslfs_mask = struct2asl0_reg.apply_to_image(src=str(fs_brainmask),
+                                                ref=str(asl_name),
+                                                order=0)
+    aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
+                                        affine=aslfs_mask.affine)
+    aslfs_mask_name = tis_dir/"aslfs_mask.nii.gz"
+    nb.save(aslfs_mask, aslfs_mask_name)
+
+    # register pre-ST-correction ASLn to ASL0
+    print("Apply distortion and motion correction to original ASL series.")
     asln2asl0 = rt.chain(asln2m0_moco, asln2m0_moco.transforms[0].inverse())
     gdc_dc_asln2asl0 = rt.chain(gdc_dc_warp, asln2asl0)
     reg_gdc_dc = gdc_dc_asln2asl0.apply_to_image(str(asl_name), 
                                                  str(calib_name),
                                                  cores=cores,
                                                  order=interpolation)
+    reg_gdc_dc = nb.nifti1Image(reg_gdc_dc.get_fdata()*aslfs_mask.get_fdata(),
+                                affine=reg_gdc_dc.affine)
     
     # apply moco to MT scaling factors image
     if not nobandingcorr:
@@ -550,22 +567,26 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                               ref=mt_img, 
                                               cores=cores, 
                                               order=interpolation)
+        mt_reg_img = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()!=0., mt_reg_img.get_fdata(), 1.),
+                                           affine=mt_reg_img.affine)
         mt_reg_img_name = moco_dir / "reg_mt_scaling_factors.nii.gz"
         nb.save(mt_reg_img, mt_reg_img_name)
 
     # apply bias-correction to motion- and distortion-corrected ASL series
     print("Apply bias correction to the distortion- and motion-corrected ASL series.")
     bias_img = nb.load(bias_name)
-    reg_gdc_dc_biascorr = nb.nifti1.Nifti1Image(reg_gdc_dc.get_fdata()/bias_img.get_fdata()[..., np.newaxis],
-                                                affine=reg_gdc_dc.affine)
+    reg_gdc_dc_biascorr = nb.nifti1.Nifti1Image(
+        (reg_gdc_dc.get_fdata() * aslfs_mask.get_fdata())/bias_img.get_fdata()[..., np.newaxis],
+        affine=reg_gdc_dc.affine)
     reg_gdc_dc_biascorr_name = moco_dir / 'reg_gdc_dc_tis_biascorr.nii.gz'
     nb.save(reg_gdc_dc_biascorr, reg_gdc_dc_biascorr_name)
 
     # apply MT-correction
     if not nobandingcorr:
         temp_reg_gdc_dc_mtcorr = moco_dir / 'temp_reg_dc_tis_mtcorr.nii.gz'
-        reg_gdc_dc_mtcorr = nb.nifti1.Nifti1Image(reg_gdc_dc_biascorr.get_fdata()*mt_reg_img.get_fdata(),
-                                                  affine=reg_gdc_dc.affine)
+        reg_gdc_dc_mtcorr = nb.nifti1.Nifti1Image(
+            reg_gdc_dc_biascorr.get_fdata()*mt_reg_img.get_fdata()*aslfs_mask.get_fdata(),
+            affine=reg_gdc_dc.affine)
         nb.save(reg_gdc_dc_mtcorr, temp_reg_gdc_dc_mtcorr)
         asl_corr = temp_reg_gdc_dc_mtcorr
     else:
@@ -606,20 +627,6 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                                      affine=reg_gdc_dc_biascorr.affine)
         combined_factors_name = moco_dir / 'combined_scaling_factors.nii.gz'
         nb.save(combined_factors_img, combined_factors_name)
-    
-    # get brain mask in ASL0 space
-    fs_brainmask = (t1w_dir/"brainmask_fs.nii.gz").resolve(strict=True)
-    calib2struct_reg = rt.Registration.from_flirt(src2ref=str(calib2struct),
-                                                  src=str(calib_name),
-                                                  ref=str(fs_brainmask))
-    struct2asl0_reg = rt.chain(calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse())
-    aslfs_mask = struct2asl0_reg.apply_to_image(src=str(fs_brainmask),
-                                                ref=str(asl_name),
-                                                order=0)
-    aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
-                                        affine=aslfs_mask.affine)
-    aslfs_mask_name = tis_dir/"aslfs_mask.nii.gz"
-    nb.save(aslfs_mask, aslfs_mask_name)
     
 def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir, 
                   perfusion_name, gradunwarp_dir, topup_dir, aslt1w_dir, 
@@ -753,6 +760,8 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                                                             ref=str(aslt1_brain_mask_name),
                                                             cores=cores,
                                                             order=interpolation)
+    asl_gdc_dc_moco = nb.nifti1.Nifti1Image(asl_gdc_dc_moco.get_fdata()*aslt1_brain_mask.get_fdata(),
+                                            affine=asl_gdc_dc_moco.affine)
     asl_gdc_dc_moco_name = distcorr_dir/"tis_gdc_dc_moco.nii.gz"
     nb.save(asl_gdc_dc_moco, asl_gdc_dc_moco_name)
 
@@ -762,6 +771,8 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                                                    ref=str(aslt1_brain_mask_name),
                                                    cores=cores,
                                                    order=interpolation)
+        aslt1w_sfs = nb.nifti1.Nifti1Image(aslt1w_sfs.get_fdata() * aslt1_brain_mask.get_fdata(),
+                                           affine=aslt1w_sfs.affine)
     else:
         aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape),
                                            affine=asl_gdc_dc_moco)
