@@ -16,8 +16,6 @@ from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.asl_perfusion import run_fabber_asl, run_oxford_asl
-# from hcpasl.projection import project_to_surface
 from pathlib import Path
 import subprocess
 import argparse
