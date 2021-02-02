@@ -3,7 +3,6 @@ from .m0_mt_correction import correct_M0, generate_asl2struct
 from .asl_correction import hcp_asl_moco, asl_to_aslt1w
 from .extract_fs_pvs import extract_fs_pvs
 from .asl_differencing import tag_control_differencing
-from .asl_perfusion import run_oxford_asl
 from .projection import project_to_surface
 from .extract_fs_pvs import extract_fs_pvs
 from .distortion_correction import *
