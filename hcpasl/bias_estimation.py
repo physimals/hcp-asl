@@ -2,9 +2,9 @@ from fsl.wrappers import bet, fast, LOAD
 import nibabel as nb
 import regtricks as rt
 
-from hcpasl import distortion_correction
-from hcpasl.utils import binarise
+from hcpasl.distortion_correction import register_fmap
 from hcpasl.tissue_masks import generate_tissue_mask_in_ref_space
+from hcpasl.utils import binarise
 
 import numpy as np
 
