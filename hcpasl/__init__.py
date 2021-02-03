@@ -10,4 +10,4 @@ except ImportError:
     __timestamp__ = "unknown"
     __sha1__ = "unknown"
 
-__all__ = ["__version", "__timestamp__", "__sha1__"]
+__all__ = ["__version__", "__timestamp__", "__sha1__"]
