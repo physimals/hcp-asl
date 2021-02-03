@@ -41,6 +41,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import numpy as np
+from scipy.ndimage import binary_dilation
 import regtricks as rt
 import multiprocessing as mp
 
@@ -548,7 +549,9 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                                 affine=aslfs_mask.affine)
     aslfs_mask_name = tis_dir/"aslfs_mask.nii.gz"
     nb.save(aslfs_mask, aslfs_mask_name)
-    mask4d = aslfs_mask.get_fdata()[..., np.newaxis]
+    # dilate mask so it isn't so strict and make 4d for application to ASL time series
+    mask4d = binary_dilation(aslfs_mask.get_fdata()[..., np.newaxis], 
+                             iterations=2).astype(aslfs_mask.get_fdata().dtype)
 
     # register pre-ST-correction ASLn to ASL0
     print("Apply distortion and motion correction to original ASL series.")
