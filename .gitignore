@@ -8,3 +8,5 @@ hcpasl.egg-info
 .DS_Store
 HCP_asl_min_req/*
 scratch.py 
+dist
+_version.py
