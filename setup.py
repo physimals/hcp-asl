@@ -34,21 +34,30 @@ def git_timestamp():
         # Any failure, return None. We may not be in a Git repo at all
         return None
 
-def update_metadata(version_str, timestamp_str):
+def git_sha1():
+    """ Get the last commit SHA1 hash from Git (if possible)"""
+    try:
+        return subprocess.check_output('git rev-parse HEAD', shell=True).decode("utf-8").strip(" \n")
+    except Exception:
+        # Any failure, return None. We may not be in a Git repo at all
+        return None
+
+def update_metadata(version_str, timestamp_str, sha1_str):
     """ Update the version and timestamp metadata in the module _version.py file """
     with io.open(os.path.join(ROOTDIR, PACKAGE_NAME, "_version.py"), "w", encoding='utf-8') as f:
         f.write("__version__ = '%s'\n" % version_str)
         f.write("__timestamp__ = '%s'\n" % timestamp_str)
+        f.write("__sha1__ = '%s'\n" % sha1_str)
 
 def get_version():
     """ Get the current version number (and update it in the module _version.py file if necessary)"""
-    version, timestamp = git_version()[1], git_timestamp()
+    version, timestamp, sha1 = git_version()[1], git_timestamp(), git_sha1()
 
-    if version is not None and timestamp is not None:
+    if version is not None and timestamp is not None and sha1 is not None:
         # We got the metadata from Git - update the version file
-        update_metadata(version, timestamp)
+        update_metadata(version, timestamp, sha1)
     else:
-        # Could not get metadata from Git - use the version file if it exists
+        # Could not get metadata from Git - use the version file if it already exists
         try:
             with io.open(os.path.join(ROOTDIR, PACKAGE_NAME, '_version.py'), encoding='utf-8') as f:
                 md = f.read()
@@ -58,8 +67,9 @@ def get_version():
                 else:
                     raise ValueError("Stored version could not be parsed")
         except (IOError, ValueError):
+            # No version file - create one with 'unknown' placholder data
             version = "unknown"
-            update_metadata(version, "unknown")
+            update_metadata(version, "unknown", "unknown")
     return version
 
 with open("README.md", "r") as fh:
