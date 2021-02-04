@@ -483,6 +483,8 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                             ref=str(asl_name),
                                             order=interpolation,
                                             cores=cores)
+    asl_gdc_dc = nb.nifti1.Nifti1Image(asl_gdc_dc.get_fdata().astype(np.float32),
+                                       affine=asl_gdc_dc.affine)
     asl_gdc_dc_name = distcorr_dir/"tis_gdc_dc.nii.gz"
     nb.save(asl_gdc_dc, asl_gdc_dc_name)
 
@@ -500,7 +502,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         mt_img = nb.nifti1.Nifti1Image(mt_arr, affine=asl_gdc_dc.affine)
         biascorr_img = nb.load(bcorr_img)
         assert (len(mt_sfs) == biascorr_img.shape[2])
-        mtcorr_img = nb.nifti1.Nifti1Image(biascorr_img.get_fdata()*mt_img.get_fdata(), 
+        mtcorr_img = nb.nifti1.Nifti1Image((biascorr_img.get_fdata()*mt_img.get_fdata()).astype(np.float32), 
                                            affine=biascorr_img.affine)
         nb.save(mtcorr_img, mtcorr_name)
         asl_corr = mtcorr_name
@@ -516,6 +518,9 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     if not nobandingcorr:
         print("Performing initial ST correction.")
         stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, TIS, RPTS, SLICEDT, SLICEBAND, NSLICES)
+        stcorr_img, stfactors_img = [nb.nifti1.Nifti1Image(img.get_fdata().astype(np.float32),
+                                                           affine=img.affine)
+                                     for img in (stcorr_img, stfactors_img)]
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
         nb.save(stcorr_img, stcorr_name)
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
@@ -551,7 +556,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     nb.save(aslfs_mask, aslfs_mask_name)
     # dilate mask so it isn't so strict and make 4d for application to ASL time series
     mask4d = binary_dilation(aslfs_mask.get_fdata()[..., np.newaxis], 
-                             iterations=2).astype(aslfs_mask.get_fdata().dtype)
+                             iterations=2).astype(np.float32)
 
     # register pre-ST-correction ASLn to ASL0
     print("Apply distortion and motion correction to original ASL series.")
@@ -561,7 +566,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                                  str(calib_name),
                                                  cores=cores,
                                                  order=interpolation)
-    reg_gdc_dc = nb.nifti1.Nifti1Image(reg_gdc_dc.get_fdata()*mask4d,
+    reg_gdc_dc = nb.nifti1.Nifti1Image((reg_gdc_dc.get_fdata()*mask4d).astype(np.float32),
                                        affine=reg_gdc_dc.affine)
     
     # apply moco to MT scaling factors image
@@ -571,7 +576,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                               ref=mt_img, 
                                               cores=cores, 
                                               order=interpolation)
-        mt_reg_img = nb.nifti1.Nifti1Image(np.where(mask4d!=0., mt_reg_img.get_fdata(), 1.),
+        mt_reg_img = nb.nifti1.Nifti1Image(np.where(mask4d!=0., mt_reg_img.get_fdata(), 1.).astype(np.float32),
                                            affine=mt_reg_img.affine)
         mt_reg_img_name = moco_dir / "reg_mt_scaling_factors.nii.gz"
         nb.save(mt_reg_img, mt_reg_img_name)
@@ -580,7 +585,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     print("Apply bias correction to the distortion- and motion-corrected ASL series.")
     bias_img = nb.load(bias_name)
     reg_gdc_dc_biascorr = nb.nifti1.Nifti1Image(
-        (reg_gdc_dc.get_fdata() * mask4d)/bias_img.get_fdata()[..., np.newaxis],
+        ((reg_gdc_dc.get_fdata() * mask4d)/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
         affine=reg_gdc_dc.affine)
     reg_gdc_dc_biascorr_name = moco_dir / 'reg_gdc_dc_tis_biascorr.nii.gz'
     nb.save(reg_gdc_dc_biascorr, reg_gdc_dc_biascorr_name)
@@ -589,7 +594,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     if not nobandingcorr:
         temp_reg_gdc_dc_mtcorr = moco_dir / 'temp_reg_dc_tis_mtcorr.nii.gz'
         reg_gdc_dc_mtcorr = nb.nifti1.Nifti1Image(
-            reg_gdc_dc_biascorr.get_fdata()*mt_reg_img.get_fdata()*mask4d,
+            (reg_gdc_dc_biascorr.get_fdata()*mt_reg_img.get_fdata()*mask4d).astype(np.float32),
             affine=reg_gdc_dc.affine)
         nb.save(reg_gdc_dc_mtcorr, temp_reg_gdc_dc_mtcorr)
         asl_corr = temp_reg_gdc_dc_mtcorr
@@ -614,6 +619,9 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                                                             SLICEDT, 
                                                             SLICEBAND, 
                                                             NSLICES)
+        stcorr_img, stfactors_img = [nb.nifti1.Nifti1Image(img.get_fdata().astype(np.float32),
+                                                           affine=img.affine)
+                                     for img in (stcorr_img, stfactors_img)]
         stcorr_name = stcorr_dir / 'tis_stcorr.nii.gz'
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
         nb.save(stcorr_img, stcorr_name)
@@ -622,12 +630,12 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         # combined MT and ST scaling factors
         print("Combining the ST and MT scaling factors into one set of scaling factors.")
         combined_factors_name = stcorr_dir / 'combined_scaling_factors.nii.gz'
-        combined_factors_img = nb.nifti1.Nifti1Image(stfactors_img.get_fdata()*mt_reg_img.get_fdata(), 
+        combined_factors_img = nb.nifti1.Nifti1Image((stfactors_img.get_fdata()*mt_reg_img.get_fdata()).astype(np.float32), 
                                                      affine=stfactors_img.affine)
         nb.save(combined_factors_img, combined_factors_name)
         asl_corr = stcorr_name
     else:
-        combined_factors_img = nb.nifti1.Nifti1Image(np.ones_like(reg_gdc_dc_biascorr.get_fdata()),
+        combined_factors_img = nb.nifti1.Nifti1Image(np.ones_like(reg_gdc_dc_biascorr.get_fdata(), dtype=np.float32),
                                                      affine=reg_gdc_dc_biascorr.affine)
         combined_factors_name = moco_dir / 'combined_scaling_factors.nii.gz'
         nb.save(combined_factors_img, combined_factors_name)
@@ -765,7 +773,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                                                             ref=str(aslt1_brain_mask_name),
                                                             cores=cores,
                                                             order=interpolation)
-    asl_gdc_dc_moco = nb.nifti1.Nifti1Image(asl_gdc_dc_moco.get_fdata() * mask4d,
+    asl_gdc_dc_moco = nb.nifti1.Nifti1Image((asl_gdc_dc_moco.get_fdata() * mask4d).astype(np.float32),
                                             affine=asl_gdc_dc_moco.affine)
     asl_gdc_dc_moco_name = distcorr_dir/"tis_gdc_dc_moco.nii.gz"
     nb.save(asl_gdc_dc_moco, asl_gdc_dc_moco_name)
@@ -776,10 +784,10 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                                                    ref=str(aslt1_brain_mask_name),
                                                    cores=cores,
                                                    order=interpolation)
-        aslt1w_sfs = nb.nifti1.Nifti1Image(aslt1w_sfs.get_fdata() * mask4d,
+        aslt1w_sfs = nb.nifti1.Nifti1Image((aslt1w_sfs.get_fdata() * mask4d).astype(np.float32),
                                            affine=aslt1w_sfs.affine)
     else:
-        aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape),
+        aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape, dtype=np.float32),
                                            affine=asl_gdc_dc_moco)
     aslt1w_sfs_name = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     nb.save(aslt1w_sfs, aslt1w_sfs_name)
@@ -789,7 +797,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     asl_corr = nb.nifti1.Nifti1Image(
         np.where(bias.get_fdata()[..., np.newaxis]!=0, 
                  (asl_gdc_dc_moco.get_fdata()*aslt1w_sfs.get_fdata())/bias.get_fdata()[..., np.newaxis],
-                 0.),
+                 0.).astype(np.float32),
         affine=asl_gdc_dc_moco.affine
     )
     asl_corr_name = aslt1w_dir/"TIs/asl_corr.nii.gz"
