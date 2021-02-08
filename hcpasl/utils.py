@@ -249,7 +249,7 @@ def setup_logger(logger_name, out_name, level, verbose=False, mode="w"):
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     
     # set up FileHandler
-    fh = logging.FileHandler(out_name)
+    fh = logging.FileHandler(out_name, mode=mode)
     handlers = [fh, ]
     
     # set up StreamHandler (if verbose)
