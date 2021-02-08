@@ -10,12 +10,15 @@ name of the MT correction scaling factors image.
 import sys
 import os
 from itertools import product
+import logging
 
+from hcpasl import __version__, __timestamp__, __sha1__
 from hcpasl.initial_bookkeeping import initial_setup
 from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
+from hcpasl.utils import setup_logger
 from pathlib import Path
 import subprocess
 import argparse
@@ -25,7 +28,7 @@ import nibabel as nb
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                     fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
-                    nobandingcorr=False, outdir="hcp_asl"):
+                    nobandingcorr=False, outdir="hcp_asl", verbose=False):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -84,13 +87,18 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         banding corrections are applied by default).
     outdir : str, optional
         Name of the main results directory. Default is 'hcp_asl'.
+    verbose : bool, optional
+        If True, stdout will go to the terminal as well as to 
+        a logfile. Default is False.
     """
 
     subject_dir = (studydir / subid).resolve(strict=True)
+    logger = logging.getLogger("HCPASL.run_pipeline")
 
     # initial set-up for the pipeline: create results directories; 
     # split mbPCASL sequence into TIs and calibration images; and 
     # return dictionary with locations of important files.
+    logger.info("Performing initial set-up for the pipeline.")
     names = initial_setup(subject_dir, 
                           mbpcasl=mbpcasl, 
                           structural=structural, 
@@ -100,7 +108,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     # run gradient_unwarp and topup, storing results 
     # in gradunwarp_dir and topup_dir respectively
-    print("Running gradient_unwarp and topup.")
+    logger.info("Running gradient_unwarp and topup.")
     asl_dir = Path(names["ASL_dir"])
     gradunwarp_dir = asl_dir/"gradient_unwarp"
     topup_dir = asl_dir/"topup"
@@ -110,10 +118,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                          topup_dir=topup_dir, 
                          pa_sefm=names["pa_sefm"], 
                          ap_sefm=names["ap_sefm"], 
-                         interpolation=interpolation)
+                         interpolation=interpolation,
+                         verbose=verbose)
 
     # apply corrections to the calibration images
-    print("Running M0 corrections.")
+    logger.info("Running M0 corrections.")
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
@@ -130,11 +139,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                subcorticallut=subcorticallut, 
                interpolation=interpolation, 
                nobandingcorr=nobandingcorr, 
-               outdir=outdir)
+               outdir=outdir,
+               verbose=verbose)
     
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
-    print("Estimating ASL motion.")
+    logger.info("Estimating ASL motion.")
     calib0_dir = Path(names["calib0_dir"])
     tis_dir = Path(names["TIs_dir"])
     bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
@@ -155,10 +165,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  cores=cores, 
                  interpolation=interpolation, 
                  nobandingcorr=nobandingcorr, 
-                 outdir=outdir)
+                 outdir=outdir,
+                 verbose=verbose)
     
     # perform tag-control subtraction in ASL0 space
-    print("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
+    logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
     if not nobandingcorr:
         series = tis_dir/"STCorr2/tis_stcorr.nii.gz"
         scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
@@ -169,10 +180,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     # estimate perfusion in ASL0 space using oxford_asl
-    print("Running oxford_asl in ASL0 space.")
+    logger.info("Running oxford_asl in ASL0 space.")
+
     beta_perf = betas_dir/"beta_perf.nii.gz"
     asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
+    logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO", verbose)
     oxford_asl_call = [
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
@@ -186,11 +199,20 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
         oxford_asl_call = oxford_asl_call + f"--t1im {str(est_t1)}"
     oxford_asl_call = " ".join(oxford_asl_call)
-    print(oxford_asl_call)
-    subprocess.run(oxford_asl_call, shell=True)
+    logger_oxasl.info(oxford_asl_call)
+    process = subprocess.Popen(oxford_asl_call, shell=True, stdout=subprocess.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
 
     # get data in ASLT1w space
-    print("Get data into ASLT1w space and re-estimate bias field.")
+    logger.info("Get data into ASLT1w space and re-estimate bias field.")
     if not nobandingcorr:
         asl_scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
         mt_name = mt_factors
@@ -218,10 +240,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                   t1_est=t1_est,
                   nobandingcorr=nobandingcorr,
                   interpolation=interpolation,
-                  cores=cores)
+                  cores=cores,
+                  verbose=verbose)
 
     # perform partial volume estimation
-    print("Performing partial volume estimation.")
+    logger.info("Performing partial volume estimation.")
+    logger_pv = setup_logger("HCPASL.pv_est", Path(names["structasl"])/"PVEs/pv_est.log", "INFO", verbose)
     pv_est_call = [
         "pv_est",
         str(subject_dir.parent),
@@ -229,19 +253,31 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         "--cores", str(cores),
         "--outdir", outdir
     ]
-    subprocess.run(pv_est_call, check=True)
+    process = subprocess.Popen(pv_est_call, stdout=subprocess.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
+
     
     # perform tag-control subtraction in ASLT1w space
-    print("Performing tag-control subtraction of the corrected ASL series in ASLT1w space.")
+    logger.info("Performing tag-control subtraction of the corrected ASL series in ASLT1w space.")
     aslt1w_dir = Path(names["structasl"])
     series = aslt1w_dir/"TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir/"TIs/Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir, verbose)
 
     # final perfusion estimation in ASLT1w space
+    logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir/"PVEs"
     oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
+    logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO", verbose)
     oxford_aslt1w_call = [
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}",
@@ -268,13 +304,23 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     if pvcorr:
         oxford_aslt1w_call.append("--pvcorr")
     oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
-    print(oxford_aslt1w_call)
-    subprocess.run(oxford_aslt1w_call, shell=True)
+    logger_oxaslt1w.info(oxford_aslt1w_call)
+    process = subprocess.Popen(oxford_aslt1w_call, shell=True, stdout=subprocess.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
 
-    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
+    logger.info("Projecting volumetric results to surface.")
+    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir, verbose=verbose)
 
 def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
-                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
+                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc", verbose=False):
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
@@ -288,6 +334,7 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
     subid : str
         Subject id for the subject of interest.
     """
+    logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO", verbose)
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
     wb_path        = str(Path(wbdevdir).resolve(strict=True))
@@ -302,8 +349,26 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
         pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
                 FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "true", outdir]
         
-        subprocess.run(non_pvcorr_cmd)
-        subprocess.run(pvcorr_cmd)
+        process = subprocess.Popen(non_pvcorr_cmd, stdout=subprocess.PIPE)
+        while 1:
+            retcode = process.poll()
+            line = process.stdout.readline().decode("utf-8")
+            logger.info(line)
+            if line == "" and retcode is not None:
+                break
+        if retcode != 0:
+            logger.info(f"retcode={retcode}")
+            logger.exception("Process failed.")
+        process = subprocess.Popen(pvcorr_cmd, stdout=subprocess.PIPE)
+        while 1:
+            retcode = process.poll()
+            line = process.stdout.readline().decode("utf-8")
+            logger.info(line)
+            if line == "" and retcode is not None:
+                break
+        if retcode != 0:
+            logger.info(f"retcode={retcode}")
+            logger.exception("Process failed.")
 
 def main():
     """
@@ -476,14 +541,32 @@ def main():
             +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
         default="hcp_asl"
     )
+    parser.add_argument(
+        "-v", "--verbose",
+        help="If this option is provided, stdout will go to the terminal "
+            +"as well as to a logfile. Default is False.",
+        action="store_true"
+    )
     # assign arguments to variables
     args = parser.parse_args()
+    studydir = Path(args.studydir).resolve(strict=True)
+    subid = args.subid
+
+    # set up logging
+    # create file handler
+    base_dir = Path(studydir/subid/args.outdir)
+    base_dir.mkdir(exist_ok=True)
+    fh_name = base_dir/f"{subid}.log"
+    logger = setup_logger("HCPASL.run_pipeline", fh_name, "INFO", args.verbose)
+    
+    logger.info(f"Welcome to HCPASL v{__version__} (commit {__sha1__} on {__timestamp__}.")
+    logger.info(args)
+
+    # parse remaining arguments
     if args.mtname:
         mtname = Path(args.mtname).resolve(strict=True)
     else:
         mtname = None
-    studydir = Path(args.studydir).resolve(strict=True)
-    subid = args.subid
     structural = {'struct': args.struct, 'sbrain': args.sbrain}
     mbpcasl = Path(args.mbpcasl).resolve(strict=True)
     fmaps = {
@@ -510,9 +593,10 @@ def main():
         'L_white': lwhite, 'R_white':rwhite,
         'L_pial': lpial, 'R_pial': rpial
     }
+
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
-            print("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
+            logger.error("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
             sys.exit(1)
 
         # To use a custom Fabber executable we set the FSLDEVDIR environment variable
@@ -520,14 +604,14 @@ def main():
         # Note that this could cause problems in the unlikely event that the user
         # already has a $FSLDEVDIR set up with custom copies of other things that
         # oxford_asl uses...
-        print("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
+        logger.info("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
     # create main results directory
     Path(args.outdir).mkdir(exist_ok=True)
 
     # process subject
-    print(f"Processing subject {studydir/subid}.")
+    logger.info(f"Processing subject {studydir/subid}.")
     process_subject(studydir=studydir,
                     subid=subid,
                     mt_factors=mtname,
@@ -544,7 +628,8 @@ def main():
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
                     outdir=args.outdir,
-                    wbdevdir=args.wbdevdir
+                    wbdevdir=args.wbdevdir,
+                    verbose=args.verbose
                     )
 
 if __name__ == '__main__':

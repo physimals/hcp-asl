@@ -7,8 +7,10 @@ import numpy as np
 from scipy.ndimage import binary_fill_holes
 import nibabel as nb
 from fsl.wrappers import bet
+from hcpasl.utils import setup_logger
+import logging
 
-def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
+def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1, verbose=False):
     """
     Generate distortion correction warp via gradient_unwarp. 
 
@@ -22,15 +24,40 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
     Returns: 
         n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
     """
+    # set up logger
+    logger = logging.getLogger("HCPASL.distortion_estimation")
+    logger.info("Running generate_gdc_warp")
+    logger.info(f"vol: {vol}")
+    logger.info(f"coeffs_path: {coeffs_path}")
+    logger.info(f"distcorr_dir: {distcorr_dir}")
+    logger.info(f"interpolation: {interpolation}")
+    logger.info(f"verbose: {verbose}")
 
     # Need to run in the output directory to make sure files end up in the
     # right place
     pwd = os.getcwd()
+    logger.info(f"PWD: {pwd}")
+    logger.info(f"Changing to {distcorr_dir}")
     os.chdir(distcorr_dir)
+
     cmd = ("gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {} --interp_order {}"
             .format(vol, coeffs_path, interpolation))
-    sp.run(cmd, shell=True)
+    logger.info(f"gradient_unwarp.py command:")
+    logger.info(cmd)
+
+    process = sp.Popen(cmd, shell=True, stdout=sp.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
+    logger.info("gradient_unwarp.py run is complete.")
     os.chdir(pwd)
+    logger.info(f"Changed directory back to {pwd}")
 
 def generate_topup_params(pars_filepath):
     """
@@ -109,6 +136,15 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
     Returns: 
         n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
     """
+    # set up logger
+    logger = logging.getLogger("HCPASL.distortion_estimation")
+    logger.info("Running generate_fmaps()")
+    logger.info(f"Spin Echo Field Maps: {pa_ap_sefms}")
+    logger.info(f"Topup param file: {params}")
+    logger.info(f"Topup config file: {config}")
+    logger.info(f"Topup output directory: {distcorr_dir}")
+    logger.info(f"Gradient distortion correction warp: {gdc_warp}")
+    logger.info(f"Interpolation order: {interpolation}")
 
     pwd = os.getcwd()
     os.chdir(distcorr_dir)
@@ -124,8 +160,19 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
                  f"--fout={topup_fmap}",
                  f"--dfout={op.join(distcorr_dir, 'WarpField')}",
                  f"--rbmout={op.join(distcorr_dir, 'MotionMatrix')}",
-                 f"--jacout={op.join(distcorr_dir, 'Jacobian')}"]
-    sp.run(topup_cmd, check=True)
+                 f"--jacout={op.join(distcorr_dir, 'Jacobian')}",
+                 "--verbose"]
+    logger.info(f"Topup command: {' '.join(topup_cmd)}")
+    process = sp.Popen(topup_cmd, stdout=sp.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
 
     fmap, fmapmag, fmapmagbrain = [ 
         op.join(distcorr_dir, '{}.nii.gz'.format(s)) 
@@ -133,6 +180,7 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
     ]    
 
     # Convert fmap from Hz to rad/s
+    logger.info("Converting fieldmap from Hz to rad/s.")
     fmap_spc = rt.ImageSpace(topup_fmap)
     fmap_arr_hz = nb.load(topup_fmap).get_data()
     fmap_arr = fmap_arr_hz * 2 * np.pi
@@ -140,17 +188,20 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
 
     # Apply gdc warp from gradient_unwarp and topup's EPI-DC
     # warp (just generated) in one interpolation step
+    logger.info("Applying gdc and epi-dc to fieldmap images in one interpolation step.")
     pa_ap_sefms_gdc_dc = apply_gdc_and_topup(pa_ap_sefms, 
                                              distcorr_dir,
                                              gdc_warp,
                                              interpolation=interpolation)
 
     # Mean across volumes of corrected sefms to get fmapmag
+    logger.info("Taking mean of corrected fieldmap images to get fmapmag.nii.gz")
     fmapmag_img = nb.nifti1.Nifti1Image(pa_ap_sefms_gdc_dc.get_fdata().mean(-1),
                                         affine=pa_ap_sefms_gdc_dc.affine)
     nb.save(fmapmag_img, fmapmag)
 
-    # Run BET on fmapmag to get brain only version 
+    # Run BET on fmapmag to get brain only version
+    logger.info("Running BET on fmapmag for brain-extracted version.")
     bet(fmapmag, output=fmapmagbrain)
 
     os.chdir(pwd)
@@ -200,7 +251,8 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
     return str(bbr_xform)
 
 def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir, 
-                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True):
+                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True,
+                         verbose=False):
     """
     Run gradient_unwarp and topup.
 
@@ -214,17 +266,25 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     ap_sefm: path to AP spin-echo fieldmap image
     interpolation: integer order for image interpolation, default 1
     force_refresh: Boolean whether to refresh already existing files, default True
+    verbose: Boolean whether to output to terminal as well as to logfile, default False
 
     Returns
     -------
     n/a: Saves outputs to file in ${output_dir}/gradient_unwarp and 
         ${output_dir}/topup.
     """
+    # set up logger
+    log_name = "HCPASL.distortion_estimation"
+    out_log = gradunwarp_dir.parent/"distortion_estimation.log"
+    logger = setup_logger(log_name, out_log, "INFO", verbose)
+
     # run gradient_unwarp
     gradunwarp_dir.mkdir(exist_ok=True)
     gdc_warp_name = gradunwarp_dir/"fullWarp_abs.nii.gz"
+    logger.info("Running generate_gdc_warp().")
     if not gdc_warp_name.exists() or force_refresh:
         generate_gdc_warp(vol, coeffs_path, gradunwarp_dir, interpolation)
+    logger.info("Loading gradient distortion correction warp from gradient_unwarp.py.")
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp_name),
                                                    src=str(pa_sefm),
                                                    ref=str(pa_sefm),
@@ -234,6 +294,7 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     # create topup results directory
     topup_dir.mkdir(exist_ok=True)
     # apply gradient distortion correciton to fieldmap images
+    logger.info("Applying gradient distortion correction to spin echo field map images.")
     sefms_gdc = [gdc_warp.apply_to_image(src=sefm, ref=sefm, order=interpolation)
                  for sefm in (pa_sefm, ap_sefm)]
     sefms_gdc_names = [topup_dir/f"{pre}_sefm_gdc.nii.gz" for pre in ("PA", "AP")]
@@ -241,10 +302,12 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     # stack gdc epi images together for use with topup
     pa_ap_sefms = topup_dir/"merged_sefms_gdc.nii.gz"
     if not pa_ap_sefms.exists() or force_refresh:
+        logger.info("Concatenating gradient distortion corrected Spin Echo field map images.")
         stack_fmaps(*sefms_gdc_names, pa_ap_sefms)
     # generate topup params
     topup_params = topup_dir/"topup_params.txt"
     if not topup_params.exists() or force_refresh:
+        logger.info(f"Generating topup parameter file: {topup_params}")
         generate_topup_params(topup_params)
     # run topup
     topup_config = "b02b0.cnf"

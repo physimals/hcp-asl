@@ -29,7 +29,8 @@ Corrections to be applied include:
         fully-corrected, registered ASL series)
 """
 
-from .utils import create_dirs, load_json, update_json
+import logging
+from .utils import create_dirs, load_json, update_json, setup_logger
 from .distortion_correction import generate_asl_mask
 from .m0_mt_correction import generate_asl2struct
 from fsl.wrappers import fslmaths, LOAD
@@ -101,6 +102,8 @@ def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
         Choose whether to run fabber in spatial (True) or 
         non-spatial (False) mode.
     """
+    logger_name = "HCPASL.hcp_asl_moco"
+    logger = logging.getLogger(logger_name)
     # set options for Fabber run, generic to spatial and non-spatial runs
     options = {
         'data': str(control_name),
@@ -143,14 +146,17 @@ def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
             'save-mvn': True
         }
     options.update(extra_options)
+    logger.info(f"Running fabber's satrecov model with options:")
+    for key, val in options.items():
+        logger.info(key, val)
     # run Fabber
     fab = Fabber()
     run = fab.run(options, progress_cb=percent_progress(sys.stdout))# Basic interaction with the run output
     # info about fabber run
-    print("\nOutput data summary")
+    log.info("\nOutput data summary")
     for name, data in run.data.items():
-        print("%s: %s" % (name, data.shape))
-    print("Run finished at: %s" % run.timestamp_str)
+        log.info("%s: %s" % (name, data.shape))
+    log.info("Run finished at: %s" % run.timestamp_str)
     # Write full contents out to a directory
     # load control image to get header for saving
     control_img = nb.load(control_name)
@@ -178,6 +184,8 @@ def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
     even_name : pathlib.Path
     odd_name : pathlib.Path
     """
+    logger = logging.getLogger("HCPASL.hcp_asl_moco")
+    logger.info("Splitting data into tag and control using asl_file.")
     asl_base = asl_name.parent / asl_name.stem.split('.')[0]
     # messy - is there a better way of filling in arguments?
     cmd = [
@@ -190,7 +198,16 @@ def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
         f'--rpts={rpts[0]},{rpts[1]},{rpts[2]},{rpts[3]},{rpts[4]}',
         f'--out={asl_base}'
     ]
-    subprocess.run(cmd)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
     even_name = asl_name.parent / f'{asl_base}_even.nii.gz'
     odd_name = asl_name.parent / f'{asl_base}_odd.nii.gz'
     return even_name, odd_name
@@ -375,7 +392,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
 def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                  calib2struct, gradunwarp_dir, topup_dir, t1w_dir, 
                  cores=mp.cpu_count(), interpolation=3, nobandingcorr=False, 
-                 outdir="hcp_asl"):
+                 outdir="hcp_asl", verbose=False):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -439,6 +456,27 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
     """
+    # set up logger
+    logger_name = "HCPASL.hcp_asl_moco"
+    log_out = subject_dir/outdir/f"ASL/hcp_asl_moco.log"
+    logger = setup_logger(logger_name, log_out, "INFO", verbose)
+
+    logger.info("Running hcp_asl_moco()")
+    logger.info(f"Subject directory: {subject_dir}")
+    logger.info(f"ASL TIs directory: {tis_dir}")
+    logger.info(f"MT scaling factors: {mt_factors}")
+    logger.info(f"SE-based bias name: {bias_name}")
+    logger.info(f"Calibration image name: {calib_name}")
+    logger.info(f"calib2struct registration: {calib2struct}")
+    logger.info(f"gradient_unwarp results directory: {gradunwarp_dir}")
+    logger.info(f"Topup results directory: {topup_dir}")
+    logger.info(f"T1w Structural Preprocessing directory: {t1w_dir}")
+    logger.info(f"Number of CPU cores to use: {cores}")
+    logger.info(f"Interpolation order: {interpolation}")
+    logger.info(f"Perform banding corrections: {not nobandingcorr}")
+    logger.info(f"outdir: {outdir}")
+    logger.info(f"Verbose: {verbose}")
+
     assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
     assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
 
@@ -446,6 +484,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     asl_name = (tis_dir/"tis.nii.gz").resolve(strict=True)
     
     # create directories for results
+    logger.info("Creating results directories.")
     bcorr_dir = tis_dir / 'BiasCorr'
     distcorr_dir = tis_dir / 'DistCorr/FirstPass'
     moco_dir = tis_dir / 'MoCo'
@@ -465,7 +504,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         create_dirs([mtcorr_dir, stcorr_dir])
 
     # apply distortion corrections to the ASL series
-    print("Applying distortion corrections to original ASL series.")
+    logger.info("Applying distortion corrections to original ASL series.")
     gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
                                                    src=str(asl_name), 
@@ -489,13 +528,13 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     nb.save(asl_gdc_dc, asl_gdc_dc_name)
 
     # bias correct the ASL series
-    print("Bias-correcting the distortion-corrected ASL series.")
+    logger.info("Bias-correcting the distortion-corrected ASL series.")
     bcorr_img = bcorr_dir / 'tis_biascorr.nii.gz'
     fslmaths(str(asl_gdc_dc_name)).div(str(bias_name)).run(str(bcorr_img))
 
     # apply MT scaling factors to the bias-corrected ASL series
     if not nobandingcorr:
-        print("MT-correcting the distortion-corrected ASL series.")
+        logger.info("MT-correcting the distortion-corrected ASL series.")
         mtcorr_name = mtcorr_dir / 'tis_mtcorr.nii.gz'
         mt_sfs = np.loadtxt(mt_factors)
         mt_arr = np.repeat(np.tile(mt_sfs, (86, 86, 1))[..., np.newaxis], 86, axis=-1)
@@ -510,13 +549,13 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         asl_corr = bcorr_img
 
     # estimate satrecov model on distortion-, bias- and MT- corrected ASL series
-    print("First satrecov model fit.")
+    logger.info("First satrecov model fit.")
     t1_name = _saturation_recovery(asl_corr, satrecov_dir, NTIS, IAF, IBF, TIS, RPTS)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
 
     # perform slice-time correction using estimated tissue params
     if not nobandingcorr:
-        print("Performing initial ST correction.")
+        logger.info("Performing initial ST correction.")
         stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_name, t1_filt_name, TIS, RPTS, SLICEDT, SLICEBAND, NSLICES)
         stcorr_img, stfactors_img = [nb.nifti1.Nifti1Image(img.get_fdata().astype(np.float32),
                                                            affine=img.affine)
@@ -528,7 +567,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         asl_corr = stcorr_name
 
     # register ASL series to calibration image
-    print("Running mcflirt on calibration image and ASL series.")
+    logger.info("Running mcflirt on calibration image and ASL series.")
     reg_name = moco_dir / 'initial_registration_TIs.nii.gz'
     mcflirt(str(asl_corr), reffile=str(calib_name), mats=True, out=str(reg_name))
     # rename mcflirt matrices directory
@@ -538,7 +577,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     orig_mcflirt.rename(asln2m0_name)
 
     # get brain mask in ASL0 space
-    print("Create brain mask in ASL0 space")
+    logger.info("Create brain mask in ASL0 space")
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(mats=str(asln2m0_name),
                                                     src=str(asl_name),
                                                     ref=str(calib_name))
@@ -559,7 +598,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                              iterations=2).astype(np.float32)
 
     # register pre-ST-correction ASLn to ASL0
-    print("Apply distortion and motion correction to original ASL series.")
+    logger.info("Apply distortion and motion correction to original ASL series.")
     asln2asl0 = rt.chain(asln2m0_moco, asln2m0_moco.transforms[0].inverse())
     gdc_dc_asln2asl0 = rt.chain(gdc_dc_warp, asln2asl0)
     reg_gdc_dc = gdc_dc_asln2asl0.apply_to_image(str(asl_name), 
@@ -571,7 +610,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     
     # apply moco to MT scaling factors image
     if not nobandingcorr:
-        print("Apply motion estimates to the MT scaling factors image")
+        logger.info("Apply motion estimates to the MT scaling factors image")
         mt_reg_img = asln2asl0.apply_to_image(src=mt_img, 
                                               ref=mt_img, 
                                               cores=cores, 
@@ -582,7 +621,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         nb.save(mt_reg_img, mt_reg_img_name)
 
     # apply bias-correction to motion- and distortion-corrected ASL series
-    print("Apply bias correction to the distortion- and motion-corrected ASL series.")
+    logger.info("Apply bias correction to the distortion- and motion-corrected ASL series.")
     bias_img = nb.load(bias_name)
     reg_gdc_dc_biascorr = nb.nifti1.Nifti1Image(
         ((reg_gdc_dc.get_fdata() * mask4d)/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
@@ -602,7 +641,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         asl_corr = reg_gdc_dc_biascorr_name
 
     # re-estimate satrecov model on distortion- and motion-corrected data
-    print("Re-fitting the satrecov model since data has been motion-corrected.")
+    logger.info("Re-fitting the satrecov model since data has been motion-corrected.")
     satrecov_dir = tis_dir / 'SatRecov2'
     stcorr_dir = tis_dir / 'STCorr2'
     create_dirs([satrecov_dir, stcorr_dir])
@@ -611,7 +650,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     
     if not nobandingcorr:
         # apply refined slice-time correction to registered- and distortion-corrected ASL series
-        print("ST correcting the ASL series.")
+        logger.info("ST correcting the ASL series.")
         stcorr_img, stfactors_img = _slicetiming_correction(temp_reg_gdc_dc_mtcorr, 
                                                             t1_filt_name, 
                                                             TIS, 
@@ -628,7 +667,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         nb.save(stfactors_img, stfactors_name)
 
         # combined MT and ST scaling factors
-        print("Combining the ST and MT scaling factors into one set of scaling factors.")
+        logger.info("Combining the ST and MT scaling factors into one set of scaling factors.")
         combined_factors_name = stcorr_dir / 'combined_scaling_factors.nii.gz'
         combined_factors_img = nb.nifti1.Nifti1Image((stfactors_img.get_fdata()*mt_reg_img.get_fdata()).astype(np.float32), 
                                                      affine=stfactors_img.affine)
@@ -644,9 +683,37 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                   perfusion_name, gradunwarp_dir, topup_dir, aslt1w_dir, 
                   ribbon, wmparc, corticallut, subcorticallut, 
                   asl_scaling_factors=None, mt_factors=None, t1_est=None,
-                  nobandingcorr=False, interpolation=3, cores=1):
+                  nobandingcorr=False, interpolation=3, cores=1, verbose=False):
+    # set up logger
+    logger_name = "HCPASL.asl_to_aslt1w"
+    log_out = aslt1w_dir/"TIs/asl_to_aslt1w.log"
+    logger = setup_logger(logger_name, log_out, "INFO", verbose)
+
+    logger.info("Running asl_to_aslt1w()")
+    logger.info(f"ASL series: {asl_name}")
+    logger.info(f"Calibration image: {calib_name}")
+    logger.info(f"Subject directory: {subject_dir}")
+    logger.info(f"T1w directory: {t1w_dir}")
+    logger.info(f"Mcflirt motion estimate directory: {moco_dir}")
+    logger.info(f"Perfusion image: {perfusion_name}")
+    logger.info(f"gradient_unwarp output directory: {gradunwarp_dir}")
+    logger.info(f"Topup output directory: {topup_dir}")
+    logger.info(f"ASLT1w directory: {aslt1w_dir}")
+    logger.info(f"ribbon.nii.gz: {ribbon}")
+    logger.info(f"wmparc.nii.gz: {wmparc}")
+    logger.info(f"Cortical LUT: {corticallut}")
+    logger.info(f"Subcortical LUT: {subcorticallut}")
+    logger.info(f"ASL scaling factors: {asl_scaling_factors}")
+    logger.info(f"MT scaling factors: {mt_factors}")
+    logger.info(f"Estimated T1t image: {t1_est}")
+    logger.info(f"Perform banding corrections: {not nobandingcorr}")
+    logger.info(f"Interpolation order: {interpolation}")
+    logger.info(f"Number of CPU cores to use: {cores}")
+    logger.info(f"Verbose: {verbose}")
+
     # get registration from perfusion image to T1w_acpc_dc_restore
     # using FreeSurfer's bbregister
+    logger.info("Getting registration from perfusion image to T1w.")
     reg_dir = aslt1w_dir/"TIs/reg"
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
@@ -657,6 +724,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                                                 ref=str(struct_name))
     
     # get brain mask in ASL-gridded T1w space
+    logger.info("Obtaining brain mask in ASLT1w space.")
     struct_brain_mask = t1w_dir/"brainmask_fs.nii.gz"
     asl_spc = rt.ImageSpace(str(asl_name))
     t1w_spc = rt.ImageSpace(str(struct_brain_mask))
@@ -671,6 +739,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     mask4d = aslt1_brain_mask.get_fdata()[..., np.newaxis]
 
     # load gradient_unwarp gradient distortion correction warp
+    logger.info("Loading distortion correction warps.")
     gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
                                                     src=str(asl_name), 
@@ -686,6 +755,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     gdc_dc_warp = rt.chain(gdc_warp, dc_warp)
 
     # load asl motion correction
+    logger.info("Loading motion correction.")
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(mats=str(moco_dir),
                                                     src=str(asl_name),
                                                     ref=str(calib_name))
@@ -696,6 +766,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     # SE-based bias estimates
 
     # register original calibration image to ASL-gridded T1w space
+    logger.info("Registering calibration image to ASLT1w space.")
     calib_distcorr_dir = aslt1w_dir/"Calib/Calib0/DistCorr"
     calib_distcorr_dir.mkdir(exist_ok=True, parents=True)
     m02struct = rt.chain(m02asl0, asl2struct_reg)
@@ -707,6 +778,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     nb.save(calib_gdc_dc_aslt1w, calib_gdc_dc_aslt1w_name)
 
     # register fieldmap magnitude image to ASL-gridded T1w space
+    logger.info("Registering fmapmag to ASLT1s space.")
     fmapmag = (topup_dir/"fmapmag.nii.gz").resolve(strict=True)
     fmap2struct_name = (topup_dir/"fmap_struct_reg/asl2struct.mat").resolve(strict=True)
     fmap2struct_reg = rt.Registration.from_flirt(src2ref=str(fmap2struct_name),
@@ -719,6 +791,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     nb.save(fmap_aslt1w, fmap_aslt1w_name)
 
     # get ASLT1w space SE-based bias estimate
+    logger.info("Performing SE-based bias estimation in ASLT1w space.")
     sebased_dir = aslt1w_dir/"Calib/Calib0/SEbased"
     sebased_dir.mkdir(exist_ok=True)
     sebased_cmd = ["get_sebased_bias",
@@ -731,7 +804,16 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                     "--corticallut", corticallut,
                     "--subcorticallut", subcorticallut,
                     "--debug"]
-    subprocess.run(sebased_cmd, check=True)
+    process = subprocess.Popen(sebased_cmd, stdout=subprocess.PIPE)
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        logger.info(f"retcode={retcode}")
+        logger.exception("Process failed.")
     bias_name = sebased_dir/"sebased_bias_dil.nii.gz"
     dilall_name = sebased_dir/"sebased_bias_dilall.nii.gz"
     dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
@@ -739,6 +821,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
 
     # register calibration image's MT scaling factors to ASL-gridded T1w space
     if mt_factors:
+        logger.info("Registering calibration image's MT scaling factors to ASLT1w space.")
         mt_sfs = np.loadtxt(mt_factors)
         mt_arr = np.tile(mt_sfs, (86, 86, 1))
         calib_mt_sfs_aslt1w = m02struct.apply_to_array(data=mt_arr,
@@ -766,6 +849,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     # also apply new bias field estimated above.
 
     # register ASL series to ASL-gridded T1w space
+    logger.info("Registering ASL series to ASLT1w space.")
     distcorr_dir = aslt1w_dir/"TIs/DistCorr"
     distcorr_dir.mkdir(exist_ok=True, parents=True)
     asl2struct_gdc_dc_moco = rt.chain(gdc_dc_warp, asln2asl0, asl2struct_reg)
@@ -780,6 +864,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
 
     # register ASL scaling factors to ASL-gridded T1w space
     if asl_scaling_factors:
+        logger.info("Registering ASL scaling factors to ASLT1w space.")
         aslt1w_sfs = asl2struct_reg.apply_to_image(src=str(asl_scaling_factors),
                                                    ref=str(aslt1_brain_mask_name),
                                                    cores=cores,
@@ -793,6 +878,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     nb.save(aslt1w_sfs, aslt1w_sfs_name)
 
     # apply bias field and banding corrections to ASL series
+    logger.info("Applying SE-based bias correction and banding corrections to ASL series.")
     bias = nb.load(bias_name)
     asl_corr = nb.nifti1.Nifti1Image(
         np.where(bias.get_fdata()[..., np.newaxis]!=0, 
@@ -804,6 +890,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     nb.save(asl_corr, asl_corr_name)
 
     # create TI timing image in ASL space and register to ASL-gridded T1w space
+    logger.info("Creating TI image in ASLT1w space for use in oxford_asl.")
     ti_aslt1w_name = aslt1w_dir/"TIs/timing_img_aslt1w.nii.gz"
     create_ti_image(str(asl_name), TIS, SLICEBAND, SLICEDT, str(ti_aslt1w_name))
     ti_aslt1w = asl2struct_reg.apply_to_image(src=str(ti_aslt1w_name),
@@ -813,6 +900,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
 
     # register T1 image, estimated by the satrecov model, to ASL-gridded T1w space
     if t1_est:
+        logger.info("Registering estimated T1t image to ASLT1w space.")
         t1_est_aslt1w = asl2struct_reg.apply_to_image(src=str(t1_est),
                                                       ref=str(aslt1_brain_mask_name),
                                                       order=interpolation)
