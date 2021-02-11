@@ -185,6 +185,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     beta_perf = betas_dir/"beta_perf.nii.gz"
     asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
+    oxford_asl_dir.mkdir(exist_ok=True)
     logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO", verbose)
     oxford_asl_call = [
         "oxford_asl",
@@ -245,7 +246,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     # perform partial volume estimation
     logger.info("Performing partial volume estimation.")
-    logger_pv = setup_logger("HCPASL.pv_est", Path(names["structasl"])/"PVEs/pv_est.log", "INFO", verbose)
+    pves_dir = Path(names["structasl"])/"PVEs"
+    pves_dir.mkdir(exist_ok=True)
+    logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO", verbose)
     pv_est_call = [
         "pv_est",
         str(subject_dir.parent),
@@ -271,12 +274,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     series = aslt1w_dir/"TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir/"TIs/Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir, verbose)
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     # final perfusion estimation in ASLT1w space
     logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir/"PVEs"
     oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
+    oxford_aslt1w_dir.mkdir(exist_ok=True)
     logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO", verbose)
     oxford_aslt1w_call = [
         "oxford_asl",

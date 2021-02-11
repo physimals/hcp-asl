@@ -148,15 +148,15 @@ def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
     options.update(extra_options)
     logger.info(f"Running fabber's satrecov model with options:")
     for key, val in options.items():
-        logger.info(key, val)
+        logger.info(f"{key}: {str(val)}")
     # run Fabber
     fab = Fabber()
     run = fab.run(options, progress_cb=percent_progress(sys.stdout))# Basic interaction with the run output
     # info about fabber run
-    log.info("\nOutput data summary")
+    logger.info("\nOutput data summary")
     for name, data in run.data.items():
-        log.info("%s: %s" % (name, data.shape))
-    log.info("Run finished at: %s" % run.timestamp_str)
+        logger.info("%s: %s" % (name, data.shape))
+    logger.info("Run finished at: %s" % run.timestamp_str)
     # Write full contents out to a directory
     # load control image to get header for saving
     control_img = nb.load(control_name)
@@ -686,7 +686,9 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                   nobandingcorr=False, interpolation=3, cores=1, verbose=False):
     # set up logger
     logger_name = "HCPASL.asl_to_aslt1w"
-    log_out = aslt1w_dir/"TIs/asl_to_aslt1w.log"
+    tis_aslt1w_dir = aslt1w_dir/"TIs"
+    tis_aslt1w_dir.mkdir(exist_ok=True)
+    log_out = tis_aslt1w_dir/"asl_to_aslt1w.log"
     logger = setup_logger(logger_name, log_out, "INFO", verbose)
 
     logger.info("Running asl_to_aslt1w()")
@@ -714,11 +716,11 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     # get registration from perfusion image to T1w_acpc_dc_restore
     # using FreeSurfer's bbregister
     logger.info("Getting registration from perfusion image to T1w.")
-    reg_dir = aslt1w_dir/"TIs/reg"
+    reg_dir = tis_aslt1w_dir/"reg"
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
-    generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
+    generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir, verbose)
     asl2struct_reg = rt.Registration.from_flirt(src2ref=str(reg_dir/"asl2struct.mat"),
                                                 src=str(perfusion_name),
                                                 ref=str(struct_name))
@@ -850,7 +852,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
 
     # register ASL series to ASL-gridded T1w space
     logger.info("Registering ASL series to ASLT1w space.")
-    distcorr_dir = aslt1w_dir/"TIs/DistCorr"
+    distcorr_dir = tis_aslt1w_dir/"DistCorr"
     distcorr_dir.mkdir(exist_ok=True, parents=True)
     asl2struct_gdc_dc_moco = rt.chain(gdc_dc_warp, asln2asl0, asl2struct_reg)
     asl_gdc_dc_moco = asl2struct_gdc_dc_moco.apply_to_image(src=str(asl_name),
@@ -874,7 +876,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     else:
         aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape, dtype=np.float32),
                                            affine=asl_gdc_dc_moco)
-    aslt1w_sfs_name = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
+    aslt1w_sfs_name = tis_aslt1w_dir/"combined_scaling_factors.nii.gz"
     nb.save(aslt1w_sfs, aslt1w_sfs_name)
 
     # apply bias field and banding corrections to ASL series
@@ -886,12 +888,12 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                  0.).astype(np.float32),
         affine=asl_gdc_dc_moco.affine
     )
-    asl_corr_name = aslt1w_dir/"TIs/asl_corr.nii.gz"
+    asl_corr_name = tis_aslt1w_dir/"asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
 
     # create TI timing image in ASL space and register to ASL-gridded T1w space
     logger.info("Creating TI image in ASLT1w space for use in oxford_asl.")
-    ti_aslt1w_name = aslt1w_dir/"TIs/timing_img_aslt1w.nii.gz"
+    ti_aslt1w_name = tis_aslt1w_dir/"timing_img_aslt1w.nii.gz"
     create_ti_image(str(asl_name), TIS, SLICEBAND, SLICEDT, str(ti_aslt1w_name))
     ti_aslt1w = asl2struct_reg.apply_to_image(src=str(ti_aslt1w_name),
                                               ref=str(aslt1_brain_mask_name),

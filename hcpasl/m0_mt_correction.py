@@ -154,7 +154,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         Name of the main results directory. Default is 'hcp_asl'.
     """
     logger_name = "HCPASL.correct_M0"
-    log_name = subject_dir/outdir/"Calib/correct_M0.log"
+    log_name = subject_dir/outdir/"ASL/Calib/correct_M0.log"
     logger = setup_logger(logger_name, log_name, "INFO", verbose)
 
     # get calibration image names
@@ -238,7 +238,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
 
         # get registration to structural
         logger.info("Generate registration to structural.")
-        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
+        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir, verbose)
         asl2struct_name = distcorr_dir/"asl2struct.mat"
         asl2struct_reg = rt.Registration.from_flirt(src2ref=str(distcorr_dir/"asl2struct.mat"),
                                                     src=str(calib_corr_name),
