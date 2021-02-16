@@ -10,7 +10,7 @@ from fsl.wrappers import bet
 from hcpasl.utils import setup_logger
 import logging
 
-def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1, verbose=False):
+def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
     """
     Generate distortion correction warp via gradient_unwarp. 
 
@@ -31,7 +31,6 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1, verbose=F
     logger.info(f"coeffs_path: {coeffs_path}")
     logger.info(f"distcorr_dir: {distcorr_dir}")
     logger.info(f"interpolation: {interpolation}")
-    logger.info(f"verbose: {verbose}")
 
     # Need to run in the output directory to make sure files end up in the
     # right place
@@ -251,8 +250,7 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
     return str(bbr_xform)
 
 def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir, 
-                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True,
-                         verbose=False):
+                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True):
     """
     Run gradient_unwarp and topup.
 
@@ -266,7 +264,6 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     ap_sefm: path to AP spin-echo fieldmap image
     interpolation: integer order for image interpolation, default 1
     force_refresh: Boolean whether to refresh already existing files, default True
-    verbose: Boolean whether to output to terminal as well as to logfile, default False
 
     Returns
     -------
@@ -276,7 +273,7 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     # set up logger
     log_name = "HCPASL.distortion_estimation"
     out_log = gradunwarp_dir.parent/"distortion_estimation.log"
-    logger = setup_logger(log_name, out_log, "INFO", verbose)
+    logger = setup_logger(log_name, out_log, "INFO")
 
     # run gradient_unwarp
     gradunwarp_dir.mkdir(exist_ok=True)

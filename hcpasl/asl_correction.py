@@ -392,7 +392,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
 def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
                  calib2struct, gradunwarp_dir, topup_dir, t1w_dir, 
                  cores=mp.cpu_count(), interpolation=3, nobandingcorr=False, 
-                 outdir="hcp_asl", verbose=False):
+                 outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -459,7 +459,7 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     # set up logger
     logger_name = "HCPASL.hcp_asl_moco"
     log_out = subject_dir/outdir/f"ASL/hcp_asl_moco.log"
-    logger = setup_logger(logger_name, log_out, "INFO", verbose)
+    logger = setup_logger(logger_name, log_out, "INFO")
 
     logger.info("Running hcp_asl_moco()")
     logger.info(f"Subject directory: {subject_dir}")
@@ -475,7 +475,6 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
     logger.info(f"Interpolation order: {interpolation}")
     logger.info(f"Perform banding corrections: {not nobandingcorr}")
     logger.info(f"outdir: {outdir}")
-    logger.info(f"Verbose: {verbose}")
 
     assert (isinstance(cores, int) and cores>0 and cores<=mp.cpu_count()), f"Number of cores should be an integer from 1-{mp.cpu_count()}."
     assert (isinstance(interpolation, int) and interpolation>=0 and interpolation<=5), "Order of interpolation should be an integer from 0-5."
@@ -683,13 +682,13 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
                   perfusion_name, gradunwarp_dir, topup_dir, aslt1w_dir, 
                   ribbon, wmparc, corticallut, subcorticallut, 
                   asl_scaling_factors=None, mt_factors=None, t1_est=None,
-                  nobandingcorr=False, interpolation=3, cores=1, verbose=False):
+                  nobandingcorr=False, interpolation=3, cores=1):
     # set up logger
     logger_name = "HCPASL.asl_to_aslt1w"
     tis_aslt1w_dir = aslt1w_dir/"TIs"
     tis_aslt1w_dir.mkdir(exist_ok=True)
     log_out = tis_aslt1w_dir/"asl_to_aslt1w.log"
-    logger = setup_logger(logger_name, log_out, "INFO", verbose)
+    logger = setup_logger(logger_name, log_out, "INFO")
 
     logger.info("Running asl_to_aslt1w()")
     logger.info(f"ASL series: {asl_name}")
@@ -711,7 +710,6 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     logger.info(f"Perform banding corrections: {not nobandingcorr}")
     logger.info(f"Interpolation order: {interpolation}")
     logger.info(f"Number of CPU cores to use: {cores}")
-    logger.info(f"Verbose: {verbose}")
 
     # get registration from perfusion image to T1w_acpc_dc_restore
     # using FreeSurfer's bbregister
@@ -720,7 +718,7 @@ def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir,
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
-    generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir, verbose)
+    generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
     asl2struct_reg = rt.Registration.from_flirt(src2ref=str(reg_dir/"asl2struct.mat"),
                                                 src=str(perfusion_name),
                                                 ref=str(struct_name))

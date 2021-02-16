@@ -28,7 +28,7 @@ import nibabel as nb
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
                     fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
-                    nobandingcorr=False, outdir="hcp_asl", verbose=False):
+                    nobandingcorr=False, outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
 
@@ -87,13 +87,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         banding corrections are applied by default).
     outdir : str, optional
         Name of the main results directory. Default is 'hcp_asl'.
-    verbose : bool, optional
-        If True, stdout will go to the terminal as well as to 
-        a logfile. Default is False.
     """
 
     subject_dir = (studydir / subid).resolve(strict=True)
-    logger = logging.getLogger("HCPASL.run_pipeline")
+    logger = logging.getLogger("HCPASL")
 
     # initial set-up for the pipeline: create results directories; 
     # split mbPCASL sequence into TIs and calibration images; and 
@@ -118,8 +115,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                          topup_dir=topup_dir, 
                          pa_sefm=names["pa_sefm"], 
                          ap_sefm=names["ap_sefm"], 
-                         interpolation=interpolation,
-                         verbose=verbose)
+                         interpolation=interpolation)
 
     # apply corrections to the calibration images
     logger.info("Running M0 corrections.")
@@ -139,8 +135,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                subcorticallut=subcorticallut, 
                interpolation=interpolation, 
                nobandingcorr=nobandingcorr, 
-               outdir=outdir,
-               verbose=verbose)
+               outdir=outdir)
     
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
@@ -165,8 +160,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  cores=cores, 
                  interpolation=interpolation, 
                  nobandingcorr=nobandingcorr, 
-                 outdir=outdir,
-                 verbose=verbose)
+                 outdir=outdir)
     
     # perform tag-control subtraction in ASL0 space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
@@ -186,7 +180,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
     oxford_asl_dir.mkdir(exist_ok=True)
-    logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO", verbose)
+    logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO")
     oxford_asl_call = [
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
@@ -241,14 +235,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                   t1_est=t1_est,
                   nobandingcorr=nobandingcorr,
                   interpolation=interpolation,
-                  cores=cores,
-                  verbose=verbose)
+                  cores=cores)
 
     # perform partial volume estimation
     logger.info("Performing partial volume estimation.")
     pves_dir = Path(names["structasl"])/"PVEs"
     pves_dir.mkdir(exist_ok=True)
-    logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO", verbose)
+    logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO")
     pv_est_call = [
         "pv_est",
         str(subject_dir.parent),
@@ -281,7 +274,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     pve_dir = aslt1w_dir/"PVEs"
     oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
     oxford_aslt1w_dir.mkdir(exist_ok=True)
-    logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO", verbose)
+    logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO")
     oxford_aslt1w_call = [
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}",
@@ -321,10 +314,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         logger.exception("Process failed.")
 
     logger.info("Projecting volumetric results to surface.")
-    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir, verbose=verbose)
+    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
 
 def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
-                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc", verbose=False):
+                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
@@ -338,7 +331,7 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
     subid : str
         Subject id for the subject of interest.
     """
-    logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO", verbose)
+    logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO")
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
     wb_path        = str(Path(wbdevdir).resolve(strict=True))
@@ -561,7 +554,7 @@ def main():
     base_dir = Path(studydir/subid/args.outdir)
     base_dir.mkdir(exist_ok=True)
     fh_name = base_dir/f"{subid}.log"
-    logger = setup_logger("HCPASL.run_pipeline", fh_name, "INFO", args.verbose)
+    logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
     
     logger.info(f"Welcome to HCPASL v{__version__} (commit {__sha1__} on {__timestamp__}.")
     logger.info(args)
@@ -632,8 +625,7 @@ def main():
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
                     outdir=args.outdir,
-                    wbdevdir=args.wbdevdir,
-                    verbose=args.verbose
+                    wbdevdir=args.wbdevdir
                     )
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ import nibabel as nb
 import os
 import os.path as op
 
-def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir, verbose):
+def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     """
     Generate the linear transformation between ASL-space and T1w-space
     using FS bbregister. Note that struct is required only for saving 
@@ -37,14 +37,13 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir, verbose):
     # set up logger
     logger_name = "HCPASL.asl2struct_registration"
     log_name = reg_dir/"asl2struct_reg.log"
-    logger = setup_logger(logger_name, log_name, "INFO", verbose)
+    logger = setup_logger(logger_name, log_name, "INFO")
 
     logger.info("Running generate_asl2struct()")
     logger.info(f"Movable volume: {asl_vol0}")
     logger.info(f"T1w structural image: {struct}")
     logger.info(f"FreeSurfer output directory: {fsdir}")
     logger.info(f"Output directory: {reg_dir}")
-    logger.info(f"Verbose: {verbose}")
 
     # We need to do some hacky stuff to get bbregister to work...
     # Split the path to the FS directory into a fake $SUBJECTS_DIR
@@ -99,7 +98,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
                t1w_dir, aslt1w_dir, gradunwarp_dir, topup_dir, 
                wmparc, ribbon, corticallut, subcorticallut, 
                interpolation=3, nobandingcorr=False, 
-               outdir="hcp_asl", verbose=False):
+               outdir="hcp_asl"):
     """
     Correct the M0 images.
     
@@ -155,7 +154,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     """
     logger_name = "HCPASL.correct_M0"
     log_name = subject_dir/outdir/"ASL/Calib/correct_M0.log"
-    logger = setup_logger(logger_name, log_name, "INFO", verbose)
+    logger = setup_logger(logger_name, log_name, "INFO")
 
     # get calibration image names
     calib0, calib1 = [
@@ -198,7 +197,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     fmap_struct_dir = topup_dir/"fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True)
     fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
-    generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir, verbose)
+    generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     logger.info("Loading registration from fieldmap to struct.")
     bbr_fmap2struct = rt.Registration.from_flirt(str(fmap_struct_dir/"asl2struct.mat"), 
                                                  src=str(fmapmag), 
@@ -238,7 +237,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
 
         # get registration to structural
         logger.info("Generate registration to structural.")
-        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir, verbose)
+        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
         asl2struct_name = distcorr_dir/"asl2struct.mat"
         asl2struct_reg = rt.Registration.from_flirt(src2ref=str(distcorr_dir/"asl2struct.mat"),
                                                     src=str(calib_corr_name),
