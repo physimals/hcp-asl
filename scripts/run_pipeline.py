@@ -19,6 +19,7 @@ from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.utils import setup_logger
+from hcpasl.qc import create_qc_report
 from pathlib import Path
 import subprocess
 import argparse
@@ -315,6 +316,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     logger.info("Projecting volumetric results to surface.")
     project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
+
+    logger.info("Creating QC report.")
+    create_qc_report(subject_dir, outdir)
 
 def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
