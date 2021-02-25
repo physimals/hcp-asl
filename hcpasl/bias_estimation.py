@@ -115,7 +115,7 @@ def bias_estimation_sebased(
         str(struct2asl), src=str(t1_name), ref=str(calib_name)
     )
     if not fmapmag_calib_name.exists() or force_refresh:
-        distortion_correction.register_fmap(
+        register_fmap(
             fmapmag, fmapmagbrain, t1_name, t1_brain_name, 
             fmap_reg_dir, wmseg_name
         )
