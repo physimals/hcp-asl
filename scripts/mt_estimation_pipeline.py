@@ -1,8 +1,7 @@
 import argparse
 import sys
 from pathlib import Path
-from hcpasl import setup_mtestimation
-from hcpasl import estimate_mt
+from hcpasl.MTEstimation import setup_mtestimation, estimate_mt
 import multiprocessing as mp
 from functools import partial
 import numpy as np
@@ -110,14 +109,17 @@ def main():
     )
     with mp.Pool(args.cores) as pool:
         results = pool.map(setup_call, subjects)
+    successful_subs = []
     for result in results:
         print(result)
+        if result[1] == 1:
+            successful_subs.append(result[0])
 
     if args.time:
         end = time.time()
         print(f"Time per subject: {(end-start)*args.cores/(len(subjects)*60)} minutes.")
     # do estimation
-    errors = estimate_mt(subjects, rois=rois, tr=TR, method=args.method, 
+    errors = estimate_mt(successful_subs, rois=rois, tr=TR, method=args.method, 
                          outdir=args.out, ignore_dropouts=args.ignore_dropouts)
     for error in errors:
         print(error)
