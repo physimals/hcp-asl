@@ -193,7 +193,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     ]
     if use_t1:
         est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
-        oxford_asl_call = oxford_asl_call + f"--t1im {str(est_t1)}"
+        oxford_asl_call.append("--t1im")
+        oxford_asl_call.append(str(est_t1))
     oxford_asl_call = " ".join(oxford_asl_call)
     logger_oxasl.info(oxford_asl_call)
     process = subprocess.Popen(oxford_asl_call, shell=True, stdout=subprocess.PIPE)
@@ -296,11 +297,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         "--debug",
         "--spatial=off"
     ]
-    if use_t1:
-        est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt.nii.gz"
-        oxford_aslt1w_call.append(f"--t1im {str(est_t1)}")
     if pvcorr:
         oxford_aslt1w_call.append("--pvcorr")
+    if use_t1:
+        est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt.nii.gz"
+        oxford_aslt1w_call.append("--t1im")
+        oxford_aslt1w_call.append(str(est_t1))
     oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
     logger_oxaslt1w.info(oxford_aslt1w_call)
     process = subprocess.Popen(oxford_aslt1w_call, shell=True, stdout=subprocess.PIPE)
