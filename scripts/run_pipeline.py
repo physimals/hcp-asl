@@ -295,7 +295,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         "--bolus=1.5",
         "--te=19",
         "--debug",
-        "--spatial=off"
+        "--spatial=off",
+        "--tr=8"
     ]
     if pvcorr:
         oxford_aslt1w_call.append("--pvcorr")
