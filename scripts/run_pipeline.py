@@ -18,7 +18,7 @@ from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
 from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.utils import setup_logger
+from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
 from hcpasl.qc import create_qc_report
 from pathlib import Path
 import subprocess
@@ -93,29 +93,28 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     subject_dir = (studydir / subid).resolve(strict=True)
     logger = logging.getLogger("HCPASL")
 
-    # initial set-up for the pipeline: create results directories; 
-    # split mbPCASL sequence into TIs and calibration images; and 
-    # return dictionary with locations of important files.
-    logger.info("Performing initial set-up for the pipeline.")
-    names = initial_setup(subject_dir, 
-                          mbpcasl=mbpcasl, 
-                          structural=structural, 
-                          surfaces=surfaces,
-                          fmaps=fmaps,
-                          outdir=outdir)
+    # initial set-up for the pipeline: create results directories
+    logger.info("Creating main results directories.")
+    asl_dir, aslt1w_dir = [subject_dir/outdir/name for name in ("ASL", "ASLT1w")]
+    tis_dir, calib0_dir, calib1_dir = [asl_dir/name for name in ("TIs", "Calib/Calib0", "Calib/Calib1")]
+    create_dirs([asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir])
+    # split mbPCASL sequence into TIs and calibration images
+    logger.info("Splitting mbPCASL sequence into ASL series and calibration images.")
+    tis_name, calib0_name, calib1_name = [d/name for d, name in zip((tis_dir, calib0_dir, calib1_dir), 
+                                                                    ("tis.nii.gz", "calib0.nii.gz", "calib1.nii.gz"))]
+    split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
 
     # run gradient_unwarp and topup, storing results 
     # in gradunwarp_dir and topup_dir respectively
     logger.info("Running gradient_unwarp and topup.")
-    asl_dir = Path(names["ASL_dir"])
     gradunwarp_dir = asl_dir/"gradient_unwarp"
     topup_dir = asl_dir/"topup"
-    gradunwarp_and_topup(vol=names["calib0_img"], 
+    gradunwarp_and_topup(vol=str(calib0_name), 
                          coeffs_path=gradients, 
                          gradunwarp_dir=gradunwarp_dir, 
                          topup_dir=topup_dir, 
-                         pa_sefm=names["pa_sefm"], 
-                         ap_sefm=names["ap_sefm"], 
+                         pa_sefm=fmaps["PA"], 
+                         ap_sefm=fmaps["AP"], 
                          interpolation=interpolation)
 
     # apply corrections to the calibration images
@@ -123,13 +122,14 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
+    t1w_dir = structural["struct"].parent
     correct_M0(subject_dir=subject_dir, 
-               calib_dir=Path(names["calib_dir"]), 
+               calib_dir=calib0_dir.parent, 
                mt_factors=mt_factors, 
-               t1w_dir=Path(names["T1w_dir"]), 
-               aslt1w_dir=Path(names["structasl"]), 
-               gradunwarp_dir=Path(gradunwarp_dir), 
-               topup_dir=Path(topup_dir), 
+               t1w_dir=t1w_dir, 
+               aslt1w_dir=aslt1w_dir, 
+               gradunwarp_dir=gradunwarp_dir, 
+               topup_dir=topup_dir, 
                wmparc=wmparc, 
                ribbon=ribbon, 
                corticallut=corticallut, 
@@ -141,8 +141,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
     logger.info("Estimating ASL motion.")
-    calib0_dir = Path(names["calib0_dir"])
-    tis_dir = Path(names["TIs_dir"])
     bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
     if not nobandingcorr:
         calib_corr = calib0_dir/"MTCorr/calib0_mtcorr.nii.gz"
@@ -157,7 +155,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                  calib2struct=calib2struct, 
                  gradunwarp_dir=gradunwarp_dir, 
                  topup_dir=topup_dir, 
-                 t1w_dir=Path(names["T1w_dir"]), 
+                 t1w_dir=t1w_dir, 
                  cores=cores, 
                  interpolation=interpolation, 
                  nobandingcorr=nobandingcorr, 
@@ -219,11 +217,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
     else:
         t1_est = None
-    asl_to_aslt1w(asl_name=names["ASL_seq"],
-                  calib_name=names["calib0_img"],
+    asl_to_aslt1w(asl_name=tis_name,
+                  calib_name=calib0_name,
                   subject_dir=subject_dir,
-                  t1w_dir=Path(names["T1w_dir"]),
-                  aslt1w_dir=Path(names["structasl"]),
+                  t1w_dir=t1w_dir,
+                  aslt1w_dir=aslt1w_dir,
                   moco_dir=tis_dir/"MoCo/asln2m0.mat",
                   perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
                   gradunwarp_dir=gradunwarp_dir,
@@ -241,7 +239,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     # perform partial volume estimation
     logger.info("Performing partial volume estimation.")
-    pves_dir = Path(names["structasl"])/"PVEs"
+    pves_dir = aslt1w_dir/"PVEs"
     pves_dir.mkdir(exist_ok=True)
     logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO")
     pv_est_call = [
@@ -265,7 +263,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     
     # perform tag-control subtraction in ASLT1w space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASLT1w space.")
-    aslt1w_dir = Path(names["structasl"])
+    aslt1w_dir = aslt1w_dir
     series = aslt1w_dir/"TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir/"TIs/Betas"
@@ -571,7 +569,8 @@ def main():
         mtname = Path(args.mtname).resolve(strict=True)
     else:
         mtname = None
-    structural = {'struct': args.struct, 'sbrain': args.sbrain}
+    structural = {'struct': Path(args.struct).reolve(strict=True),
+                  'sbrain': Path(args.sbrain).reolve(strict=True)}
     mbpcasl = Path(args.mbpcasl).resolve(strict=True)
     fmaps = {
         'AP': Path(args.fmap_ap).resolve(strict=True), 

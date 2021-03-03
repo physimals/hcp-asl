@@ -215,6 +215,21 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     vent_t1_img = fslmaths(vent_t1_img).thr(0.9).bin().run(LOAD)
     return vent_t1_img
 
+def split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name):
+    """
+    Split mbPCASLhr sequence into its constituent ASL series and 
+    calibration images.
+    """
+    # load mbpcasl
+    mbpcasl_img = nb.load(mbpcasl)
+    # split into parts
+    parts_imgs = [
+        nb.nifti1.Nifti1Image(mbpcasl_img.get_fdata()[:, :, :, s:e], affine=mbpcasl_img.affine)
+        for s, e in ((0, 86), (88, 89), (89, 90))
+    ]
+    # save new images
+    [nb.save(img, name) for name, img in zip((tis_name, calib0_name, calib1_name), parts_imgs)]
+
 LOGGING_LEVELS = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,
