@@ -2,6 +2,7 @@ from fsl.data import atlases
 from fsl.data.image import Image
 from fsl.wrappers import fslroi, fslmaths, LOAD
 from fsl.wrappers.fnirt import invwarp, applywarp
+from fsl.wrappers.misc import fslroi
 
 import nibabel as nb
 
@@ -220,15 +221,9 @@ def split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name):
     Split mbPCASLhr sequence into its constituent ASL series and 
     calibration images.
     """
-    # load mbpcasl
-    mbpcasl_img = nb.load(mbpcasl)
-    # split into parts
-    parts_imgs = [
-        nb.nifti1.Nifti1Image(mbpcasl_img.get_fdata()[:, :, :, s:e], affine=mbpcasl_img.affine)
-        for s, e in ((0, 86), (88, 89), (89, 90))
-    ]
-    # save new images
-    [nb.save(img, name) for name, img in zip((tis_name, calib0_name, calib1_name), parts_imgs)]
+    fslroi(str(mbpcasl), str(tis_name), 0, 86)
+    fslroi(str(mbpcasl), str(calib0_name), 88, 1)
+    fslroi(str(mbpcasl), str(calib1_name), 89, 1)
 
 LOGGING_LEVELS = {
     "DEBUG": logging.DEBUG,
