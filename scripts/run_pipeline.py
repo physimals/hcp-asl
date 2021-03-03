@@ -16,7 +16,7 @@ from hcpasl import __version__, __timestamp__, __sha1__
 from hcpasl.initial_bookkeeping import initial_setup
 from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_mt_correction import correct_M0
-from hcpasl.asl_correction import hcp_asl_moco, asl_to_aslt1w
+from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resample_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
 from hcpasl.qc import create_qc_report
@@ -147,19 +147,19 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     else:
         calib_corr = calib0_dir/"BiasCorr/calib0_restore.nii.gz"
     calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
-    hcp_asl_moco(subject_dir=subject_dir, 
-                 tis_dir=tis_dir, 
-                 mt_factors=mt_factors, 
-                 bias_name=bias_field, 
-                 calib_name=calib_corr, 
-                 calib2struct=calib2struct, 
-                 gradunwarp_dir=gradunwarp_dir, 
-                 topup_dir=topup_dir, 
-                 t1w_dir=t1w_dir, 
-                 cores=cores, 
-                 interpolation=interpolation, 
-                 nobandingcorr=nobandingcorr, 
-                 outdir=outdir)
+    single_step_resample_to_asl0(subject_dir=subject_dir, 
+                                 tis_dir=tis_dir, 
+                                 mt_factors=mt_factors, 
+                                 bias_name=bias_field, 
+                                 calib_name=calib_corr, 
+                                 calib2struct=calib2struct, 
+                                 gradunwarp_dir=gradunwarp_dir, 
+                                 topup_dir=topup_dir, 
+                                 t1w_dir=t1w_dir, 
+                                 cores=cores, 
+                                 interpolation=interpolation, 
+                                 nobandingcorr=nobandingcorr, 
+                                 outdir=outdir)
     
     # perform tag-control subtraction in ASL0 space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
@@ -217,25 +217,25 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
     else:
         t1_est = None
-    asl_to_aslt1w(asl_name=tis_name,
-                  calib_name=calib0_name,
-                  subject_dir=subject_dir,
-                  t1w_dir=t1w_dir,
-                  aslt1w_dir=aslt1w_dir,
-                  moco_dir=tis_dir/"MoCo/asln2m0.mat",
-                  perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
-                  gradunwarp_dir=gradunwarp_dir,
-                  topup_dir=topup_dir,
-                  ribbon=ribbon,
-                  wmparc=wmparc,
-                  corticallut=corticallut,
-                  subcorticallut=subcorticallut,
-                  asl_scaling_factors=asl_scaling_factors,
-                  mt_factors=mt_name,
-                  t1_est=t1_est,
-                  nobandingcorr=nobandingcorr,
-                  interpolation=interpolation,
-                  cores=cores)
+    single_step_resample_to_aslt1w(asl_name=tis_name,
+                                   calib_name=calib0_name,
+                                   subject_dir=subject_dir,
+                                   t1w_dir=t1w_dir,
+                                   aslt1w_dir=aslt1w_dir,
+                                   moco_dir=tis_dir/"MoCo/asln2m0.mat",
+                                   perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
+                                   gradunwarp_dir=gradunwarp_dir,
+                                   topup_dir=topup_dir,
+                                   ribbon=ribbon,
+                                   wmparc=wmparc,
+                                   corticallut=corticallut,
+                                   subcorticallut=subcorticallut,
+                                   asl_scaling_factors=asl_scaling_factors,
+                                   mt_factors=mt_name,
+                                   t1_est=t1_est,
+                                   nobandingcorr=nobandingcorr,
+                                   interpolation=interpolation,
+                                   cores=cores)
 
     # perform partial volume estimation
     logger.info("Performing partial volume estimation.")

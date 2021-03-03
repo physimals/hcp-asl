@@ -389,10 +389,10 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
     for out_n in out_names:
         out_n.unlink()
 
-def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
-                 calib2struct, gradunwarp_dir, topup_dir, t1w_dir, 
-                 cores=mp.cpu_count(), interpolation=3, nobandingcorr=False, 
-                 outdir="hcp_asl"):
+def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
+                                 calib_name, calib2struct, gradunwarp_dir, topup_dir,
+                                 t1w_dir, cores=mp.cpu_count(), interpolation=3,
+                                 nobandingcorr=False, outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -678,11 +678,11 @@ def hcp_asl_moco(subject_dir, tis_dir, mt_factors, bias_name, calib_name,
         combined_factors_name = moco_dir / 'combined_scaling_factors.nii.gz'
         nb.save(combined_factors_img, combined_factors_name)
     
-def asl_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir, moco_dir, 
-                  perfusion_name, gradunwarp_dir, topup_dir, aslt1w_dir, 
-                  ribbon, wmparc, corticallut, subcorticallut, 
-                  asl_scaling_factors=None, mt_factors=None, t1_est=None,
-                  nobandingcorr=False, interpolation=3, cores=1):
+def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
+                                   moco_dir, perfusion_name, gradunwarp_dir, topup_dir,
+                                   aslt1w_dir, ribbon, wmparc, corticallut, subcorticallut, 
+                                   asl_scaling_factors=None, mt_factors=None, t1_est=None,
+                                   nobandingcorr=False, interpolation=3, cores=1):
     # set up logger
     logger_name = "HCPASL.asl_to_aslt1w"
     tis_aslt1w_dir = aslt1w_dir/"TIs"
