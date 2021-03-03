@@ -609,9 +609,6 @@ def main():
         logger.info("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
         os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
-    # create main results directory
-    Path(args.outdir).mkdir(exist_ok=True)
-
     # process subject
     logger.info(f"Processing subject {studydir/subid}.")
     process_subject(studydir=studydir,
