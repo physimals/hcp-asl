@@ -13,9 +13,8 @@ from itertools import product
 import logging
 
 from hcpasl import __version__, __timestamp__, __sha1__
-from hcpasl.initial_bookkeeping import initial_setup
 from hcpasl.distortion_correction import gradunwarp_and_topup
-from hcpasl.m0_mt_correction import correct_M0
+from hcpasl.m0_correction import correct_M0
 from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resample_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
@@ -113,8 +112,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
                          coeffs_path=gradients, 
                          gradunwarp_dir=gradunwarp_dir, 
                          topup_dir=topup_dir, 
-                         pa_sefm=fmaps["PA"], 
-                         ap_sefm=fmaps["AP"], 
+                         pa_sefm=str(fmaps["PA"]), 
+                         ap_sefm=str(fmaps["AP"]), 
                          interpolation=interpolation)
 
     # apply corrections to the calibration images

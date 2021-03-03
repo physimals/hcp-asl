@@ -32,7 +32,7 @@ Corrections to be applied include:
 import logging
 from .utils import create_dirs, load_json, update_json, setup_logger
 from .distortion_correction import generate_asl_mask
-from .m0_mt_correction import generate_asl2struct
+from .m0_correction import generate_asl2struct
 from fsl.wrappers import fslmaths, LOAD
 from fsl.wrappers.flirt import mcflirt, applyxfm, applyxfm4D
 import nibabel as nb
@@ -457,11 +457,11 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         Name of the main results directory. Default is 'hcp_asl'.
     """
     # set up logger
-    logger_name = "HCPASL.hcp_asl_moco"
-    log_out = subject_dir/outdir/f"ASL/hcp_asl_moco.log"
+    logger_name = "HCPASL.single_step_resample_to_asl0"
+    log_out = subject_dir/outdir/f"ASL/single_step_resample_to_asl0.log"
     logger = setup_logger(logger_name, log_out, "INFO")
 
-    logger.info("Running hcp_asl_moco()")
+    logger.info("Running single_step_resample_to_asl0()")
     logger.info(f"Subject directory: {subject_dir}")
     logger.info(f"ASL TIs directory: {tis_dir}")
     logger.info(f"MT scaling factors: {mt_factors}")
@@ -684,13 +684,13 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                    asl_scaling_factors=None, mt_factors=None, t1_est=None,
                                    nobandingcorr=False, interpolation=3, cores=1):
     # set up logger
-    logger_name = "HCPASL.asl_to_aslt1w"
+    logger_name = "HCPASL.single_step_resample_to_aslt1w"
     tis_aslt1w_dir = aslt1w_dir/"TIs"
     tis_aslt1w_dir.mkdir(exist_ok=True)
-    log_out = tis_aslt1w_dir/"asl_to_aslt1w.log"
+    log_out = tis_aslt1w_dir/"single_step_resample_to_aslt1w.log"
     logger = setup_logger(logger_name, log_out, "INFO")
 
-    logger.info("Running asl_to_aslt1w()")
+    logger.info("Running single_step_resample_to_aslt1w()")
     logger.info(f"ASL series: {asl_name}")
     logger.info(f"Calibration image: {calib_name}")
     logger.info(f"Subject directory: {subject_dir}")
