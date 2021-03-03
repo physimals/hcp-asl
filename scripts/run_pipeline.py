@@ -568,8 +568,8 @@ def main():
         mtname = Path(args.mtname).resolve(strict=True)
     else:
         mtname = None
-    structural = {'struct': Path(args.struct).reolve(strict=True),
-                  'sbrain': Path(args.sbrain).reolve(strict=True)}
+    structural = {'struct': Path(args.struct).resolve(strict=True),
+                  'sbrain': Path(args.sbrain).resolve(strict=True)}
     mbpcasl = Path(args.mbpcasl).resolve(strict=True)
     fmaps = {
         'AP': Path(args.fmap_ap).resolve(strict=True), 
