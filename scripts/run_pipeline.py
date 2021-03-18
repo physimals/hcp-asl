@@ -489,13 +489,13 @@ def main():
     )
     parser.add_argument(
         '--wmparc',
-        help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
+        help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction.",
         default=None,
         required=True
     )
     parser.add_argument(
         '--ribbon',
-        help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
+        help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction.",
         default=None,
         required=True
     )
