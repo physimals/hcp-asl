@@ -26,8 +26,8 @@ import argparse
 from multiprocessing import cpu_count
 import nibabel as nb
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
-                    fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
+                    fmaps, gradients, wmparc, ribbon, wbdir, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
     """
@@ -47,9 +47,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     structural : dict
         Contains pathlib.Path locations of important structural 
         files.
-    surfaces : dict
-        Contains pathlib.Path locations of the surfaces needed 
-        for the pipeline.
     fmaps : dict
         Contains pathlib.Path locations of the fieldmaps needed 
         for distortion correction.
@@ -62,7 +59,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     ribbon : str
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in 
         SE-based bias correction.
-    wbdevdir : str
+    wbdir : str
         path to development version of wb_command's bin directory 
         e.g. workbench/bin_macosx64
     use_t1 : bool, optional
@@ -95,7 +92,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     # initial set-up for the pipeline: create results directories
     logger.info("Creating main results directories.")
-    asl_dir, aslt1w_dir = [subject_dir/outdir/name for name in ("ASL", "ASLT1w")]
+    asl_dir, aslt1w_dir = [subject_dir/outdir/name for name in ("ASL", "T1w/ASL")]
     tis_dir, calib0_dir, calib1_dir = [asl_dir/name for name in ("TIs", "Calib/Calib0", "Calib/Calib1")]
     create_dirs([asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir])
     # split mbPCASL sequence into TIs and calibration images
@@ -316,7 +313,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
         logger.exception("Process failed.")
 
     logger.info("Projecting volumetric results to surface.")
-    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
+    project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
 
     logger.info("Copying key outputs to $StudyDir/$SubID/T1w/ASL and $StudyDir/$SubID/MNI/ASL")
     copy_outputs(studydir, subid, outdir)
@@ -324,7 +321,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     logger.info("Creating QC report.")
     create_qc_report(subject_dir, outdir)
 
-def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
+def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASLRes="2.5", 
                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
@@ -342,7 +339,7 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
     logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO")
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
-    wb_path        = str(Path(wbdevdir).resolve(strict=True))
+    wb_path        = str(Path(wbdir).resolve(strict=True))
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
@@ -437,51 +434,6 @@ def main():
         required=True
     )
     parser.add_argument(
-        "--surfacedir",
-        help="Directory containing the 32k surfaces. These will be used for "
-            +"the ribbon-constrained projection. If this argument is "
-            +"provided, it is assumed that the surface names follow the "
-            +"convention ${surfacedir}/{subjectid}_V1_MR.{side}.{surface}."
-            +"32k_fs_LR.surf.gii.",
-        required=False
-    )
-    parser.add_argument(
-        "--lmid",
-        help="Filename for the 32k left mid surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rmid",
-        help="Filename for the 32k right mid surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--lwhite",
-        help="Filename for the 32k left white surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rwhite",
-        help="Filename for the 32k right white surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--lpial",
-        help="Filename for the 32k left pial surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rpial",
-        help="Filename for the 32k right pial surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
         "--mbpcasl",
         help="Filename for the mbPCASLhr acquisition.",
         required=True
@@ -511,13 +463,13 @@ def main():
     )
     parser.add_argument(
         '--wmparc',
-        help="wmparc.mgz from FreeSurfer for use in SE-based bias correction.",
+        help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction.",
         default=None,
         required=True
     )
     parser.add_argument(
         '--ribbon',
-        help="ribbon.mgz from FreeSurfer for use in SE-based bias correction.",
+        help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction.",
         default=None,
         required=True
     )
@@ -553,16 +505,16 @@ def main():
             + "with FSL < 6.0.4"
     )
     parser.add_argument(
-        "--wbdevdir",
-        help="Location of development version of wb_command/bin_macosx64 "
-            +"(dev_latest from 8th Dec 2020).",
+        "--wbdir",
+        help="Location of wb_command/bin_macosx64 (>= v1.5.0).",
         required=True
     )
     parser.add_argument(
         "--outdir",
         help="Name of the directory within which we will store all of the "
-            +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
-        default="hcp_asl"
+            +"pipeline's outputs in sub-directories. Default is the subject's"
+            +"base directory.",
+        default=""
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -598,25 +550,6 @@ def main():
         'PA': Path(args.fmap_pa).resolve(strict=True)
     }
     grads = Path(args.grads).resolve(strict=True)
-    # surfaces
-    if args.surfacedir:
-        surfacedir = Path(args.surfacedir).resolve(strict=True)
-        sides = ("L", "R")
-        surfaces = ("midthickness", "pial", "white")
-        lmid, lpial, lwhite, rmid, rpial, rwhite = [
-            surfacedir / f"{subid}_V1_MR.{side}.{surf}.32k_fs_LR.surf.gii"
-            for side, surf in product(sides, surfaces)
-        ]
-    else:
-        lmid, lpial, lwhite, rmid, rpial, rwhite = [
-            Path(arg).resolve(strict=True) for arg in (args.lmid, args.lpial, args.lwhite, 
-                                                       args.rmid, args.rpial, args.rwhite)
-        ]
-    surfaces = {
-        'L_mid': lmid, 'R_mid': rmid,
-        'L_white': lwhite, 'R_white':rwhite,
-        'L_pial': lpial, 'R_pial': rpial
-    }
 
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
@@ -641,7 +574,6 @@ def main():
                     gradients=grads,
                     mbpcasl=mbpcasl,
                     structural=structural,
-                    surfaces=surfaces,
                     fmaps=fmaps,
                     use_t1=args.use_t1,
                     pvcorr=args.pvcorr,
@@ -649,7 +581,7 @@ def main():
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
                     outdir=args.outdir,
-                    wbdevdir=args.wbdevdir
+                    wbdir=args.wbdir
                     )
 
 if __name__ == '__main__':

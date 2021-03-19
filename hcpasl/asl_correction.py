@@ -319,13 +319,13 @@ def _slicetiming_correction(
     elif t1_img.ndim == 4:
         t1_data = t1_img.get_fdata()
     # multiply asl sequence by satrecov model evaluated at TI
-    numexp = - tis_array / t1_data
+    numexp = np.where(t1_data>0, -tis_array/t1_data, 0)
     num = 1 - np.exp(numexp)
     # divide asl sequence by satrecov model evaluated at actual slice-time
-    denexp = - slice_times / t1_data
+    denexp = np.where(t1_data>0, -slice_times/t1_data, 0)
     den = 1 - np.exp(denexp)
     # evaluate scaling factors
-    stcorr_factors = num / den
+    stcorr_factors = np.where(den>0, num/den, 1)
     stcorr_factors_img = nb.nifti1.Nifti1Image(stcorr_factors, 
                                                affine=asl_img.affine)
     # correct asl series
