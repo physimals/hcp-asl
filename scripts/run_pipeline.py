@@ -94,7 +94,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
 
     # initial set-up for the pipeline: create results directories
     logger.info("Creating main results directories.")
-    asl_dir, aslt1w_dir = [subject_dir/outdir/name for name in ("ASL", "ASLT1w")]
+    asl_dir, aslt1w_dir = [subject_dir/outdir/name for name in ("ASL", "T1w/ASL")]
     tis_dir, calib0_dir, calib1_dir = [asl_dir/name for name in ("TIs", "Calib/Calib0", "Calib/Calib1")]
     create_dirs([asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir])
     # split mbPCASL sequence into TIs and calibration images
@@ -539,8 +539,9 @@ def main():
     parser.add_argument(
         "--outdir",
         help="Name of the directory within which we will store all of the "
-            +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
-        default="hcp_asl"
+            +"pipeline's outputs in sub-directories. Default is the subject's"
+            +"base directory.",
+        default=""
     )
     parser.add_argument(
         "-v", "--verbose",

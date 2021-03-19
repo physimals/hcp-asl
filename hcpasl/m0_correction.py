@@ -123,7 +123,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         Structural_preproc directory).
     aslt1w_dir : pathlib.Path
         Path to the subject's structural output directory, for  
-        example ${SubjectDir}/${OutDir}/ASLT1w.
+        example ${SubjectDir}/${OutDir}/T1w/ASL.
     gradunwarp_dir : pathlib.Path
         Path to the subject's gradient_unwarp run, for example 
         ${SubjectDir}/${OutDir}/ASL/gradient_unwarp.

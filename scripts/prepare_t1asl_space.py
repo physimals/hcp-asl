@@ -115,7 +115,7 @@ def main():
     t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources",
                     "Structural_preproc", "files", f"{sub_id}_V1_MR",
                     "T1w")
-    t1_asl_dir = op.join(sub_base, args.outdir, "ASLT1w")
+    t1_asl_dir = op.join(sub_base, args.outdir, "T1w", "ASL")
     asl = op.join(sub_base, args.outdir, "ASL", "TIs", "tis.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
 
@@ -131,7 +131,7 @@ def main():
             t1_asl_grid)
     
     # Create PVEs directory
-    pve_dir = op.join(sub_base, args.outdir, "ASLT1w", "PVEs")
+    pve_dir = op.join(sub_base, args.outdir, "T1w", "ASL", "PVEs")
     os.makedirs(pve_dir, exist_ok=True)
 
     # Create a ventricle CSF mask in T1 ASL space 

@@ -40,15 +40,15 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"
+ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"
 if [ "$pvcorr" = false ] ; then
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"/"$ResultsFolder"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLMNI"/"$ResultsFolder"
+    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNI/ASL"/"$ResultsFolder"
 else
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLT1w"/"$ResultsFolder"/"pvcorr"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"ASLMNI"/"$ResultsFolder"/"pvcorr"
+    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"/"pvcorr"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNI/ASL"/"$ResultsFolder"/"pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
