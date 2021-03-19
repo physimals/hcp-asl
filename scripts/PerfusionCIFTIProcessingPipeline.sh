@@ -91,4 +91,8 @@ CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVari
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$DownSampleFolder" "$CARET7DIR"
 
+# Move the T1w/ASL/Results/OutputtoCIFTI to MNI/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
+
+mv "$T1wSpcResultsFolder"/OutputtoCIFTI "$AtlasResultsFolder"/"OutputtoCIFTI"/"T1wOutputtoCIFTI"
+
 # log_Msg "Completed"

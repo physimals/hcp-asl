@@ -19,6 +19,7 @@ from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resa
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
 from hcpasl.qc import create_qc_report
+from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
 import subprocess
 import argparse
@@ -317,6 +318,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     logger.info("Projecting volumetric results to surface.")
     project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
 
+    logger.info("Copying key outputs to $StudyDir/$SubID/T1w/ASL and $StudyDir/$SubID/MNI/ASL")
+    copy_outputs(studydir, subid, outdir)
+
     logger.info("Creating QC report.")
     create_qc_report(subject_dir, outdir)
 
@@ -370,6 +374,24 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
         if retcode != 0:
             logger.info(f"retcode={retcode}")
             logger.exception("Process failed.")
+
+def copy_outputs(studydir, subid, outdir):
+    """
+    Copy key pipeline outputs to the T1w and MNI aligned high level ASL directory
+
+    Parameters
+    ----------
+    studydir : pathlib.Path
+        Path to the study's base directory.
+    subid : str
+        Subject id for the subject of interest.
+    """
+       
+    path_to_outs   = "/".join([studydir, subid, outdir])
+    copy_key_outputs(path_to_outs)
+
+
+
 
 def main():
     """
