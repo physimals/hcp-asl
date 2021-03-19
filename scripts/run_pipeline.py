@@ -26,7 +26,7 @@ from multiprocessing import cpu_count
 import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
-                    fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
+                    fmaps, gradients, wmparc, ribbon, wbdir, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
     """
@@ -58,7 +58,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     ribbon : str
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in 
         SE-based bias correction.
-    wbdevdir : str
+    wbdir : str
         path to development version of wb_command's bin directory 
         e.g. workbench/bin_macosx64
     use_t1 : bool, optional
@@ -312,12 +312,12 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         logger.exception("Process failed.")
 
     logger.info("Projecting volumetric results to surface.")
-    project_to_surface(studydir, subid, outdir=outdir, wbdevdir=wbdevdir)
+    project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
 
     logger.info("Creating QC report.")
     create_qc_report(subject_dir, outdir)
 
-def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", FinalASLRes="2.5", 
+def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASLRes="2.5", 
                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
@@ -335,7 +335,7 @@ def project_to_surface(studydir, subid, outdir, wbdevdir, lowresmesh="32", Final
     logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO")
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
-    wb_path        = str(Path(wbdevdir).resolve(strict=True))
+    wb_path        = str(Path(wbdir).resolve(strict=True))
 
     ASLVariable    = ["perfusion_calib", "arrival"]
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
@@ -483,9 +483,8 @@ def main():
             + "with FSL < 6.0.4"
     )
     parser.add_argument(
-        "--wbdevdir",
-        help="Location of development version of wb_command/bin_macosx64 "
-            +"(dev_latest from 8th Dec 2020).",
+        "--wbdir",
+        help="Location of wb_command/bin_macosx64 (>= v1.5.0).",
         required=True
     )
     parser.add_argument(
@@ -560,7 +559,7 @@ def main():
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
                     outdir=args.outdir,
-                    wbdevdir=args.wbdevdir
+                    wbdir=args.wbdir
                     )
 
 if __name__ == '__main__':
