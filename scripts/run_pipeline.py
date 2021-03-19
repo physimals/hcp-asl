@@ -25,7 +25,7 @@ import argparse
 from multiprocessing import cpu_count
 import nibabel as nb
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces, 
+def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
                     fmaps, gradients, wmparc, ribbon, wbdevdir, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
@@ -46,9 +46,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural, surfaces,
     structural : dict
         Contains pathlib.Path locations of important structural 
         files.
-    surfaces : dict
-        Contains pathlib.Path locations of the surfaces needed 
-        for the pipeline.
     fmaps : dict
         Contains pathlib.Path locations of the fieldmaps needed 
         for distortion correction.
@@ -415,51 +412,6 @@ def main():
         required=True
     )
     parser.add_argument(
-        "--surfacedir",
-        help="Directory containing the 32k surfaces. These will be used for "
-            +"the ribbon-constrained projection. If this argument is "
-            +"provided, it is assumed that the surface names follow the "
-            +"convention ${surfacedir}/{subjectid}_V1_MR.{side}.{surface}."
-            +"32k_fs_LR.surf.gii.",
-        required=False
-    )
-    parser.add_argument(
-        "--lmid",
-        help="Filename for the 32k left mid surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rmid",
-        help="Filename for the 32k right mid surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--lwhite",
-        help="Filename for the 32k left white surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rwhite",
-        help="Filename for the 32k right white surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--lpial",
-        help="Filename for the 32k left pial surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
-        "--rpial",
-        help="Filename for the 32k right pial surface. This argument is "
-            +"required if the '--surfacedir' argument is not provided.",
-        required="--surfacedir" not in sys.argv
-    )
-    parser.add_argument(
         "--mbpcasl",
         help="Filename for the mbPCASLhr acquisition.",
         required=True
@@ -577,25 +529,6 @@ def main():
         'PA': Path(args.fmap_pa).resolve(strict=True)
     }
     grads = Path(args.grads).resolve(strict=True)
-    # surfaces
-    if args.surfacedir:
-        surfacedir = Path(args.surfacedir).resolve(strict=True)
-        sides = ("L", "R")
-        surfaces = ("midthickness", "pial", "white")
-        lmid, lpial, lwhite, rmid, rpial, rwhite = [
-            surfacedir / f"{subid}_V1_MR.{side}.{surf}.32k_fs_LR.surf.gii"
-            for side, surf in product(sides, surfaces)
-        ]
-    else:
-        lmid, lpial, lwhite, rmid, rpial, rwhite = [
-            Path(arg).resolve(strict=True) for arg in (args.lmid, args.lpial, args.lwhite, 
-                                                       args.rmid, args.rpial, args.rwhite)
-        ]
-    surfaces = {
-        'L_mid': lmid, 'R_mid': rmid,
-        'L_white': lwhite, 'R_white':rwhite,
-        'L_pial': lpial, 'R_pial': rpial
-    }
 
     if args.fabberdir:
         if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
@@ -620,7 +553,6 @@ def main():
                     gradients=grads,
                     mbpcasl=mbpcasl,
                     structural=structural,
-                    surfaces=surfaces,
                     fmaps=fmaps,
                     use_t1=args.use_t1,
                     pvcorr=args.pvcorr,
