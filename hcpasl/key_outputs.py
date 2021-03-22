@@ -85,12 +85,12 @@ def copy_key_outputs(path):
     for y in nonpv_txt_files:
         copy((source_path_T1 + y), (destination_path_T1 + y))
     for z in range(len(pv_img_files)):
-        copy((source_path_T1 + pv_prefix + "/" + pv_img_files[z]), (destination_path_T1 + pv_prefix + "/" + pv_out_files[z]))
+        copy((source_path_T1 + pv_prefix + "/" + pv_img_files[z]), (destination_path_T1 + pv_prefix + "_" + pv_out_files[z]))
     for a in range(len(pv_txt_files)):
-        copy((source_path_T1 + pv_prefix + "/" + pv_txt_files[a]), (destination_path_T1 + pv_prefix + "/" + pv_out_txt_files[a]))
+        copy((source_path_T1 + pv_prefix + "/" + pv_txt_files[a]), (destination_path_T1 + pv_prefix + "_" + pv_out_txt_files[a]))
     for b in surface_files:
         copy((source_path_MNI + b), (destination_path_MNI + b))
-        copy((source_path_MNI_pv + b), destination_path_MNI + pv_prefix + "/" + b)
+        copy((source_path_MNI_pv + b), destination_path_MNI + pv_prefix + "_" + b)
     
     cmd_cbf = ["wb_command", "-cifti-stats", (source_path_MNI + surface_files[0]), "-reduce", "MEAN", ">", destination_path_MNI + "perfusion_calib_cifti_mean_nonzero.txt"]
     subprocess.run(" ".join(cmd_cbf), shell=True)
