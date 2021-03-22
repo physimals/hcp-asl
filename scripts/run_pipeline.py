@@ -384,7 +384,7 @@ def copy_outputs(studydir, subid, outdir):
         Subject id for the subject of interest.
     """
        
-    path_to_outs   = "/".join([studydir, subid, outdir])
+    path_to_outs   = str(studydir/subid/outdir)
     copy_key_outputs(path_to_outs)
 
 

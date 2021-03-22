@@ -1,6 +1,6 @@
 from shutil import copy
 import subprocess
-
+from pathlib import Path
 
 def copy_key_outputs(path):
 
@@ -11,6 +11,30 @@ def copy_key_outputs(path):
     source_path_MNI_pv = path + "/MNI/ASL/Results/pvcorr/OutputtoCIFTI/"
     destination_path_MNI = path + "/MNINonLinear/ASL/"
     pv_prefix = "pvcorr"
+    
+    pv_out_dir = Path(destination_path_T1)/pv_prefix
+    pv_out_dir.mkdir(exist_ok=True)
+    pv_out_MNI_dir = Path(destination_path_MNI)/pv_prefix
+    pv_out_MNI_dir.mkdir(exist_ok=True, parents=True)
+
+    # mask pvcorr parameter variance estimates
+    gm_mask = source_path_T1 + "gm_mask.nii.gz"
+    gm_pvcorr_vars = ["perfusion_var_calib.nii.gz",
+                      "arrival_var.nii.gz"]
+    gm_pvcorr_vars_out = ["perfusion_var_calib_masked.nii.gz",
+                          "arrival_var_masked.nii.gz"]
+    for gm_pvcorr_var, gm_pvcorr_var_out in zip(gm_pvcorr_vars, gm_pvcorr_vars_out):
+        mask_cmd = ["fslmaths", source_path_T1+pv_prefix+"/"+gm_pvcorr_var, "-mas", gm_mask, source_path_T1+pv_prefix+"/"+gm_pvcorr_var_out]
+        process = subprocess.Popen(mask_cmd, stdout=subprocess.PIPE)
+
+    wm_mask = source_path_T1 + "wm_mask.nii.gz"
+    wm_pvcorr_vars = ["perfusion_wm_var_calib.nii.gz",
+                      "arrival_wm_var.nii.gz"]
+    wm_pvcorr_vars_out = ["perfusion_wm_var_calib_masked.nii.gz",
+                          "arrival_wm_var_masked.nii.gz"]
+    for wm_pvcorr_var, wm_pvcorr_var_out in zip(wm_pvcorr_vars, wm_pvcorr_vars_out):
+        mask_cmd = ["fslmaths", source_path_T1+pv_prefix+"/"+wm_pvcorr_var, "-mas", wm_mask, source_path_T1+pv_prefix+"/"+wm_pvcorr_var_out]
+        process = subprocess.Popen(mask_cmd, stdout=subprocess.PIPE)
 
     nonpv_img_files = ["perfusion_calib.nii.gz", \
                "perfusion_var_calib.nii.gz", \
@@ -24,7 +48,7 @@ def copy_key_outputs(path):
                "arrival_wm_mean.txt"]
 
     pv_img_files = ["perfusion_calib_masked.nii.gz", \
-            "perfusion_val_calib_masked.nii.gz", \
+            "perfusion_var_calib_masked.nii.gz", \
             "perfusion_wm_calib_masked.nii.gz", \
             "perfusion_wm_var_calib_masked.nii.gz", \
             "arrival_masked.nii.gz", \
@@ -61,21 +85,21 @@ def copy_key_outputs(path):
     for y in nonpv_txt_files:
         copy((source_path_T1 + y), (destination_path_T1 + y))
     for z in range(len(pv_img_files)):
-        copy((source_path_T1 + pv_prefix + "/" + pv_img_files[z]), (destination_path_T1 + pv_prefix + "_" + pv_out_files[z]))
+        copy((source_path_T1 + pv_prefix + "/" + pv_img_files[z]), (destination_path_T1 + pv_prefix + "/" + pv_out_files[z]))
     for a in range(len(pv_txt_files)):
-        copy((source_path_T1 + pv_prefix + "/" + pv_txt_files[a]), (destination_path_T1 + pv_prefix + "_" + pv_out_txt_files[a]))
+        copy((source_path_T1 + pv_prefix + "/" + pv_txt_files[a]), (destination_path_T1 + pv_prefix + "/" + pv_out_txt_files[a]))
     for b in surface_files:
         copy((source_path_MNI + b), (destination_path_MNI + b))
-        copy((source_path_MNI_pv + b), destination_path_MNI + pv_prefix + "_" + b)
+        copy((source_path_MNI_pv + b), destination_path_MNI + pv_prefix + "/" + b)
     
-    cmd_cbf = ["wb_command -metric-stats", (source_path_MNI + surface_files[0]), "-reduce MEAN >", (destination_path_MNI + "perfusion_calib_cifti_mean.txt")]
-   process = subprocess.Popen(cmd_cbf, stdout=subprocess.PIPE)
+    cmd_cbf = ["wb_command", "-cifti-stats", (source_path_MNI + surface_files[0]), "-reduce", "MEAN", ">", destination_path_MNI + "perfusion_calib_cifti_mean_nonzero.txt"]
+    subprocess.run(" ".join(cmd_cbf), shell=True)
 
-    cmd_pv_cbf = ["wb_command -metric-stats", (source_path_MNI_pv + surface_files[0]), "-reduce MEAN >", (destination_path_MNI + "pvcorr_perfusion_calib_cifti_mean.txt")]
-    process = subprocess.Popen(cmd_pv_cbf, stdout=subprocess.PIPE)
+    cmd_pv_cbf = ["wb_command", "-cifti-stats", (source_path_MNI_pv + surface_files[0]), "-reduce", "MEAN", ">", destination_path_MNI + "pvcorr_perfusion_calib_cifti_mean_nonzero.txt"]
+    subprocess.run(" ".join(cmd_pv_cbf), shell=True)
 
-    cmd_AAT = ["wb_command -metric-stats", (source_path_MNI + surface_files[1]), "-reduce MEAN >", (destination_path_MNI + "arrival_cifti_mean.txt")]
-    process = subprocess.Popen(cmd_AAT, stdout=subprocess.PIPE)
+    cmd_AAT = ["wb_command", "-cifti-stats", (source_path_MNI + surface_files[1]), "-reduce", "MEAN", ">", destination_path_MNI + "arrival_cifti_mean_nonzero.txt"]
+    subprocess.run(" ".join(cmd_AAT), shell=True)
     
-    cmd_pv_AAT = ["wb_command -metric-stats", (source_path_MNI_pv + surface_files[1]), "-reduce MEAN >", (destination_path_MNI + "pvcorr_arrival_cifti_mean.txt")]
-    process = subprocess.Popen(cmd_pv_AAT, stdout=subprocess.PIPE)
+    cmd_pv_AAT = ["wb_command", "-cifti-stats", (source_path_MNI_pv + surface_files[1]), "-reduce", "MEAN", ">", destination_path_MNI + "pvcorr_arrival_cifti_mean_nonzero.txt"]
+    subprocess.run(" ".join(cmd_pv_AAT), shell=True)
