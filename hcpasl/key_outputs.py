@@ -7,8 +7,8 @@ def copy_key_outputs(path):
     source_path_T1 = path + "/T1w/ASL/TIs/OxfordASL/native_space/"
     destination_path_T1 = path + "/T1w/ASL/"
 
-    source_path_MNI = path + "/MNI/ASL/Results/OutputtoCIFTI/"
-    source_path_MNI_pv = path + "/MNI/ASL/Results/pvcorr/OutputtoCIFTI/"
+    source_path_MNI = path + "/MNINonLinear/ASL/Results/OutputtoCIFTI/"
+    source_path_MNI_pv = path + "/MNINonLinear/ASL/Results/pvcorr/OutputtoCIFTI/"
     destination_path_MNI = path + "/MNINonLinear/ASL/"
     pv_prefix = "pvcorr"
     

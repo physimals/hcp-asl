@@ -44,11 +44,11 @@ ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"
 if [ "$pvcorr" = false ] ; then
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
     T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNI/ASL"/"$ResultsFolder"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"
 else
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
     T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"/"pvcorr"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNI/ASL"/"$ResultsFolder"/"pvcorr"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"/"pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
@@ -91,7 +91,7 @@ CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVari
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$DownSampleFolder" "$CARET7DIR"
 
-# Move the T1w/ASL/Results/OutputtoCIFTI to MNI/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
+# Move the T1w/ASL/Results/OutputtoCIFTI to MNINonLinear/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
 
 mv "$T1wSpcResultsFolder"/OutputtoCIFTI "$AtlasResultsFolder"/"OutputtoCIFTI"/"T1wOutputtoCIFTI"
 
