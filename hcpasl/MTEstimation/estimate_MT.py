@@ -85,6 +85,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
     outdir = Path(outdir).resolve(strict=True) if outdir else Path.cwd()
     errors = []
     suf = "_ignoredropouts" if ignore_dropouts else ""
+    error_free_subs = []
     for tissue in rois:
         # initialise array to store image-level means
         mean_array = np.zeros((60, 2*len(subject_dirs)))
@@ -131,6 +132,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
                     # calculate slicewise summary stats
                     slicewise_mean = np.nanmean(masked_data, axis=(0, 1))
                     mean_array[:, 2*n1 + n2] = slicewise_mean
+                error_free_subs.append(subject_dir)
             except:
                 errors.append(tissue + " " + str(subject_dir))
         # calculate non-zero slicewise mean of mean_array
@@ -152,9 +154,9 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
         if tissue == 'combined':
-            plt.title(f'Mean signal per slice in GM and WM across 47 subjects.')
+            plt.title(f'Mean signal per slice in GM and WM across {len(error_free_subs)} subjects.')
         else:
-            plt.title(f'Mean signal per slice in {tissue} ({method}) across 47 subjects.')
+            plt.title(f'Mean signal per slice in {tissue} ({method}) across {len(error_free_subs)} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean signal')
         for x_coord in x_coords:
@@ -174,9 +176,9 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
         if tissue == 'combined':
-            plt.title(f'Rescaled mean signal per slice in GM and WM across 47 subjects.')
+            plt.title(f'Rescaled mean signal per slice in GM and WM across {len(error_free_subs)} subjects.')
         else:
-            plt.title(f'Rescaled mean signal per slice in {tissue} across 47 subjects.')
+            plt.title(f'Rescaled mean signal per slice in {tissue} across {len(error_free_subs)} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Rescaled mean signal')
         for x_coord in x_coords:
@@ -193,7 +195,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         for x_coord in x_coords:
             ax.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         plt.title('Mean number of voxels per slice with' +
-                ' PVE $\geqslant$ 70% across 47 subjects.')
+                f' PVE $\geqslant$ 70% across {len(error_free_subs)} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
         plt_name = outdir / f'mean_voxel_count_sebased.png'
