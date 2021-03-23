@@ -12,10 +12,10 @@ def copy_key_outputs(path):
     destination_path_MNI = path + "/MNINonLinear/ASL/"
     pv_prefix = "pvcorr"
     
-    pv_out_dir = Path(destination_path_T1)/pv_prefix
-    pv_out_dir.mkdir(exist_ok=True)
-    pv_out_MNI_dir = Path(destination_path_MNI)/pv_prefix
-    pv_out_MNI_dir.mkdir(exist_ok=True, parents=True)
+    t1_out_dir = Path(destination_path_T1)
+    t1_out_dir.mkdir(exist_ok=True)
+    out_MNI_dir = Path(destination_path_MNI)
+    out_MNI_dir.mkdir(exist_ok=True, parents=True)
 
     # mask pvcorr parameter variance estimates
     gm_mask = source_path_T1 + "gm_mask.nii.gz"
