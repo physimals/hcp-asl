@@ -568,7 +568,7 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     # register ASL series to calibration image
     logger.info("Running mcflirt on calibration image and ASL series.")
     reg_name = moco_dir / 'initial_registration_TIs.nii.gz'
-    mcflirt(str(asl_corr), reffile=str(calib_name), mats=True, out=str(reg_name))
+    mcflirt(str(asl_corr), reffile=str(calib_name), mats=True, plots=True, out=str(reg_name))
     # rename mcflirt matrices directory
     orig_mcflirt = moco_dir / 'initial_registration_TIs.nii.gz.mat'
     if asln2m0_name.exists():
