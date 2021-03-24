@@ -154,9 +154,9 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
         if tissue == 'combined':
-            plt.title(f'Mean signal per slice in GM and WM across {len(error_free_subs)} subjects.')
+            plt.title(f'Mean signal per slice in GM and WM across {int(len(error_free_subs)/len(rois))} subjects.')
         else:
-            plt.title(f'Mean signal per slice in {tissue} ({method}) across {len(error_free_subs)} subjects.')
+            plt.title(f'Mean signal per slice in {tissue} ({method}) across {int(len(error_free_subs)/len(rois))} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean signal')
         for x_coord in x_coords:
@@ -176,9 +176,9 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         plt.ylim([0, PLOT_LIMS[tissue]])
         plt.xlim([0, 60])
         if tissue == 'combined':
-            plt.title(f'Rescaled mean signal per slice in GM and WM across {len(error_free_subs)} subjects.')
+            plt.title(f'Rescaled mean signal per slice in GM and WM across {int(len(error_free_subs)/len(rois))} subjects.')
         else:
-            plt.title(f'Rescaled mean signal per slice in {tissue} across {len(error_free_subs)} subjects.')
+            plt.title(f'Rescaled mean signal per slice in {tissue} across {int(len(error_free_subs)/len(rois))} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Rescaled mean signal')
         for x_coord in x_coords:
@@ -195,7 +195,7 @@ def estimate_mt(subject_dirs, rois=['wm', ], tr=8, method='separate', outdir=Non
         for x_coord in x_coords:
             ax.axvline(x_coord, linestyle='-', linewidth=0.1, color='k')
         plt.title('Mean number of voxels per slice with' +
-                f' PVE $\geqslant$ 70% across {len(error_free_subs)} subjects.')
+                f' PVE $\geqslant$ 70% across {int(len(error_free_subs)/len(rois))} subjects.')
         plt.xlabel('Slice number')
         plt.ylabel('Mean number of voxels with PVE $\geqslant$ 70% in a given tissue')
         plt_name = outdir / f'mean_voxel_count_sebased.png'
