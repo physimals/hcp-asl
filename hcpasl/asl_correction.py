@@ -777,6 +777,17 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     calib_gdc_dc_aslt1w_name = calib_distcorr_dir/"calib0_gdc_dc.nii.gz"
     nb.save(calib_gdc_dc_aslt1w, calib_gdc_dc_aslt1w_name)
 
+    # create timing image in calibration image space to register to ASLT1w space
+    calib_timing_name = calib_name.parent/"calib_timing.nii.gz"
+    create_ti_image(str(calib_name), [8], SLICEBAND, SLICEDT, str(calib_timing_name))
+
+    # register calibration timing image to ASLT1w space
+    calib_aslt1w_timing = m02struct.apply_to_image(src=str(calib_timing_name),
+                                                   ref=str(aslt1_brain_mask_name),
+                                                   order=0)
+    calib_aslt1w_timing_name = aslt1w_dir/"Calib/Calib0/calib_aslt1w_timing.nii.gz"
+    nb.save(calib_aslt1w_timing, calib_aslt1w_timing_name)
+
     # register fieldmap magnitude image to ASL-gridded T1w space
     logger.info("Registering fmapmag to ASLT1s space.")
     fmapmag = (topup_dir/"fmapmag.nii.gz").resolve(strict=True)
@@ -818,31 +829,6 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     dilall_name = sebased_dir/"sebased_bias_dilall.nii.gz"
     dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
     subprocess.run(dilall_cmd, check=True)
-
-    # register calibration image's MT scaling factors to ASL-gridded T1w space
-    if mt_factors:
-        logger.info("Registering calibration image's MT scaling factors to ASLT1w space.")
-        mt_sfs = np.loadtxt(mt_factors)
-        mt_arr = np.tile(mt_sfs, (86, 86, 1))
-        calib_mt_sfs_aslt1w = m02struct.apply_to_array(data=mt_arr,
-                                                       src=str(calib_name),
-                                                       ref=str(aslt1_brain_mask_name),
-                                                       order=interpolation)
-        calib_mt_sfs_aslt1w = nb.nifti1.Nifti1Image(calib_mt_sfs_aslt1w,
-                                                    affine=calib_gdc_dc_aslt1w.affine)
-        calib_mt_sfs_aslt1w_name = calib_distcorr_dir/"calib_mt_scaling_factors.nii.gz"
-        nb.save(calib_mt_sfs_aslt1w, calib_mt_sfs_aslt1w_name)
-
-        # correct the registered, gdc_dc, bias-corrected calibration image for MT effect
-        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
-        calib_mtcorr = nb.nifti1.Nifti1Image(calib_biascorr.get_fdata()*calib_mt_sfs_aslt1w.get_fdata(),
-                                            affine=calib_biascorr.affine)
-        calib_mtcorr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
-        nb.save(calib_mtcorr, calib_mtcorr_name)
-    else:
-        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
-        calib_corr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
-        nb.save(calib_biascorr, calib_corr_name)
 
     # get ASL series in ASL-gridded T1w space along with the scaling factors 
     # used to perform banding correction.
@@ -899,10 +885,46 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     nb.save(ti_aslt1w, ti_aslt1w_name)
 
     # register T1 image, estimated by the satrecov model, to ASL-gridded T1w space
-    if t1_est:
-        logger.info("Registering estimated T1t image to ASLT1w space.")
-        t1_est_aslt1w = asl2struct_reg.apply_to_image(src=str(t1_est),
-                                                      ref=str(aslt1_brain_mask_name),
-                                                      order=interpolation)
-        t1_est_aslt1w_name = reg_dir/"mean_T1t_filt_aslt1w.nii.gz"
-        nb.save(t1_est_aslt1w, t1_est_aslt1w_name)
+    logger.info("Registering estimated T1t image to ASLT1w space.")
+    t1_est_aslt1w = asl2struct_reg.apply_to_image(src=str(t1_est),
+                                                    ref=str(aslt1_brain_mask_name),
+                                                    order=interpolation)
+    t1_est_aslt1w_name = reg_dir/"mean_T1t_filt_aslt1w.nii.gz"
+    nb.save(t1_est_aslt1w, t1_est_aslt1w_name)
+
+    # register calibration image's MT scaling factors to ASL-gridded T1w space
+    if mt_factors:
+        logger.info("Registering calibration image's MT scaling factors to ASLT1w space.")
+        mt_sfs = np.loadtxt(mt_factors)
+        mt_arr = np.tile(mt_sfs, (86, 86, 1))
+        calib_mt_sfs_aslt1w = m02struct.apply_to_array(data=mt_arr,
+                                                       src=str(calib_name),
+                                                       ref=str(aslt1_brain_mask_name),
+                                                       order=interpolation)
+        calib_mt_sfs_aslt1w = nb.nifti1.Nifti1Image(calib_mt_sfs_aslt1w,
+                                                    affine=calib_gdc_dc_aslt1w.affine)
+        calib_mt_sfs_aslt1w_name = calib_distcorr_dir/"calib_mt_scaling_factors.nii.gz"
+        nb.save(calib_mt_sfs_aslt1w, calib_mt_sfs_aslt1w_name)
+        
+        # perform slicetime correction on the calibration image
+        num = 1 - np.exp(np.where(t1_est_aslt1w.get_fdata()>0,
+                        -8/t1_est_aslt1w.get_fdata(),
+                        0))
+        den = 1 - np.exp(np.where(np.logical_and(t1_est_aslt1w.get_fdata()>0, calib_aslt1w_timing.get_fdata()>0.1),
+                                -calib_aslt1w_timing.get_fdata()/t1_est_aslt1w.get_fdata(),
+                                0))
+        calib_aslt1w_stcorr_factors = np.where(den>0, num/den, 1)
+        calib_aslt1w_stcorr_factors_img = nb.nifti1.Nifti1Image(calib_aslt1w_stcorr_factors, affine=calib_gdc_dc_aslt1w.affine)
+        calib_aslt1w_stcorr_factors_name = aslt1w_dir/"Calib/Calib0/calib_aslt1w_stcorr_factors.nii.gz"
+        nb.save(calib_aslt1w_stcorr_factors_img, calib_aslt1w_stcorr_factors_name)
+
+        # correct the registered, gdc_dc, bias-corrected calibration image for MT effect and ST effect
+        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
+        calib_mtcorr = nb.nifti1.Nifti1Image(calib_biascorr.get_fdata()*calib_mt_sfs_aslt1w.get_fdata()*calib_aslt1w_stcorr_factors,
+                                            affine=calib_biascorr.affine)
+        calib_mtcorr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
+        nb.save(calib_mtcorr, calib_mtcorr_name)
+    else:
+        calib_biascorr = nb.load(sebased_dir/"calib0_secorr.nii.gz")
+        calib_corr_name = aslt1w_dir/"Calib/Calib0/calib0_corr_aslt1w.nii.gz"
+        nb.save(calib_biascorr, calib_corr_name)

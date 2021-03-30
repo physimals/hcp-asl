@@ -210,10 +210,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         mt_name = mt_factors
     else:
         asl_scaling_factors, mt_name = None, None
-    if use_t1:
-        t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
-    else:
-        t1_est = None
+    t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
     single_step_resample_to_aslt1w(asl_name=tis_name,
                                    calib_name=calib0_name,
                                    subject_dir=subject_dir,
