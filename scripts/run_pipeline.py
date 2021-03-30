@@ -382,7 +382,9 @@ def copy_outputs(studydir, subid, outdir):
     """
        
     path_to_outs   = str(studydir/subid/outdir)
-    copy_key_outputs(path_to_outs)
+    mni_raw = str(studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/MNINonLinear")
+    t1w_preproc = str(studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/T1w")
+    copy_key_outputs(path_to_outs, t1w_preproc, mni_raw)
 
 
 

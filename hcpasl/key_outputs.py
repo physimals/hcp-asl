@@ -2,7 +2,7 @@ from shutil import copy
 import subprocess
 from pathlib import Path
 
-def copy_key_outputs(path):
+def copy_key_outputs(path, t1w_preproc, mni_raw):
 
     source_path_T1 = path + "/T1w/ASL/TIs/OxfordASL/native_space/"
     destination_path_T1 = path + "/T1w/ASL/"
@@ -15,10 +15,10 @@ def copy_key_outputs(path):
     
     # Set up path variables needed to warp voxelwise results to MNI space
     script = "results_to_mni"
-    warp = path + "/MNINonLinear/xfms/acpc_dc2standard.nii.gz"
-    T1w_img = path + "/T1w/T1w_acpc_dc_restore.nii.gz"
+    warp = mni_raw + "/xfms/acpc_dc2standard.nii.gz"
+    T1w_img = t1w_preproc + "/T1w_acpc_dc_restore.nii.gz"
     mni_img = "/usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz"
-    asl_grid_mni ="$AtlasResultsFolder/OutputtoCIFTI/asl_grid_mni.nii.gz"
+    asl_grid_mni = path + "/MNINonLinear/ASL/Results/OutputtoCIFTI/asl_grid_mni.nii.gz"
     destination_path_MNI_voxel = path + "/MNINonLinear/ASL/Results/OxfordASL/std_space/"
 
     
@@ -26,6 +26,8 @@ def copy_key_outputs(path):
     t1_out_dir.mkdir(exist_ok=True)
     out_MNI_dir = Path(destination_path_MNI)
     out_MNI_dir.mkdir(exist_ok=True, parents=True)
+    out_MNI_dir_voxel_pvcorr = Path(destination_path_MNI_voxel)/pv_prefix
+    out_MNI_dir_voxel_pvcorr.mkdir(exist_ok=True, parents=True)
 
     # mask pvcorr parameter variance estimates
     gm_mask = source_path_T1 + "gm_mask.nii.gz"
@@ -106,7 +108,7 @@ def copy_key_outputs(path):
         if x is not "aCBV_calib.nii.gz":
             warp_cmd = [script, warp, (source_path_T1 + x), T1w_img, mni_img, asl_grid_mni, 
                         (destination_path_MNI_voxel + x)]
-            subprocess.run(warp_cmd, shell=True)
+            subprocess.run(warp_cmd, check=True)
 
     # Make key perfusion summary values more priminent in /T1w/ASL/
     for y in nonpv_txt_files:
@@ -121,7 +123,7 @@ def copy_key_outputs(path):
             pv_warp_cmd = [script, warp, (source_path_T1 + pv_prefix + "/" + pv_img_files[z]), 
                             T1w_img, mni_img, asl_grid_mni, 
                             (destination_path_MNI_voxel + pv_prefix + "/" + pv_out_files[z])]
-            subprocess.run(pv_warp_cmd, shall=True)
+            subprocess.run(pv_warp_cmd, check=True)
 
     # Make key pvcorr perfusion summary results more prominent in /T1w/ASL/
     for a in range(len(pv_txt_files)):
