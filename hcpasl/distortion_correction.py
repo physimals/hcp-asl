@@ -99,7 +99,7 @@ def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
                                                    constrain_jac=(0.01, 100))
     
     # chain gdc, epidc and moco together to apply all together
-    topup_gdc_dc_moco = [rt.chain(gdc_warp, topup_warps[n], topup_moco[n]) for n in range(0, 2)]
+    topup_gdc_dc_moco = [rt.chain(gdc_warp, topup_moco[n], topup_warps[n]) for n in range(0, 2)]
 
     # load pa_ap_sefms
     pa_ap_sefms = nb.load(pa_ap_sefms)
