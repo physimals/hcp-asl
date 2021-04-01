@@ -56,7 +56,7 @@ SLICEDT = 0.059
 SLICEBAND = 10
 NSLICES = 60
 
-def create_ti_image(asl, tis, sliceband, slicedt, outname):
+def create_ti_image(asl, tis, sliceband, slicedt, outname, repeats=None):
     """
     Create a 4D series of actual TIs at each voxel.
 
@@ -66,6 +66,7 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname):
         sliceband: number of slices per band in the acquisition
         slicedt: time taken to acquire each slice
         outname: path to which the ti image is saved
+        repeats: list of repeats for each TI. If not provided, assume 1 volume
     
     Returns:
         n/a, file outname is created in output directory
@@ -77,6 +78,13 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname):
                             n_slice//sliceband).reshape(1, 1, n_slice, 1)
     ti_array = np.array([np.tile(x, asl_spc.size) for x in tis]).transpose(1, 2, 3, 0)
     ti_array = ti_array + (slice_in_band * slicedt)
+
+    if repeats:
+        ti_array = np.concatenate(
+            [np.repeat(ti_array[..., ti, np.newaxis], 2*r, axis=-1) for ti, r in enumerate(repeats)],
+            axis=-1
+        )
+
     rt.ImageSpace.save_like(asl, ti_array, outname)
 
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
