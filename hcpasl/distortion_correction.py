@@ -148,10 +148,22 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
     pwd = os.getcwd()
     os.chdir(distcorr_dir)
 
+    # apply gradient distortion correction to stacked SEFMs
+    gdc = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
+                                              src=str(pa_ap_sefms),
+                                              ref=str(pa_ap_sefms),
+                                              intensity_correct=True,
+                                              constrain_jac=(0.01, 100))
+    gdc_corr_pa_ap_sefms = gdc.apply_to_image(src=str(pa_ap_sefms),
+                                              ref=str(pa_ap_sefms),
+                                              order=interpolation)
+    gdc_corr_pa_ap_sefms_name = distcorr_dir/"merged_sefms_gdc.nii.gz"
+    nb.save(gdc_corr_pa_ap_sefms, gdc_corr_pa_ap_sefms_name)
+
     # Run topup to get fmap in Hz
     topup_fmap = op.join(distcorr_dir, 'topup_fmap_hz.nii.gz')
     topup_cmd = ["topup",
-                 f"--imain={pa_ap_sefms}",
+                 f"--imain={gdc_corr_pa_ap_sefms_name}",
                  f"--datain={params}",
                  f"--config={config}",
                  f"--out=topup",
@@ -290,22 +302,19 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
 
     # create topup results directory
     topup_dir.mkdir(exist_ok=True)
-    # apply gradient distortion correciton to fieldmap images
-    logger.info("Applying gradient distortion correction to spin echo field map images.")
-    sefms_gdc = [gdc_warp.apply_to_image(src=sefm, ref=sefm, order=interpolation)
-                 for sefm in (pa_sefm, ap_sefm)]
-    sefms_gdc_names = [topup_dir/f"{pre}_sefm_gdc.nii.gz" for pre in ("PA", "AP")]
-    [nb.save(sefm_gdc, sefm_gdc_name) for sefm_gdc, sefm_gdc_name in zip(sefms_gdc, sefms_gdc_names)]
-    # stack gdc epi images together for use with topup
-    pa_ap_sefms = topup_dir/"merged_sefms_gdc.nii.gz"
+
+    # stack raw fieldmap images for use in topup
+    pa_ap_sefms = topup_dir/"merged_sefms.nii.gz"
     if not pa_ap_sefms.exists() or force_refresh:
-        logger.info("Concatenating gradient distortion corrected Spin Echo field map images.")
-        stack_fmaps(*sefms_gdc_names, pa_ap_sefms)
+        logger.info("Concatenating Spin Echo fieldmap images.")
+        stack_fmaps(pa_sefm, ap_sefm, pa_ap_sefms)
+    
     # generate topup params
     topup_params = topup_dir/"topup_params.txt"
     if not topup_params.exists() or force_refresh:
         logger.info(f"Generating topup parameter file: {topup_params}")
         generate_topup_params(topup_params)
+
     # run topup
     topup_config = "b02b0.cnf"
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" for ext in ('', 'mag', 'magbrain')]
