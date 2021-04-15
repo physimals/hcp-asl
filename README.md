@@ -12,6 +12,7 @@ The prerequisites specific to this pipeline, along with links to their installat
 - [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation) (version >= 6.0.4)
 - [Workbench](https://www.humanconnectome.org/software/get-connectome-workbench) (version >= 1.5.0)
 - [HCP Pipelines](https://github.com/Washington-University/HCPpipelines)
+- [HCP's gradunwarp](https://github.com/Washington-University/gradunwarp)
 
 FSL version 6.0.4 is required to use new features in fabber, added for this pipeline. Alternatively, you can try to update these files separately and provide the fabberdir argument - more support about this will be provided in future.
 
@@ -23,6 +24,9 @@ The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` se
 It is advised that the pipeline is installed in a conda environment, for example following the steps below:
 
 ```
+conda create -n hcpasl pip cython numpy python=3.7
+conda activate hcpasl
+python -m pip install toblerone
 git clone https://github.com/physimals/hcp-asl.git
 cd hcp-asl
 python -m pip install --user .

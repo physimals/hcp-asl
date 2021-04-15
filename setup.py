@@ -92,10 +92,13 @@ setup(
         'nibabel',
         'regtricks',
         'scikit-learn',
-        'toblerone @ git+https://github.com/tomfrankkirk/toblerone.git',
-        'gradunwarp @ git+https://github.com/Washington-University/gradunwarp.git',
+        'toblerone',
+        'gradunwarp',
         'matplotlib',
-        'pandas'
+        'pandas',
+        'nbclient',
+        'nbparameterise',
+        'nbformat'
     ],
     entry_points={
         'console_scripts': [
