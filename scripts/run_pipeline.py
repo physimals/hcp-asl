@@ -134,15 +134,15 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                interpolation=interpolation, 
                nobandingcorr=nobandingcorr, 
                outdir=outdir)
-    
+
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
     logger.info("Estimating ASL motion.")
     bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
     if not nobandingcorr:
-        calib_corr = calib0_dir/"MTCorr/calib0_mtcorr.nii.gz"
+        calib_corr = calib0_dir/"MTCorr/calib0_mtcorr_gdc_dc_restore.nii.gz"
     else:
-        calib_corr = calib0_dir/"BiasCorr/calib0_restore.nii.gz"
+        calib_corr = calib0_dir/"BiasCorr/calib0_gdc_dc_restore.nii.gz"
     calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
     single_step_resample_to_asl0(subject_dir=subject_dir, 
                                  tis_dir=tis_dir, 
@@ -157,15 +157,14 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                                  interpolation=interpolation, 
                                  nobandingcorr=nobandingcorr, 
                                  outdir=outdir)
-    
+                                 
     # perform tag-control subtraction in ASL0 space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
     if not nobandingcorr:
-        series = tis_dir/"STCorr2/tis_stcorr.nii.gz"
-        scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
+        series = tis_dir/"tis_gdc_dc_moco_restore_bandcorr.nii.gz"
     else:
-        series = tis_dir/"MoCo/reg_gdc_dc_tis_biascorr.nii.gz"
-        scaling_factors = tis_dir/"MoCo/combined_scaling_factors.nii.gz"
+        series = tis_dir/"tis_gdc_dc_moco_restore.nii.gz"
+    scaling_factors = tis_dir/"combined_scaling_factors.nii.gz"
     betas_dir = tis_dir/"Betas"
     tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
@@ -202,11 +201,11 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     if retcode != 0:
         logger.info(f"retcode={retcode}")
         logger.exception("Process failed.")
-
+        
     # get data in ASLT1w space
     logger.info("Get data into ASLT1w space and re-estimate bias field.")
     if not nobandingcorr:
-        asl_scaling_factors = tis_dir/"STCorr2/combined_scaling_factors.nii.gz"
+        asl_scaling_factors = tis_dir/"STCorr2/combined_scaling_factors_asln.nii.gz"
         mt_name = mt_factors
     else:
         asl_scaling_factors, mt_name = None, None
@@ -216,7 +215,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                                    subject_dir=subject_dir,
                                    t1w_dir=t1w_dir,
                                    aslt1w_dir=aslt1w_dir,
-                                   moco_dir=tis_dir/"MoCo/asln2m0.mat",
+                                   moco_dir=tis_dir/"MoCo/asln2m0_final.mat",
                                    perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
                                    gradunwarp_dir=gradunwarp_dir,
                                    topup_dir=topup_dir,
