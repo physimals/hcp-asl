@@ -74,7 +74,7 @@ SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable"
 # Transform voxelwise perfusion variables to MNI space
 results_to_mni "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
         "$InitialASLResults"/"${ASLVariable}.nii.gz" "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
-        "/usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz" \
+        "${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"asl_grid_mni.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}_MNI.nii.gz"
 

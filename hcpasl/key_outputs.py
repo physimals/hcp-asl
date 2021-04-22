@@ -1,6 +1,7 @@
 from shutil import copy
 import subprocess
 from pathlib import Path
+import os
 
 def copy_key_outputs(path, t1w_preproc, mni_raw):
 
@@ -17,7 +18,8 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     script = "results_to_mni"
     warp = mni_raw + "/xfms/acpc_dc2standard.nii.gz"
     T1w_img = t1w_preproc + "/T1w_acpc_dc_restore.nii.gz"
-    mni_img = "/usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz"
+    fsldir = Path(os.environ["FSLDIR"])
+    mni_img = fsldir/"data/standard/MNI152_T1_2mm.nii.gz"
     asl_grid_mni = path + "/MNINonLinear/ASL/Results/OutputtoCIFTI/asl_grid_mni.nii.gz"
     destination_path_MNI_voxel = path + "/MNINonLinear/ASL/Results/OxfordASL/std_space/"
 
