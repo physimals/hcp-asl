@@ -92,6 +92,8 @@ setup(
         'nibabel',
         'regtricks',
         'scikit-learn',
+        'nilearn',
+        'ipykernel',
         'toblerone',
         'gradunwarp',
         'matplotlib',

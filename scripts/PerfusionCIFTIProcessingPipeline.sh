@@ -93,6 +93,7 @@ CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVari
 
 # Move the T1w/ASL/Results/OutputtoCIFTI to MNINonLinear/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
 
+mkdir -p "$AtlasResultsFolder"/Native
 mv "$T1wSpcResultsFolder"/OutputtoCIFTI "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"
 
 # log_Msg "Completed"
