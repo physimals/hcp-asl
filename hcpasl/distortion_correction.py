@@ -156,7 +156,8 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
                                               constrain_jac=(0.01, 100))
     gdc_corr_pa_ap_sefms = gdc.apply_to_image(src=str(pa_ap_sefms),
                                               ref=str(pa_ap_sefms),
-                                              order=interpolation)
+                                              order=interpolation,
+                                              cores=1)
     gdc_corr_pa_ap_sefms_name = distcorr_dir/"merged_sefms_gdc.nii.gz"
     nb.save(gdc_corr_pa_ap_sefms, gdc_corr_pa_ap_sefms_name)
 
