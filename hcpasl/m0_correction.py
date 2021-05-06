@@ -64,17 +64,29 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t2 "
     cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path} --init-fsl"
     logger.info(f"Running bbregister: {cmd}")
+    fslog_name = op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.log")
+    logger.info(f"FreeSurfer's bbregister log: {fslog_name}")
     process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
     while 1:
         retcode = process.poll()
         line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
         if line == "" and retcode is not None:
             break
     if retcode != 0:
         logger.info(f"retcode={retcode}")
         logger.exception("Process failed.")
+    
+    # log final .dat transform
+    with open(omat_path, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            logger.info(line)
 
+    # log minimum registration cost
+    mincost = np.loadtxt(op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.mincost"))
+    logger.info(f"bbregister's mincost: {mincost[0]:4f}")
+    
+    # convert .dat to .mat
     try:
         asl2orig_fsl = rt.Registration.from_flirt(str(omat_path), str(asl_vol0), str(orig_mgz))
     except RuntimeError as e:
