@@ -860,7 +860,27 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                              affine=aslt1_brain_mask.affine)
     aslt1_brain_mask_name = reg_dir/"ASL_grid_T1w_brain_mask.nii.gz"
     nb.save(aslt1_brain_mask, aslt1_brain_mask_name)
-    mask4d = aslt1_brain_mask.get_fdata()[..., np.newaxis]
+
+    # register a field of view image from ASL0 to ASLT1w space
+    perfusion_img = nb.load(perfusion_name)
+    fov_asl0 = np.ones_like(perfusion_img.get_fdata())
+    fov_aslt1w = asl2struct_reg.apply_to_array(data=fov_asl0,
+                                               src=str(perfusion_name),
+                                               ref=asl_gridded_t1w_spc,
+                                               order=0)
+    fov_aslt1w = nb.nifti1.Nifti1Image(np.where(fov_aslt1w.get_fdata()>0.1, 1., 0.),
+                                       affine=fov_aslt1w.affine)
+    fov_aslt1w_name = reg_dir/"ASL_FoV_mask.nii.gz"
+    nb.save(fov_aslt1w, fov_aslt1w_name)
+
+    # use logical_and of the brain mask and FoV mask
+    fov_brainmask = nb.Nifti1.Nifti1Image(
+        np.where(np.logical_and(fov_aslt1w.get_fdata()>0, aslt1_brain_mask.get_fdata()>0), 1., 0.),
+        affine=fov_aslt1w.affine
+    )
+    fov_brainmask_name = reg_dir/"ASL_FoV_brain_mask.nii.gz"
+    nb.save(fov_brainmask, fov_brainmask_name)
+    mask4d = fov_brainmask.get_fdata()[..., np.newaxis]
 
     # register fieldmap magnitude image to ASL-gridded T1w space
     logger.info("Registering fmapmag to ASLT1s space.")
@@ -937,7 +957,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     sebased_cmd = ["get_sebased_bias",
                     "-i", calib_gdc_dc_aslt1w_name,
                     "-f", fmap_aslt1w_name,
-                    "-m", aslt1_brain_mask_name,
+                    "-m", fov_brainmask_name,
                     "-o", sebased_dir,
                     "--ribbon", ribbon,
                     "--wmparc", wmparc,
