@@ -868,8 +868,8 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                                src=str(perfusion_name),
                                                ref=asl_gridded_t1w_spc,
                                                order=0)
-    fov_aslt1w = nb.nifti1.Nifti1Image(np.where(fov_aslt1w.get_fdata()>0.1, 1., 0.),
-                                       affine=fov_aslt1w.affine)
+    fov_aslt1w = nb.nifti1.Nifti1Image(np.where(fov_aslt1w>0.1, 1., 0.),
+                                       affine=aslt1_brain_mask.affine)
     fov_aslt1w_name = reg_dir/"ASL_FoV_mask.nii.gz"
     nb.save(fov_aslt1w, fov_aslt1w_name)
 
