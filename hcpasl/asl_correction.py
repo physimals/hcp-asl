@@ -874,7 +874,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     nb.save(fov_aslt1w, fov_aslt1w_name)
 
     # use logical_and of the brain mask and FoV mask
-    fov_brainmask = nb.Nifti1.Nifti1Image(
+    fov_brainmask = nb.nifti1.Nifti1Image(
         np.where(np.logical_and(fov_aslt1w.get_fdata()>0, aslt1_brain_mask.get_fdata()>0), 1., 0.),
         affine=fov_aslt1w.affine
     )
