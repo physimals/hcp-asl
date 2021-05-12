@@ -50,14 +50,24 @@ SUBCORT_LUT = {
     52 : "R_Pall",
     51 : "R_Puta",
     48 : "R_Thal",
-    49 : "R_Thal"
+    49 : "R_Thal",
+
+    # Left cerebellum
+    7 : "WM",
+    8 : "GM",
+
+    # Right cerebellum
+    46 : "WM",
+    47 : "GM",
+
+    # Brainstem
+    16 : "WM"
 }
 
 
 # Do not label the following tissues 
 IGNORE = [
-    6,7,8,45,46,47,     # cerebellum 
-    16                  # brstem 
+    6,45     # cerebellum 
 ]
 
 
@@ -111,6 +121,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
         if not tissue: 
             tissue = CTX_LUT(label)
         if tissue: 
+            print(f"Label {label} assigned to {tissue}.")
             mask = (aseg == label) 
             if tissue == "WM":
                 vol_pvs[mask.flatten(),1] = 1
