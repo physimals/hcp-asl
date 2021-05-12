@@ -4,17 +4,15 @@
 import pathlib
 import argparse
 import multiprocessing as mp 
-import os.path as op
-import tempfile
 
 import numpy as np 
 import nibabel as nib
 
 import regtricks as rt 
-from regtricks.application_helpers import sum_array_blocks
 from toblerone.pvestimation import cortex as estimate_cortex
 
-# Labels taken from standard FS LUT, subcortex: 
+# The following values in the aparc image will be mapped either to a 
+# generic tissue, or a specific structure of interest 
 SUBCORT_LUT = {
     # Left hemisphere
     2 : "WM",
@@ -61,17 +59,16 @@ SUBCORT_LUT = {
     47 : "R_CerGM",
 
     # Brainstem
-    16 : "WM"
+    16 : "BrStem"
 }
 
 
-# Do not label the following tissues 
+# Do not label the following tissues (left as CSF) 
 IGNORE = [
     6,45     # cerebellum exterior 
 ]
 
-
-# To handle labels from the aparc 
+# To handle cotex labels from the aparc 
 def CTX_LUT(val):
     if val >= 251 and val < 256: 
         return "WM"     # corpus callosum 
@@ -82,8 +79,7 @@ def CTX_LUT(val):
     else: 
         return None 
 
-def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2, 
-                   cores=mp.cpu_count()): 
+def extract_fs_pvs(aparcseg, surf_dict, ref_spc, cores=mp.cpu_count()): 
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
     Results are stored in ASL-gridded T1 space. 
@@ -98,18 +94,13 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
     """
 
     ref_spc = rt.ImageSpace(ref_spc)
-    high_spc = ref_spc.resize_voxels(1/superfactor, 'ceil')
     aseg_spc = nib.load(aparcseg)
     aseg = aseg_spc.dataobj
     aseg_spc = rt.ImageSpace(aseg_spc)
 
     # Estimate cortical PVs 
-    # FIXME: allow tob to accept imagespace directly here
-    with tempfile.TemporaryDirectory() as td:
-        ref_path = op.join(td, 'ref.nii.gz')
-        ref_spc.touch(ref_path)
-        cortex = estimate_cortex(ref=ref_path, struct2ref='I', 
-            superfactor=1, cores=cores, **surf_dict)
+    cortex = estimate_cortex(ref=ref_spc, struct2ref='I', 
+        superfactor=1, cores=cores, **surf_dict)
 
     # Extract PVs from aparcseg segmentation. Subcortical structures go into 
     # a dict keyed according to their name, whereas general WM/GM are 
@@ -121,7 +112,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
         if not tissue: 
             tissue = CTX_LUT(label)
         if tissue: 
-            print(f"Label {label} assigned to {tissue}.")
+            # print(f"Label {label} assigned to {tissue}.")
             mask = (aseg == label) 
             if tissue == "WM":
                 vol_pvs[mask.flatten(),1] = 1
@@ -132,16 +123,14 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
             else: 
                 to_stack[tissue] = mask.astype(np.float32)
         elif label not in IGNORE: 
-            print("Did not assign aseg/aparc label:", label)
+            print("Did not assign tissue for aseg/aparc label:", label)
 
     # Super-resolution resampling for the vol_pvs, a la applywarp. 
     # We use an identity transform as we don't actually want to shift the data 
     # 0: GM, 1: WM, 2: CSF, always in the LAST dimension of an array 
     reg = rt.Registration.identity()
     vol_pvs = reg.apply_to_array(vol_pvs.reshape(*aseg.shape, 3), 
-                                 aseg_spc, high_spc, order=1, cores=cores)
-    vol_pvs = (sum_array_blocks(vol_pvs, 3 * [superfactor] + [1]) 
-               / (superfactor ** 3))
+                                 aseg_spc, ref_spc, order=1, cores=cores)
     vol_pvs = vol_pvs.reshape(-1,3)
     vol_pvs[:,2] = np.maximum(0, 1 - vol_pvs[:,:2].sum(1))
     vol_pvs[vol_pvs[:,2] < 1e-2, 2] = 0 
@@ -153,9 +142,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, superfactor=2,
     keys, values = list(to_stack.keys()), list(to_stack.values())
     del to_stack
     subcorts = reg.apply_to_array(np.stack(values, axis=-1), 
-                                  aseg_spc, high_spc, order=1, cores=cores)
-    subcorts = (sum_array_blocks(subcorts, 3 * [superfactor] + [1]) 
-                                / (superfactor ** 3))
+                                  aseg_spc, ref_spc, order=1, cores=cores)
     subcorts = np.moveaxis(subcorts, 3, 0)
     to_stack = dict(zip(keys, subcorts))
 
@@ -192,33 +179,40 @@ def stack_images(images):
     """
 
     # The logic is as follows: 
-    # All CSF 
-    # Overwrite all cortical PVs onto output
-    # Add in volumetric CSF estimates (this recovers ventricles that are
-    # missing from cortical estimates)
+    # Start with all CSF 
+    # Write in BrStem as WM 
+    # Write in cortical PVs 
+    # Add in CSF for ventricles and midbrain 
     # Then within the subcortex only: 
         # All subcortical volume set as WM 
         # Subcortical CSF fixed using vol_CSF
         # Add in subcortical GM for each structure, reducing CSF if required 
         # Set the remainder 1 - (GM+CSF) as WM in voxels that were updated 
 
-    # Pop out vol's estimates  
+    # Pop out initial GM, WM and CSF estimates (not the cortex)
+    # We are only interested in keeping CSF (the other tissues
+    # are calculated indirectly)
     csf = images.pop('vol_CSF').flatten()
-    wm = images.pop('vol_WM').flatten()
-    gm = images.pop('vol_GM')
-    shape = (*gm.shape[0:3], 3)
+    _ = images.pop('vol_WM')
+    _ = images.pop('vol_GM')
+    shape = (*csf.shape[0:3], 3)
 
     # Pop the cortex estimates and initialise output as all CSF
     ctxgm = images.pop('cortex_GM').flatten()
     ctxwm = images.pop('cortex_WM').flatten()
     ctxnon = images.pop('cortex_nonbrain').flatten()
-    shape = (*ctxgm.shape, 3)
     ctx = np.vstack((ctxgm, ctxwm, ctxnon)).T
     out = np.zeros_like(ctx)
-    out[:,2] = 1
+
+    # For the brainstem only, we treat that as WM and decrease
+    # CSF by corresponding amount 
+    brstem = images.pop('BrStem').flatten()
+    csf[brstem > 0] = (1 - brstem)[brstem > 0]
+    out[:,1] = brstem
+    out[:,2] = 1 - out[:,1]
 
     # Then write in cortex estimates from all voxels
-    # that contain either WM or GM (on the ctx image)
+    # that contain either WM or GM intersecting cortex 
     mask = np.logical_or(ctx[:,0], ctx[:,1])
     out[mask,:] = ctx[mask,:]
 
@@ -241,7 +235,6 @@ def stack_images(images):
     assert (out > -1e-6).all(), 'Negative PV found'
     assert (out < 1 + 1e-6).all(), 'Large PV found'
 
-
     # For each subcortical structure, create a mask of the voxels which it 
     # relates to. The following operations then apply only to those voxels 
     # All subcortical structures interpreted as pure GM 
@@ -263,42 +256,38 @@ def stack_images(images):
 
     return out.reshape(shape)
 
-if __name__ == "__main__":
 
-    usage = """
-    usage: generate_pvs --fsdir <dir> --t1 <path> --asl <path> --out <path> [--stack]
-    Extracts PV estimates from FS' binary volumetric segmentation. Saves output 
-    in T1 space, with voxels resized to match ASL resolution. 
-    
-    --aparcseg: path to volumetric FS segmentation (aparc+aseg.mgz)
-    --LWS/LPS/RWS/RPS: paths to Left Right White Pial Surfaces
-    --t1: path to T1 image for alignment of output
-    --asl: path to ASL image
-    --out: path to save output at (with suffix _GM, _WM, _CSF, unless --stack)
-    --stack: return 4D volume, stacked GM,WM,CSF in last dimension (default false)
-    --super: super-sampling level for intermediate resampling (default 2)
-    --cores: CPU cores to use (default max)
-    --debug: for surface PV estimation (writes ones)
+def main(): 
+    desc = """
+    Generate PV estimates for a reference voxel grid. FS' volumetric 
+    segmentation is used for the subcortex and a surface-based method
+    is used for the cortex (toblerone). 
     """
 
-    parser = argparse.ArgumentParser(usage=usage)
-    parser.add_argument("--aparcseg", required=True)
-    parser.add_argument("--LWS", required=True)
-    parser.add_argument("--LPS", required=True)
-    parser.add_argument("--RPS", required=True)
-    parser.add_argument("--RWS", required=True)
-    parser.add_argument("--t1", required=True)
-    parser.add_argument("--asl", required=True)
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--stack", action="store_true")
-    parser.add_argument("--super", default=2, type=int)
-    parser.add_argument("--cores", default=mp.cpu_count(), type=int)
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument("--aparcseg", required=True, 
+        help="path to volumetric FS segmentation (aparc+aseg.mgz)")
+    parser.add_argument("--LWS", required=True,
+        help="path to left white surface")
+    parser.add_argument("--LPS", required=True,
+        help="path to left pial surface")
+    parser.add_argument("--RPS", required=True,
+        help="path to right pial surface")
+    parser.add_argument("--RWS", required=True,
+        help="path to right white surface")
+    parser.add_argument("--ref", required=True,
+        help="path to image defining reference grid for PVs")
+    parser.add_argument("--out", required=True,
+        help="path to save output")
+    parser.add_argument("--stack", action="store_true", 
+        help="stack output into single 4D volume")
+    parser.add_argument("--cores", default=mp.cpu_count(), type=int,
+        help="CPU cores to use")
 
     args = parser.parse_args()
     surf_dict = dict([ (k, getattr(args, k)) for k in ['LWS', 'LPS', 'RPS', 'RWS'] ])
 
-    pvs = extract_fs_pvs(args.aparcseg, surf_dict, args.t1, 
-                         args.asl, args.super, args.cores)
+    pvs = extract_fs_pvs(args.aparcseg, surf_dict, args.ref, args.cores)
 
     if args.stack: 
         nib.save(pvs, args.out)
@@ -310,3 +299,7 @@ if __name__ == "__main__":
         for idx,tiss in enumerate(["GM", "WM", "CSF"]):
             n = opath.parent.joinpath(opath.stem.rsplit('.', 1)[0] + f"_{tiss}" + "".join(opath.suffixes))
             spc.save_image(pvs[...,idx], n.as_posix())
+
+
+if __name__ == "__main__":
+    main()
