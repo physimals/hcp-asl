@@ -54,11 +54,11 @@ SUBCORT_LUT = {
 
     # Left cerebellum
     7 : "WM",
-    8 : "GM",
+    8 : "L_CerGM",
 
     # Right cerebellum
     46 : "WM",
-    47 : "GM",
+    47 : "R_CerGM",
 
     # Brainstem
     16 : "WM"
