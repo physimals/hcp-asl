@@ -67,7 +67,7 @@ SUBCORT_LUT = {
 
 # Do not label the following tissues 
 IGNORE = [
-    6,45     # cerebellum 
+    6,45     # cerebellum exterior 
 ]
 
 
