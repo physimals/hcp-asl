@@ -51,11 +51,11 @@ SUBCORT_LUT = {
     49 : "R_Thal",
 
     # Left cerebellum
-    7 : "WM",
+    7 : "L_CerWM",
     8 : "L_CerGM",
 
     # Right cerebellum
-    46 : "WM",
+    46 : "R_CerWM",
     47 : "R_CerGM",
 
     # Brainstem
@@ -206,10 +206,11 @@ def stack_images(images):
 
     # For the brainstem only, we treat that as WM and decrease
     # CSF by corresponding amount 
-    brstem = images.pop('BrStem').flatten()
-    csf[brstem > 0] = (1 - brstem)[brstem > 0]
-    out[:,1] = brstem
-    out[:,2] = 1 - out[:,1]
+    wm_structures = [images.pop(wm_key).flatten() for wm_key in ('BrStem', 'L_CerWM', 'R_CerWM')]
+    for wm_structure in wm_structures:
+        out[:,1] = np.minimum(1, out[:,1] + wm_structure)
+        csf[wm_structure > 0] = np.maximum(0, 1 - wm_structure)[wm_structure > 0]
+    out[:,2] = np.maximum(0, 1 - out[:,1])
 
     # Then write in cortex estimates from all voxels
     # that contain either WM or GM intersecting cortex 

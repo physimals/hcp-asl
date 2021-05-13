@@ -69,8 +69,7 @@ def estimate_pvs(t1_dir, t1_asl, cores=mp.cpu_count()):
         surf_dict[k] = paths[0]
 
     # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
-    pvs_stacked = extract_fs_pvs(aparc_aseg, surf_dict, t1_asl, 
-        superfactor=2, cores=cores)
+    pvs_stacked = extract_fs_pvs(aparc_aseg, surf_dict, t1_asl, cores=cores)
 
     return pvs_stacked
 
