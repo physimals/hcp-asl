@@ -103,11 +103,11 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=mp.cpu_c
     if ref2struct:
         struct2ref_reg = rt.Registration.from_flirt(ref2struct, ref_spc, aseg_spc).inverse()
         cortex = estimate_cortex(ref=ref_spc, struct2ref=struct2ref_reg.src2ref, 
-            superfactor=1, cores=cores, **surf_dict)
+                                 cores=cores, **surf_dict)
     else:
         struct2ref_reg = rt.Registration.identity()
         cortex = estimate_cortex(ref=ref_spc, struct2ref='I', 
-            superfactor=1, cores=cores, **surf_dict)
+                                 cores=cores, **surf_dict)
 
     # Extract PVs from aparcseg segmentation. Subcortical structures go into 
     # a dict keyed according to their name, whereas general WM/GM are 
