@@ -239,7 +239,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         str(subject_dir.parent),
         subject_dir.stem,
         "--cores", str(cores),
-        "--outdir", outdir
+        "--outdir", outdir,
+        "--interpolation", interpolation
     ]
     process = subprocess.Popen(pv_est_call, stdout=subprocess.PIPE)
     while 1:
