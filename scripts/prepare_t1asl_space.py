@@ -12,7 +12,7 @@ import multiprocessing as mp
 import glob 
 
 import scipy
-import numpy as np 
+import numpy as np
 import toblerone as tob 
 import regtricks as rt 
 import nibabel as nib 
@@ -40,7 +40,7 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
     return output 
 
 
-def estimate_pvs(t1_dir, t1_asl, cores=mp.cpu_count()):
+def estimate_pvs(t1_dir, ref_spc, ref2struct=None, cores=mp.cpu_count()):
     """
     Generate partial volume estimates from freesurfer segmentations of the cortex
     and subcortical structures.
@@ -69,7 +69,7 @@ def estimate_pvs(t1_dir, t1_asl, cores=mp.cpu_count()):
         surf_dict[k] = paths[0]
 
     # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
-    pvs_stacked = extract_fs_pvs(aparc_aseg, surf_dict, t1_asl, cores=cores)
+    pvs_stacked = extract_fs_pvs(aparc_aseg, surf_dict, ref_spc, ref2struct=ref2struct, cores=cores)
 
     return pvs_stacked
 
@@ -101,6 +101,15 @@ def main():
         help="Name of the directory within which we will store all of the "
             +"pipeline's outputs in sub-directories. Default is 'hcp_asl'",
         default="hcp_asl"
+    )
+    parser.add_argument(
+        "--interpolation",
+        help="Interpolation order for registrations. This can be any "
+            +"integer from 0-5 inclusive. Default is 3. See scipy's "
+            +"map_coordinates for more details.",
+        default=3,
+        type=int,
+        choices=range(0, 5+1)
     )
 
     args = parser.parse_args()
@@ -140,11 +149,20 @@ def main():
         vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
         rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
 
-    # Estimate PVs in T1 ASL space 
+    # Estimate PVs in ASL0 space then register them to ASLT1w space
+    asl2struct = op.join(t1_asl_dir, "TIs", "reg", "asl2struct.mat")
     pv_gm = op.join(pve_dir, "pve_GM.nii.gz")
     if not op.exists(pv_gm) or force_refresh:
         aparc_seg = op.join(t1_dir, "aparc+aseg.nii.gz")
-        pvs_stacked = estimate_pvs(t1_dir, t1_asl_grid)
+        pvs_stacked = estimate_pvs(t1_dir, asl, ref2struct=asl2struct)
+
+        # register the PVEs from ASL0 space to ASLT1w space with the 
+        # same order of interpolation used to register the ASL series
+        asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
+        pvs_stacked = asl2struct.apply_to_image(src=pvs_stacked,
+                                                ref=t1_asl_grid,
+                                                order=args.interpolation,
+                                                cores=args.cores)
 
         # Save output with tissue suffix 
         fileroot = op.join(pve_dir, "pve")

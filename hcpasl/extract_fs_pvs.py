@@ -79,7 +79,7 @@ def CTX_LUT(val):
     else: 
         return None 
 
-def extract_fs_pvs(aparcseg, surf_dict, ref_spc, cores=mp.cpu_count()): 
+def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=mp.cpu_count()): 
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
     Results are stored in ASL-gridded T1 space. 
@@ -98,9 +98,16 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, cores=mp.cpu_count()):
     aseg = aseg_spc.dataobj
     aseg_spc = rt.ImageSpace(aseg_spc)
 
-    # Estimate cortical PVs 
-    cortex = estimate_cortex(ref=ref_spc, struct2ref='I', 
-        superfactor=1, cores=cores, **surf_dict)
+    # Estimate cortical PVs, loading a struct2ref registration if provided
+    # If not provided, an identity transform is used
+    if ref2struct:
+        struct2ref_reg = rt.Registration.from_flirt(ref2struct, ref_spc, aseg_spc).inverse()
+        cortex = estimate_cortex(ref=ref_spc, struct2ref=struct2ref_reg.src2ref, 
+            superfactor=1, cores=cores, **surf_dict)
+    else:
+        struct2ref_reg = rt.Registration.identity()
+        cortex = estimate_cortex(ref=ref_spc, struct2ref='I', 
+            superfactor=1, cores=cores, **surf_dict)
 
     # Extract PVs from aparcseg segmentation. Subcortical structures go into 
     # a dict keyed according to their name, whereas general WM/GM are 
@@ -126,11 +133,9 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, cores=mp.cpu_count()):
             print("Did not assign tissue for aseg/aparc label:", label)
 
     # Super-resolution resampling for the vol_pvs, a la applywarp. 
-    # We use an identity transform as we don't actually want to shift the data 
     # 0: GM, 1: WM, 2: CSF, always in the LAST dimension of an array 
-    reg = rt.Registration.identity()
-    vol_pvs = reg.apply_to_array(vol_pvs.reshape(*aseg.shape, 3), 
-                                 aseg_spc, ref_spc, order=1, cores=cores)
+    vol_pvs = struct2ref_reg.apply_to_array(vol_pvs.reshape(*aseg.shape, 3), 
+                                            aseg_spc, ref_spc, order=1, cores=cores)
     vol_pvs = vol_pvs.reshape(-1,3)
     vol_pvs[:,2] = np.maximum(0, 1 - vol_pvs[:,:2].sum(1))
     vol_pvs[vol_pvs[:,2] < 1e-2, 2] = 0 
@@ -141,8 +146,8 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, cores=mp.cpu_count()):
     # all at once, then put them back into a dict 
     keys, values = list(to_stack.keys()), list(to_stack.values())
     del to_stack
-    subcorts = reg.apply_to_array(np.stack(values, axis=-1), 
-                                  aseg_spc, ref_spc, order=1, cores=cores)
+    subcorts = struct2ref_reg.apply_to_array(np.stack(values, axis=-1), 
+                                             aseg_spc, ref_spc, order=1, cores=cores)
     subcorts = np.moveaxis(subcorts, 3, 0)
     to_stack = dict(zip(keys, subcorts))
 
