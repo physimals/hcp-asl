@@ -18,7 +18,7 @@ from hcpasl.m0_correction import correct_M0
 from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resample_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
-from hcpasl.qc import create_qc_report
+from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
 import subprocess
@@ -27,7 +27,8 @@ from multiprocessing import cpu_count
 import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
-                    fmaps, gradients, wmparc, ribbon, wbdir, use_t1=False, 
+                    fmaps, gradients, wmparc, ribbon, wbdir, 
+                    territories_atlas, territories_labels, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
     """
@@ -62,6 +63,10 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     wbdir : str
         path to development version of wb_command's bin directory 
         e.g. workbench/bin_macosx64
+    territories_atlas : pathlib.Path
+        Path to vascular territories atlas.
+    territories_labels: pathlib.Path
+        Path to labels for a vascular territory atlas.
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
@@ -265,6 +270,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     # final perfusion estimation in ASLT1w space
     logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir/"PVEs"
+    gm_pve, wm_pve = [pve_dir/f"pve_{tiss}.nii.gz" for tiss in ("GM", "WM")]
     oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
     oxford_aslt1w_dir.mkdir(exist_ok=True)
     logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO")
@@ -272,8 +278,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         "oxford_asl",
         f"-i {str(betas_dir/'beta_perf.nii.gz')}",
         f"-o {str(oxford_aslt1w_dir)}",
-        f"--pvgm={str(pve_dir/'pve_GM.nii.gz')}",
-        f"--pvwm={str(pve_dir/'pve_WM.nii.gz')}",
+        f"--pvgm={str(gm_pve)}",
+        f"--pvwm={str(wm_pve)}",
         f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
         f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
         f"-m {str(aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz')}",
@@ -306,6 +312,17 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     if retcode != 0:
         logger.info(f"retcode={retcode}")
         logger.exception("Process failed.")
+
+    logger.info("Producing summary stats in ASLT1w ROIs.")
+    mninonlinear_name = studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/MNINonLinear"
+    roi_stats(struct_name=structural["struct"],
+              oxford_asl_dir=oxford_aslt1w_dir,
+              gm_pve=gm_pve,
+              wm_pve=wm_pve,
+              std2struct_name=mninonlinear_name/"xfms/standard2acpc_dc.nii.gz",
+              roi_stats_dir=aslt1w_dir/"roi_stats",
+              territories_atlas=territories_atlas,
+              territories_labels=territories_labels)
 
     logger.info("Projecting volumetric results to surface.")
     project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
@@ -507,6 +524,16 @@ def main():
         required=True
     )
     parser.add_argument(
+        "--territories_atlas",
+        help="Location of vascular territory atlas.",
+        required=True
+    )
+    parser.add_argument(
+        "--territories_labels",
+        help="Location of txt file with labels for vascular territory atlas.",
+        required=True
+    )
+    parser.add_argument(
         "--outdir",
         help="Name of the directory within which we will store all of the "
             +"pipeline's outputs in sub-directories. Default is the subject's"
@@ -570,6 +597,8 @@ def main():
                     interpolation=args.interpolation,
                     gradients=grads,
                     mbpcasl=mbpcasl,
+                    territories_atlas=args.territories_atlas,
+                    territories_labels=args.territories_labels,
                     structural=structural,
                     fmaps=fmaps,
                     use_t1=args.use_t1,
