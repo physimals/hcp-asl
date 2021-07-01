@@ -12,8 +12,6 @@ Sigma=`echo "$SmoothingFWHM / ( 2 * ( sqrt ( 2 * l ( 2 ) ) ) )" | bc -l`
 
 CARET7DIR="$6" #"workbench/bin_macosx64" directory
 
-Subject="${Subject}_V1_MR"
-
 for Hemisphere in L R ; do
   ${CARET7DIR}/wb_command -metric-smoothing \
   "$DownSampleFolder"/"$Subject"."$Hemisphere".midthickness."$LowResMesh"k_fs_LR.surf.gii \

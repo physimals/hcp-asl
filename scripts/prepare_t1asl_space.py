@@ -87,6 +87,10 @@ def main():
         help="Subject number."
     )
     parser.add_argument(
+        "visit",
+        help="Subject's visit, i.e. 'V1'."
+    )
+    parser.add_argument(
         "-c",
         "--cores",
         help="Number of cores to use when applying motion correction and "
@@ -115,16 +119,16 @@ def main():
     args = parser.parse_args()
     study_dir = args.study_dir
     sub_id = args.sub_number
+    visit = args.visit
 
     # for debug, re-use intermediate results
     force_refresh = True 
 
     sub_base = op.abspath(op.join(study_dir, sub_id))
-    t1_dir = op.join(sub_base, f"{sub_id}_V1_MR", "resources",
-                    "Structural_preproc", "files", f"{sub_id}_V1_MR",
-                    "T1w")
-    t1_asl_dir = op.join(sub_base, args.outdir, "T1w", "ASL")
-    asl = op.join(sub_base, args.outdir, "ASL", "TIs", "tis.nii.gz")
+    visit_dir = op.join(sub_base, f"{sub_id}_{visit}_MR")
+    t1_dir = op.join(visit_dir, "T1w")
+    t1_asl_dir = op.join(visit_dir, args.outdir, "T1w", "ASL")
+    asl = op.join(visit_dir, args.outdir, "ASL", "TIs", "tis.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
 
     # Create ASL-gridded version of T1 image 
@@ -139,7 +143,7 @@ def main():
             t1_asl_grid)
     
     # Create PVEs directory
-    pve_dir = op.join(sub_base, args.outdir, "T1w", "ASL", "PVEs")
+    pve_dir = op.join(visit_dir, args.outdir, "T1w", "ASL", "PVEs")
     os.makedirs(pve_dir, exist_ok=True)
 
     # Create a ventricle CSF mask in T1 ASL space 

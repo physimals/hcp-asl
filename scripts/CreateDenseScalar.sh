@@ -14,8 +14,6 @@ GrayordinatesResolution="$5" #"2" #"$8"
 
 CARET7DIR="$9" #"/Applications/workbench/bin_macosx64"
 
-Subject="${Subject}_V1_MR"
-
 #Some way faster and more concise code:
 
 ${CARET7DIR}/wb_command -cifti-create-dense-scalar \

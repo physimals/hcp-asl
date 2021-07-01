@@ -841,7 +841,8 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     reg_dir = tis_aslt1w_dir/"reg"
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
-    fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
+    subid, visit, _ = subject_dir.stem.split("_")
+    fsdir = (t1w_dir/f"{subid}_{visit}_MR").resolve(strict=True)
     generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
     asl2struct_reg = rt.Registration.from_flirt(src2ref=str(reg_dir/"asl2struct.mat"),
                                                 src=str(perfusion_name),

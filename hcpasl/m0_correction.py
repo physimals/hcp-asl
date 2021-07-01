@@ -168,6 +168,9 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     log_name = subject_dir/outdir/"ASL/Calib/correct_M0.log"
     logger = setup_logger(logger_name, log_name, "INFO")
 
+    # get subid and visit from subject_dir
+    subid, visit, _ = subject_dir.stem.split("_")
+
     # get calibration image names
     calib0, calib1 = [
         (calib_dir/f"Calib{n}/calib{n}.nii.gz").resolve(strict=True) 
@@ -208,7 +211,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     logger.info("Getting registration from fmapmag image to structural image.")
     fmap_struct_dir = topup_dir/"fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True)
-    fsdir = (t1w_dir/f"{subject_dir.parts[-1]}_V1_MR").resolve(strict=True)
+    fsdir = (t1w_dir/f"{subid}_{visit}_MR").resolve(strict=True)
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     logger.info("Loading registration from fieldmap to struct.")
     bbr_fmap2struct = rt.Registration.from_flirt(str(fmap_struct_dir/"asl2struct.mat"), 

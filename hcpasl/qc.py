@@ -48,7 +48,7 @@ def roi_stats(struct_name, oxford_asl_dir, gm_pve, wm_pve, std2struct_name,
     
     # set up and run oxford_asl_roi_stats command
     cmd = [
-        "python", "/Users/jacktoner/modules/oxford_asl/oxford_asl_roi_stats.py",
+        "python", "oxford_asl_roi_stats.py",
         "--oxasl-output", str(oxford_asl_dir),
         "--struc", str(struct_name),
         "--gm-pve", str(gm_pve), "--wm-pve", str(wm_pve),

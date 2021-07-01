@@ -16,8 +16,6 @@ RegName="${10}" #"MSMSulc" #
 
 CARET7DIR="${12}"
 
-Subject="${Subject}_V1_MR"
-
 NeighborhoodSmoothing="5" # May need to change
 Factor="0.5" # May need to change                  
 

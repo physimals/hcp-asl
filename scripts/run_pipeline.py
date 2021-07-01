@@ -26,7 +26,7 @@ import argparse
 from multiprocessing import cpu_count
 import nibabel as nb
 
-def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
+def process_subject(studydir, subid, visit, mt_factors, mbpcasl, structural, 
                     fmaps, gradients, wmparc, ribbon, wbdir, 
                     territories_atlas, territories_labels, use_t1=False, 
                     pvcorr=False, cores=cpu_count(), interpolation=3,
@@ -40,6 +40,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         Path to the study's base directory.
     subid : str
         Subject id for the subject of interest.
+    visit : str
+        Visit number under consideration.
     mt_factors : pathlib.Path
         Path to a .txt file of pre-calculated MT correction 
         factors.
@@ -92,7 +94,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         Name of the main results directory. Default is 'hcp_asl'.
     """
 
-    subject_dir = (studydir / subid).resolve(strict=True)
+    subject_dir = (studydir/subid/f"{subid}_{visit}_MR").resolve(strict=True)
     logger = logging.getLogger("HCPASL")
 
     # initial set-up for the pipeline: create results directories
@@ -241,8 +243,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO")
     pv_est_call = [
         "pv_est",
-        str(subject_dir.parent),
-        subject_dir.stem,
+        str(studydir),
+        subid,
+        visit,
         "--cores", str(cores),
         "--outdir", outdir,
         "--interpolation", str(interpolation)
@@ -314,7 +317,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         logger.exception("Process failed.")
 
     logger.info("Producing summary stats in ASLT1w ROIs.")
-    mninonlinear_name = studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/MNINonLinear"
+    mninonlinear_name = subject_dir/"MNINonLinear"
     roi_stats(struct_name=structural["struct"],
               oxford_asl_dir=oxford_aslt1w_dir,
               gm_pve=gm_pve,
@@ -325,15 +328,15 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
               territories_labels=territories_labels)
 
     logger.info("Projecting volumetric results to surface.")
-    project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
+    project_to_surface(studydir, subid, visit=visit, outdir=outdir, wbdir=wbdir)
 
-    logger.info("Copying key outputs to $StudyDir/$SubID/T1w/ASL and $StudyDir/$SubID/MNINonLinear/ASL")
-    copy_outputs(studydir, subid, outdir)
+    logger.info("Copying key outputs to $StudyDir/$SubID/$SubID_$Visit_MR/T1w/ASL and $StudyDir/$SubID/$SubID_$Visit_MR/MNINonLinear/ASL")
+    copy_outputs(studydir, subid, visit, outdir)
 
     logger.info("Creating QC report.")
     create_qc_report(subject_dir, outdir)
 
-def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASLRes="2.5", 
+def project_to_surface(studydir, subid, visit, outdir, wbdir, lowresmesh="32", FinalASLRes="2.5", 
                        SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
     """
     Project perfusion results to the cortical surface and generate
@@ -348,7 +351,7 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
     subid : str
         Subject id for the subject of interest.
     """
-    logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO")
+    logger = setup_logger("HCPASL.project", studydir/subid/f"{subid}_{visit}_MR"/outdir/"project.log", "INFO")
     # Projection scripts path:
     script         = "PerfusionCIFTIProcessingPipeline.sh"
     wb_path        = str(Path(wbdir).resolve(strict=True))
@@ -357,11 +360,11 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
     ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
 
     for idx in range(2):
-        non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false", outdir]
+        non_pvcorr_cmd = [script, studydir, subid, visit, ASLVariable[idx], ASLVariableVar[idx],
+                lowresmesh, FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false", outdir]
 
-        pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx], lowresmesh,
-                FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "true", outdir]
+        pvcorr_cmd = [script, studydir, subid, visit, ASLVariable[idx], ASLVariableVar[idx],
+                lowresmesh, FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "true", outdir]
         
         process = subprocess.Popen(non_pvcorr_cmd, stdout=subprocess.PIPE)
         while 1:
@@ -384,7 +387,7 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
             logger.info(f"retcode={retcode}")
             logger.exception("Process failed.")
 
-def copy_outputs(studydir, subid, outdir):
+def copy_outputs(studydir, subid, visit, outdir):
     """
     Copy key pipeline outputs to the T1w and MNI aligned high level ASL directory
 
@@ -394,11 +397,13 @@ def copy_outputs(studydir, subid, outdir):
         Path to the study's base directory.
     subid : str
         Subject id for the subject of interest.
+    visit: str
+        Visit number, i.e. V1.
     """
        
-    path_to_outs   = str(studydir/subid/outdir)
-    mni_raw = str(studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/MNINonLinear")
-    t1w_preproc = str(studydir/subid/f"{subid}_V1_MR/resources/Structural_preproc/files/{subid}_V1_MR/T1w")
+    path_to_outs   = str(studydir/subid/f"{subid}_{visit}_MR"/outdir)
+    mni_raw = str(studydir/subid/f"{subid}_{visit}_MR/MNINonLinear")
+    t1w_preproc = str(studydir/subid/f"{subid}_{visit}_MR/T1w")
     copy_key_outputs(path_to_outs, t1w_preproc, mni_raw)
 
 
@@ -420,6 +425,12 @@ def main():
     parser.add_argument(
         "--subid",
         help="Subject id for the subject of interest.",
+        required=True
+    )
+    parser.add_argument(
+        "--visit",
+        help="Visit number, i.e. ${subid}_${visit}_MR. "
+            +"This should be of the form V1/V2",
         required=True
     )
     parser.add_argument(
@@ -553,7 +564,7 @@ def main():
 
     # set up logging
     # create file handler
-    base_dir = Path(studydir/subid/args.outdir)
+    base_dir = Path(studydir/subid/f"{subid}_{args.visit}_MR"/args.outdir)
     base_dir.mkdir(exist_ok=True)
     fh_name = base_dir/f"{subid}.log"
     logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
@@ -592,6 +603,7 @@ def main():
     logger.info(f"Processing subject {studydir/subid}.")
     process_subject(studydir=studydir,
                     subid=subid,
+                    visit=args.visit,
                     mt_factors=mtname,
                     cores=args.cores,
                     interpolation=args.interpolation,
