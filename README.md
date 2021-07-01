@@ -26,7 +26,6 @@ It is advised that the pipeline is installed in a conda environment, for example
 ```
 conda create -n hcpasl pip cython numpy python=3.7
 conda activate hcpasl
-python -m pip install toblerone
 git clone https://github.com/physimals/hcp-asl.git
 cd hcp-asl
 python -m pip install --user .
