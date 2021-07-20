@@ -75,10 +75,10 @@ def setup_mtestimation(subject_dir, coeffs_path, rois=['wm',],
             )
         
         # load gdc warp
-        gdc_warp_reg = rt.NonLinearRegistration.from_fnirt(
-            str(gdc_warp), src=str(calib0_name), ref=str(calib0_name),
-            intensity_correct=True, constrain_jac=(0.01, 100)
-        )
+        gdc_warp_reg = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
+                                                           src=str(calib0_name),
+                                                           ref=str(calib0_name),
+                                                           intensity_correct=True)
         # apply gdc and epidc to both calibration images
         for calib_name, results_dir in zip((calib0_name, calib1_name), calib_distcorr_dirs):
             # apply gdc to the calibration image
@@ -118,10 +118,10 @@ def setup_mtestimation(subject_dir, coeffs_path, rois=['wm',],
                 )
             
             # chain gradient and epi distortion correction warps together
-            asl2struct_warp_reg = rt.NonLinearRegistration.from_fnirt(
-                str(asl2struct_warp), src=str(calib_name), ref=str(t1_name),
-                intensity_correct=True, constrain_jac=(0.01, 100)
-            )
+            asl2struct_warp_reg = rt.NonLinearRegistration.from_fnirt(coefficients=str(asl2struct_warp),
+                                                                      src=str(calib_name),
+                                                                      ref=str(t1_name),
+                                                                      intensity_correct=True)
             struct2asl_reg = rt.Registration.from_flirt(
                 str(struct2asl), src=str(t1_name), ref=str(calib_name)
             )

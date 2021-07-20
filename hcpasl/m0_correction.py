@@ -195,17 +195,16 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
     # load gradient distortion correction warp, fieldmaps and PA epidc warp
     logger.info("Loading gradient and EPI distortion correction warps.")
     gdc_name = (gradunwarp_dir/'fullWarp_abs.nii.gz').resolve(strict=True)
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(
-        str(gdc_name), str(calib0), str(calib0),
-        intensity_correct=True, constrain_jac=(0.01, 100)
-    )
+    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name),
+                                                   src=str(calib0),
+                                                   ref=str(calib0),
+                                                   intensity_correct=True)
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
                                    for ext in ('', 'mag', 'magbrain')]
     epi_dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(topup_dir/"WarpField_01.nii.gz"),
                                                       src=str(fmap),
                                                       ref=str(fmap),
-                                                      intensity_correct=True,
-                                                      constrain_jac=(0.01, 100))
+                                                      intensity_correct=True)
 
     # register fieldmapmag to structural image for use in SE-based later
     logger.info("Getting registration from fmapmag image to structural image.")

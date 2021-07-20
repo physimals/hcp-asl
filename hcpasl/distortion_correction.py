@@ -81,8 +81,7 @@ def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
         rt.NonLinearRegistration.from_fnirt(coefficients=str(warp_name),
                                             src=str(pa_ap_sefms),
                                             ref=str(pa_ap_sefms),
-                                            intensity_correct=True,
-                                            constrain_jac=(0.01, 100))
+                                            intensity_correct=True)
         for warp_name in [op.join(topup_dir, f"WarpField_{n}.nii.gz") 
                           for n in ("01", "02")]
     ]
@@ -95,8 +94,7 @@ def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
                                                    src=str(pa_ap_sefms),
                                                    ref=str(pa_ap_sefms),
-                                                   intensity_correct=True,
-                                                   constrain_jac=(0.01, 100))
+                                                   intensity_correct=True)
     
     # chain gdc, epidc and moco together to apply all together
     topup_gdc_dc_moco = [rt.chain(gdc_warp, topup_moco[n], topup_warps[n]) for n in range(0, 2)]
@@ -152,8 +150,7 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
     gdc = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
                                               src=str(pa_ap_sefms),
                                               ref=str(pa_ap_sefms),
-                                              intensity_correct=True,
-                                              constrain_jac=(0.01, 100))
+                                              intensity_correct=True)
     gdc_corr_pa_ap_sefms = gdc.apply_to_image(src=str(pa_ap_sefms),
                                               ref=str(pa_ap_sefms),
                                               order=interpolation,
@@ -298,8 +295,7 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp_name),
                                                    src=str(pa_sefm),
                                                    ref=str(pa_sefm),
-                                                   intensity_correct=True,
-                                                   constrain_jac=(0.01, 100))
+                                                   intensity_correct=True)
 
     # create topup results directory
     topup_dir.mkdir(exist_ok=True)

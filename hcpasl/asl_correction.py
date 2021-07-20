@@ -516,16 +516,14 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
                                                    src=str(asl_name), 
                                                    ref=str(asl_name), 
-                                                   intensity_correct=True,
-                                                   constrain_jac=(0.01, 100))
+                                                   intensity_correct=True)
     # load topup's epi dc warp and fmap2struct registration
     dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
     fmapmag_name = (topup_dir/"fmapmag.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(dc_name),
                                                   src=str(fmapmag_name),
                                                   ref=str(fmapmag_name),
-                                                  intensity_correct=True,
-                                                  constrain_jac=(0.01, 100))
+                                                  intensity_correct=True)
     fmap2struct_reg = (topup_dir/"fmap_struct_reg/asl2struct.mat").resolve(strict=True)
     t1w_name = (t1w_dir/"T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fmap2struct_reg = rt.Registration.from_flirt(src2ref=str(fmap2struct_reg),
@@ -901,14 +899,12 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
                                                     src=str(asl_name), 
                                                     ref=str(asl_name), 
-                                                    intensity_correct=True,
-                                                    constrain_jac=(0.01, 100))
+                                                    intensity_correct=True)
     dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(dc_name),
                                                     src=str(fmapmag),
                                                     ref=str(fmapmag),
-                                                    intensity_correct=True,
-                                                    constrain_jac=(0.01, 100))
+                                                    intensity_correct=True)
 
     # load asl motion correction
     logger.info("Loading motion correction.")
