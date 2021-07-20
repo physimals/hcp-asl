@@ -399,7 +399,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
 
 def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
                                  calib_name, calib2struct, gradunwarp_dir, topup_dir,
-                                 t1w_dir, cores=mp.cpu_count(), interpolation=3,
+                                 t1w_dir, cores=1, interpolation=3,
                                  nobandingcorr=False, outdir="hcp_asl"):
     """
     Full ASL correction and motion estimation pipeline.
@@ -451,8 +451,7 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         Path to the subject's topup run, for example 
         ${SubjectDir}/${OutDir}/ASL/topup.
     cores : int, optional
-        Number of cores regtricks will use. Default is the number 
-        of cores available.
+        Number of cores regtricks will use. Default is 1.
     interpolation : int, optional
         Order of interpolation to be used by regtricks. This is 
         passed to scipy's map_coordinates. See that for more 

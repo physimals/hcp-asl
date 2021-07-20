@@ -79,7 +79,7 @@ def CTX_LUT(val):
     else: 
         return None 
 
-def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=mp.cpu_count()): 
+def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1): 
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg. 
     Results are stored in ASL-gridded T1 space. 
@@ -88,7 +88,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=mp.cpu_c
         surf_dict: dict with LWS/LPS/RWS/RPS keys, paths to those surfaces
         ref_spc: space in which to estimate (ie, ASL-gridded T1)
         superfactor: supersampling factor for intermediate steps
-        cores: number CPU cores to use 
+        cores: number CPU cores to use, default is 1
     Returns: 
         nibabel Nifti object 
     """
@@ -287,7 +287,7 @@ def main():
         help="path to save output")
     parser.add_argument("--stack", action="store_true", 
         help="stack output into single 4D volume")
-    parser.add_argument("--cores", default=mp.cpu_count(), type=int,
+    parser.add_argument("--cores", default=1, type=int,
         help="CPU cores to use")
 
     args = parser.parse_args()

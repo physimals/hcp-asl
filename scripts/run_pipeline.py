@@ -29,7 +29,7 @@ import nibabel as nb
 def process_subject(studydir, subid, visit, mt_factors, mbpcasl, structural, 
                     fmaps, gradients, wmparc, ribbon, wbdir, 
                     territories_atlas, territories_labels, use_t1=False, 
-                    pvcorr=False, cores=cpu_count(), interpolation=3,
+                    pvcorr=False, cores=1, interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
@@ -79,8 +79,7 @@ def process_subject(studydir, subid, visit, mt_factors, mbpcasl, structural,
     cores : int, optional
         Number of cores to use.
         When applying motion correction, this is the number 
-        of cores that will be used by regtricks. Default is 
-        the number of cores on your machine.
+        of cores that will be used by regtricks. Default is 1.
     interpolation : int, optional
         The interpolation order to use for registrations.
         Regtricks passes this on to scipy's map_coordinates. 
@@ -502,9 +501,8 @@ def main():
         "-c",
         "--cores",
         help="Number of cores to use when applying motion correction and "
-            +"other potentially multi-core operations. Default is the "
-            +f"number of cores your machine has ({cpu_count()}).",
-        default=cpu_count(),
+            +"other potentially multi-core operations. Default is 1.",
+        default=1,
         type=int,
         choices=range(1, cpu_count()+1)
     )

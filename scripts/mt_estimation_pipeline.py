@@ -58,9 +58,8 @@ def main():
         action="store_true"
     )
     parser.add_argument("-c", "--cores",
-        help="Number of cores to use. Default is the number "
-            +f"of cores your machine has ({mp.cpu_count()}).",
-        default=mp.cpu_count(),
+        help="Number of cores to use. Default is 1.",
+        default=1,
         type=int,
         choices=range(1, mp.cpu_count()+1)
     )
