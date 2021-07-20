@@ -6,18 +6,17 @@ set -e
 
 # parse arguments
 Path="$1" #`opts_GetOpt1 "--path" $@`  # "$1"  
-Subject="$2" #`opts_GetOpt1 "--subject" $@`  # "$2" 
-Visit="$3"
-ASLVariable="$4" #`opts_GetOpt1 "--aslvariable" $@`  # "$6" ASLVariable="perfusion_calib"
-ASLVariableVar="$5"
-LowResMesh="$6" #`opts_GetOpt1 "--lowresmesh" $@`  # "$6" LowResMesh=32
-FinalASLResolution="$7" #`opts_GetOpt1 "--aslres" $@`  # "${14}" FinalASLResolution="2.5"
-SmoothingFWHM="$8" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM="2"
-GrayordinatesResolution="$9" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
-RegName="${10}" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
-CARET7DIR="${11}" #"workbench/bin_macosx64 directory" 
-pvcorr="${12}"
-Outdir="${13}"
+Subject="$2" #`opts_GetOpt1 "--subject" $@`  # "$2"
+ASLVariable="$3" #`opts_GetOpt1 "--aslvariable" $@`  # "$6" ASLVariable="perfusion_calib"
+ASLVariableVar="$4"
+LowResMesh="$5" #`opts_GetOpt1 "--lowresmesh" $@`  # "$6" LowResMesh=32
+FinalASLResolution="$6" #`opts_GetOpt1 "--aslres" $@`  # "${14}" FinalASLResolution="2.5"
+SmoothingFWHM="$7" #`opts_GetOpt1 "--smoothingFWHM" $@`  # "${14}" SmoothingFWHM="2"
+GrayordinatesResolution="$8" #`opts_GetOpt1 "--grayordinatesres" $@`  # "${14}" GrayordinatesResolution="2"
+RegName="${9}" #`opts_GetOpt1 "--regname" $@` # RegName="MSMSulc" 
+CARET7DIR="${10}" #"workbench/bin_macosx64 directory" 
+pvcorr="${11}"
+Outdir="${12}"
 
 # log_Msg "Path: ${Path}"
 # log_Msg "Subject: ${Subject}"
@@ -30,9 +29,8 @@ Outdir="${13}"
 # log_Msg "RUN: ${RUN}"
 
 #Naming 
-VisitDir="${Subject}_${Visit}_MR"
-T1wFolder="${VisitDir}/T1w"
-AtlasSpaceFolder="${VisitDir}/MNINonLinear"
+T1wFolder="T1w"
+AtlasSpaceFolder="MNINonLinear"
 NativeFolder="Native"
 ResultsFolder="Results"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
@@ -41,15 +39,15 @@ OutputAtlasDenseScalar="${ASLVariable}_Atlas"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-ASLT1wFolder="$Path"/"$Subject"/"$VisitDir"/"$Outdir"/"T1w/ASL"
+ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"
 if [ "$pvcorr" = false ] ; then
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$VisitDir"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"
-    AtlasResultsFolder="$Path"/"$Subject"/"$VisitDir"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"
+    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"
 else
     InitialASLResults="$ASLT1wFolder"/"TIs/OxfordASL/native_space/pvcorr"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$VisitDir"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"/"pvcorr"
-    AtlasResultsFolder="$Path"/"$Subject"/"$VisitDir"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"/"pvcorr"
+    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"/"pvcorr"
+    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"/"pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
 DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
@@ -61,7 +59,7 @@ ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 # log_Msg "mkdir -p ${ResultsFolder}/OutputtoCIFTI"
 mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
 mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
-VolumetoSurface.sh "$VisitDir" "$InitialASLResults" "$ASLVariable" \
+VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
         "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
         "$AtlasResultsFolder"/"OutputtoCIFTI" "$T1wFolder"/"$NativeFolder" \
         "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
@@ -69,7 +67,7 @@ VolumetoSurface.sh "$VisitDir" "$InitialASLResults" "$ASLVariable" \
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-SurfaceSmooth.sh "$VisitDir" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
         "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
@@ -87,7 +85,7 @@ SubcorticalProcessing.sh "$ASLVariable" "$AtlasSpaceFolder" \
 
 #Generation of Dense Timeseries
 # log_Msg "Generation of Dense Scalar"
-CreateDenseScalar.sh "$VisitDir" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
+CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
         "$ROIFolder" "$LowResMesh" "$GrayordinatesResolution" "$SmoothingFWHM" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$DownSampleFolder" "$CARET7DIR"
