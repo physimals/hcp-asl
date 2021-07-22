@@ -5,6 +5,7 @@ import nbformat
 from nbparameterise import extract_parameters, parameter_values, replace_definitions
 
 from pathlib import Path
+import os
 
 import regtricks as rt
 
