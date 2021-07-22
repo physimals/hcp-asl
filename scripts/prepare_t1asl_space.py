@@ -150,7 +150,7 @@ def main():
     pv_gm = op.join(pve_dir, "pve_GM.nii.gz")
     if not op.exists(pv_gm) or force_refresh:
         aparc_seg = op.join(t1_dir, "aparc+aseg.nii.gz")
-        pvs_stacked = estimate_pvs(t1_dir, asl, ref2struct=asl2struct)
+        pvs_stacked = estimate_pvs(t1_dir, asl, ref2struct=asl2struct, cores=args.cores)
 
         # register the PVEs from ASL0 space to ASLT1w space with the 
         # same order of interpolation used to register the ASL series
