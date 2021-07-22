@@ -47,8 +47,9 @@ def roi_stats(struct_name, oxford_asl_dir, gm_pve, wm_pve, std2struct_name,
     rt.Registration.identity().save_fsl(str(identity_name), src=str(gm_pve), ref=str(struct_name))
     
     # set up and run oxford_asl_roi_stats command
+    roi_script_name = Path(os.environ["FSLDIR"])/"bin/oxford_asl_roi_stats.py"
     cmd = [
-        "python", "oxford_asl_roi_stats.py",
+        "fslpython", str(roi_script_name),
         "--oxasl-output", str(oxford_asl_dir),
         "--struc", str(struct_name),
         "--gm-pve", str(gm_pve), "--wm-pve", str(wm_pve),
