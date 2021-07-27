@@ -326,7 +326,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     logger.info("Projecting volumetric results to surface.")
     project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
     
-    logger.info("Copying key outputs to $StudyDir/$SubID/$SubID_$Visit_MR/T1w/ASL and $StudyDir/$SubID/$SubID_$Visit_MR/MNINonLinear/ASL")
+    logger.info("Copying key outputs to $StudyDir/$SubID/$Outdir/T1w/ASL and $StudyDir/$SubID/$Outdir/MNINonLinear/ASL")
     copy_outputs(studydir, subid, outdir)
 
     logger.info("Creating QC report.")
