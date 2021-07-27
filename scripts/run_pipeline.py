@@ -29,7 +29,7 @@ import nibabel as nb
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
                     fmaps, gradients, wmparc, ribbon, wbdir, 
                     territories_atlas, territories_labels, use_t1=False, 
-                    pvcorr=False, cores=1, interpolation=3,
+                    cores=1, interpolation=3,
                     nobandingcorr=False, outdir="hcp_asl"):
     """
     Run the hcp-asl pipeline for a given subject.
@@ -70,10 +70,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     use_t1 : bool, optional
         Whether or not to use the estimated T1 map in the 
         oxford_asl run in structural space.
-    pvcorr : bool, optional
-        Whether or not to run oxford_asl using pvcorr when 
-        performing perfusion estimation in (ASL-gridded) T1 
-        space.
     cores : int, optional
         Number of cores to use.
         When applying motion correction, this is the number 
@@ -292,10 +288,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         "--te=19",
         "--debug",
         "--spatial=off",
-        "--tr=8"
+        "--tr=8",
+        "--pvcorr"
     ]
-    if pvcorr:
-        oxford_aslt1w_call.append("--pvcorr")
     if use_t1:
         est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
         oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
@@ -469,12 +464,6 @@ def main():
         action='store_true'
     )
     parser.add_argument(
-        '--pvcorr',
-        help="If this flag is provided, oxford_asl will be run using the "
-            + "--pvcorr flag.",
-        action='store_true'
-    )
-    parser.add_argument(
         '--wmparc',
         help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction.",
         default=None,
@@ -583,7 +572,6 @@ def main():
                     structural=structural,
                     fmaps=fmaps,
                     use_t1=args.use_t1,
-                    pvcorr=args.pvcorr,
                     wmparc=args.wmparc,
                     ribbon=args.ribbon,
                     nobandingcorr=args.nobandingcorr,
