@@ -15,7 +15,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     pv_prefix = "pvcorr"
     
     # Set up path variables needed to warp voxelwise results to MNI space
-    script = "results_to_mni"
+    script = "results_to_mni_asl"
     warp = mni_raw + "/xfms/acpc_dc2standard.nii.gz"
     T1w_img = t1w_preproc + "/T1w_acpc_dc_restore.nii.gz"
     fsldir = Path(os.environ["FSLDIR"])

@@ -237,9 +237,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     logger.info("Performing partial volume estimation.")
     pves_dir = aslt1w_dir/"PVEs"
     pves_dir.mkdir(exist_ok=True)
-    logger_pv = setup_logger("HCPASL.pv_est", pves_dir/"pv_est.log", "INFO")
+    logger_pv = setup_logger("HCPASL.pv_est_asl", pves_dir/"pv_est.log", "INFO")
     pv_est_call = [
-        "pv_est",
+        "pv_est_asl",
         str(studydir),
         subid,
         "--cores", str(cores),
@@ -349,7 +349,7 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
     """
     logger = setup_logger("HCPASL.project", studydir/subid/outdir/"project.log", "INFO")
     # Projection scripts path:
-    script         = "PerfusionCIFTIProcessingPipeline.sh"
+    script         = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path        = str(Path(wbdir).resolve(strict=True))
 
     ASLVariable    = ["perfusion_calib", "arrival"]

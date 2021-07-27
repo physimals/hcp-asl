@@ -152,7 +152,7 @@ def bias_estimation_sebased(
     bias_name = results_dir/"sebased_bias_dil.nii.gz"
     if not bias_name.exists() or force_refresh:
         sebased_cmd = [
-            "get_sebased_bias", "-i", calib_name, "-f", fmapmag_calib_name,
+            "get_sebased_bias_asl", "-i", calib_name, "-f", fmapmag_calib_name,
             "-m", brain_mask, "-o", results_dir, "--tissue_mask", gm_seg_name, "--debug"
         ]
         subprocess.run(sebased_cmd, check=True)

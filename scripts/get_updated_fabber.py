@@ -11,7 +11,7 @@ import requests
 
 def main():
     if len(sys.argv) != 2:
-        print("Usage: get_updated_fabber <destination dir>")
+        print("Usage: get_updated_fabber_asl <destination dir>")
         sys.exit(1)
 
     destdir = sys.argv[1]
