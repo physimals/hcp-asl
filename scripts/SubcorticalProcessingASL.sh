@@ -1,6 +1,6 @@
 #!/bin/bash 
 set -e
-script_name="SubcorticalProcessing.sh"
+script_name="SubcorticalProcessingASL.sh"
 echo "${script_name}: START"
 
 AtlasSpaceFolder="$2" #"${StudyFolder}/${SubjectID}/${SubjectID}_${Visit}_MR/MNINonLinear" # 

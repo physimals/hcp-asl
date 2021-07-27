@@ -297,7 +297,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
 
         # get sebased bias estimate
         sebased_cmd = [
-            "get_sebased_bias",
+            "get_sebased_bias_asl",
             "-i", gdc_epidc_calib_name, "-f", fmapmag_cspc_name,
             "-m", aslfs_mask_name, "-o", sebased_dir, 
             "--ribbon", ribbon, "--wmparc", wmparc,

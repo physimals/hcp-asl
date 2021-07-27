@@ -59,7 +59,7 @@ ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 # log_Msg "mkdir -p ${ResultsFolder}/OutputtoCIFTI"
 mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
 mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
-VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
+VolumetoSurfaceASL.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
         "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
         "$AtlasResultsFolder"/"OutputtoCIFTI" "$T1wFolder"/"$NativeFolder" \
         "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
@@ -67,11 +67,11 @@ VolumetoSurface.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-SurfaceSmooth.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+SurfaceSmoothASL.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
         "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
-results_to_mni "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
+results_to_mni_asl "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
         "$InitialASLResults"/"${ASLVariable}.nii.gz" "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
         "${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"asl_grid_mni.nii.gz" \
@@ -79,13 +79,13 @@ results_to_mni "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
 
 #Subcortical Processing
 # log_Msg "Subcortical Processing"
-SubcorticalProcessing.sh "$ASLVariable" "$AtlasSpaceFolder" \
+SubcorticalProcessingASL.sh "$ASLVariable" "$AtlasSpaceFolder" \
         "$AtlasResultsFolder"/"OutputtoCIFTI" "$FinalASLResolution" "$SmoothingFWHM" \
         "$GrayordinatesResolution" "$ROIFolder" "$CARET7DIR"
 
 #Generation of Dense Timeseries
 # log_Msg "Generation of Dense Scalar"
-CreateDenseScalar.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
+CreateDenseScalarASL.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
         "$ROIFolder" "$LowResMesh" "$GrayordinatesResolution" "$SmoothingFWHM" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$DownSampleFolder" "$CARET7DIR"

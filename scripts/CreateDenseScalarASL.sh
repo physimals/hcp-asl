@@ -1,6 +1,6 @@
 #!/bin/bash 
 set -e
-echo -e "\n START: CreateDenseScalar"
+echo -e "\n START: CreateDenseScalarASL"
 
 # StudyFolder="/Users/florakennedymcconnell/Documents/Data_files/HCP/HCP_test/jack_pipeline_test"
 Subject="$1" #"HCA6002236" #
@@ -34,4 +34,4 @@ rm "$NameOffMRI"_AtlasSubcortical_s"$SmoothingFWHM".nii.gz
 rm "$NameOffMRI"_s"$SmoothingFWHM".atlasroi.L."$LowResMesh"k_fs_LR.func.gii
 rm "$NameOffMRI"_s"$SmoothingFWHM".atlasroi.R."$LowResMesh"k_fs_LR.func.gii
 
-echo " END: CreateDenseScalar"
+echo " END: CreateDenseScalarASL"

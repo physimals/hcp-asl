@@ -106,18 +106,18 @@ setup(
     entry_points={
         'console_scripts': [
             'hcp_asl = scripts.run_pipeline:main',
-            'pv_est = scripts.prepare_t1asl_space:main',
-            'get_sebased_bias = scripts.se_based:se_based_bias_estimation',
-            'get_updated_fabber = scripts.get_updated_fabber:main',
-            'mt_estimation = scripts.mt_estimation_pipeline:main',
-            'results_to_mni = scripts.results_to_mni:main',
+            'pv_est_asl = scripts.prepare_t1asl_space:main',
+            'get_sebased_bias_asl = scripts.se_based:se_based_bias_estimation',
+            'get_updated_fabber_asl = scripts.get_updated_fabber:main',
+            'mt_estimation_asl = scripts.mt_estimation_pipeline:main',
+            'results_to_mni_asl = scripts.results_to_mni:main',
         ]
     },
     scripts = [
-        'scripts/VolumetoSurface.sh',
-        'scripts/SurfaceSmooth.sh',
-        'scripts/SubcorticalProcessing.sh',
-        'scripts/PerfusionCIFTIProcessingPipeline.sh',
-        'scripts/CreateDenseScalar.sh',
+        'scripts/VolumetoSurfaceASL.sh',
+        'scripts/SurfaceSmoothASL.sh',
+        'scripts/SubcorticalProcessingASL.sh',
+        'scripts/PerfusionCIFTIProcessingPipelineASL.sh',
+        'scripts/CreateDenseScalarASL.sh',
     ]
 )

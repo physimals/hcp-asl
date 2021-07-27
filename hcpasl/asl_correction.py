@@ -950,7 +950,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     logger.info("Performing SE-based bias estimation in ASLT1w space.")
     sebased_dir = aslt1w_dir/"Calib/Calib0/SEbased"
     sebased_dir.mkdir(exist_ok=True)
-    sebased_cmd = ["get_sebased_bias",
+    sebased_cmd = ["get_sebased_bias_asl",
                     "-i", calib_gdc_dc_aslt1w_name,
                     "-f", fmap_aslt1w_name,
                     "-m", fov_brainmask_name,
