@@ -96,6 +96,7 @@ setup(
         'scikit-learn',
         'nilearn',
         'ipykernel',
+        'ipywidgets',
         'toblerone @ git+https://github.com/tomfrankkirk/toblerone.git',
         'matplotlib',
         'pandas',
@@ -119,5 +120,9 @@ setup(
         'scripts/SubcorticalProcessing.sh',
         'scripts/PerfusionCIFTIProcessingPipeline.sh',
         'scripts/CreateDenseScalar.sh',
-    ]
+    ],
+    package_data = {
+        "hcpasl": ["resources/report_template.ipynb",
+                   "resources/test.dat"]
+    }
 )

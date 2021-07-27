@@ -10,3 +10,6 @@ HCP_asl_min_req/*
 scratch.py 
 dist
 _version.py
+hcpasl/resources/*.ipynb_checkpoints
+hcpasl/*.ipynb_checkpoints
+temp_calib
