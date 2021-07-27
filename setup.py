@@ -122,7 +122,6 @@ setup(
         'scripts/CreateDenseScalarASL.sh',
     ],
     package_data = {
-        "hcpasl": ["resources/report_template.ipynb",
-                   "resources/test.dat"]
+        "hcpasl": ["resources/report_template.ipynb"]
     }
 )
