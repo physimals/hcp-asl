@@ -17,7 +17,7 @@ from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_correction import correct_M0
 from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resample_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.utils import setup_logger, create_dirs, split_mbpcasl
+from hcpasl.utils import get_package_data_name, setup_logger, create_dirs, split_mbpcasl
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
@@ -419,8 +419,8 @@ def main():
     parser.add_argument(
         "--mtname",
         help="Filename of the empirically estimated MT-correction"
-            + "scaling factors.",
-        required=not "--nobandingcorr" in sys.argv
+            + "scaling factors. If not provided, the pipeline will "
+            + "use the scaling factors included with the distribution."
     )
     parser.add_argument(
         "-g",
@@ -509,12 +509,12 @@ def main():
     parser.add_argument(
         "--territories_atlas",
         help="Location of vascular territory atlas.",
-        required=True
+        default=get_package_data_name("vascular_territories_atlas.nii.gz")
     )
     parser.add_argument(
         "--territories_labels",
         help="Location of txt file with labels for vascular territory atlas.",
-        required=True
+        default=get_package_data_name("vascular_territories_atlas_labels.txt")
     )
     parser.add_argument(
         "--outdir",
@@ -547,6 +547,8 @@ def main():
     # parse remaining arguments
     if args.mtname:
         mtname = Path(args.mtname).resolve(strict=True)
+    elif not args.nobandingcorr:
+        mtname = get_package_data_name("scaling_factors.txt")
     else:
         mtname = None
     structural = {'struct': Path(args.struct).resolve(strict=True),
