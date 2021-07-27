@@ -91,7 +91,7 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
         asl2orig_fsl = rt.Registration.from_flirt(str(omat_path), str(asl_vol0), str(orig_mgz))
     except RuntimeError as e:
         # final row != [0 0 0 1], round to 5 d.p. and try again
-        logger.exception("FSL .mat file has an invalid format. Rounding to 5 d.p.")
+        logger.warning("FSL .mat file has an invalid format. Rounding to 5 d.p.")
         arr = np.loadtxt(omat_path)
         np.savetxt(omat_path, arr, fmt='%.5f')
         asl2orig_fsl = rt.Registration.from_flirt(str(omat_path), str(asl_vol0), str(orig_mgz))
