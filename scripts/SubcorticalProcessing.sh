@@ -3,7 +3,7 @@ set -e
 script_name="SubcorticalProcessing.sh"
 echo "${script_name}: START"
 
-AtlasSpaceFolder="$2" #"${StudyFolder}/${SubjectID}/${SubjectID}_${Visit}_MR/MNINonLinear" # 
+AtlasSpaceFolder="$2" #"${StudyFolder}/${SubjectID}/MNINonLinear" # 
 echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 
 ROIFolder="$7" #"${AtlasSpaceFolder}/ROIs" # 
@@ -12,14 +12,11 @@ echo "${script_name}: ROIFolder: ${ROIFolder}"
 FinalASLResolution="$4" # "2.5" # 
 echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
-ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/${SubjectID}_${Visit}_MR/T1w/ASL/Results/RibbonVolumetoSurface" # 
+ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/T1w/ASL/Results/RibbonVolumetoSurface" # 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
 ASLVariable="$1" #"perfusion_calib" #
 echo "${script_name}: ASLVariable: ${ASLVariable}"
-
-Visit="$9" # visit, i.e. V1 or V2
-echo "${script_name}: Visit: ${Visit}"
 
 SmoothingFWHM="$5" #"2" #
 echo "${script_name}: SmoothingFWHM: ${SmoothingFWHM}"

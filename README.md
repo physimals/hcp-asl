@@ -35,7 +35,7 @@ python -m pip install --user .
 Once installed, the pipeline may be run as a command-line script as follows:
 
 ```
-hcp_asl --studydir ${StudyDir} --subid ${Subjectid} --visit ${VisitNumber} --outdir ${IntermediateOutputDir}--mtname ${ScalingFactors} -g ${GradientCoeffs} -s ${T1} --sbrain ${T1Brain} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} --cores ${n_cores} --interpolation ${InterpType} --pvcorr --wmparc ${wmparc.nii.gz} --ribbon ${ribbon.nii.gz} --territories_atlas ${Atlas} --territories_labels ${AtlasLabels} --wbdir ${wbDir} -v
+hcp_asl --studydir ${StudyDir} --subid ${Subjectid} --outdir ${IntermediateOutputDir}--mtname ${ScalingFactors} -g ${GradientCoeffs} -s ${T1} --sbrain ${T1Brain} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} --cores ${n_cores} --interpolation ${InterpType} --pvcorr --wmparc ${wmparc.nii.gz} --ribbon ${ribbon.nii.gz} --territories_atlas ${Atlas} --territories_labels ${AtlasLabels} --wbdir ${wbDir} -v
 ```
 
 The filepaths passed to the script may be relative or absolute. A more detailed explanation of the arguments can be found by running:
