@@ -513,8 +513,9 @@ def main():
     )
     parser.add_argument(
         "--wbdir",
-        help="Location of wb_command/bin_macosx64 (>= v1.5.0).",
-        required=True
+        help="Location of wb_command/bin_macosx64 (>= v1.5.0). Defaults to "
+            +"the user's $CARET7DIR (this must be set).",
+        default=os.environ["CARET7DIR"]
     )
     parser.add_argument(
         "--territories_atlas",
