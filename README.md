@@ -14,7 +14,7 @@ The prerequisites specific to this pipeline, along with links to their installat
 - [HCP Pipelines](https://github.com/Washington-University/HCPpipelines)
 - [HCP's gradunwarp](https://github.com/Washington-University/gradunwarp)
 
-FSL version 6.0.4 is required to use new features in fabber, added for this pipeline. Alternatively, you can try to update these files separately and provide the fabberdir argument - more support about this will be provided in future.
+FSL version 6.0.4 is required to use new features in fabber, added for this pipeline.
 
 Workbench >= v1.5.0 is required. The `-weighted` option in `wb_command`'s `-volume-to-surface-mapping` introduced in version 1.5.0 is used in projections to the surface.
 

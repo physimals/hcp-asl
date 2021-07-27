@@ -512,11 +512,6 @@ def main():
         action="store_true"
     )
     parser.add_argument(
-        "--fabberdir",
-        help="User Fabber executable in <fabberdir>/bin/ for users"
-            + "with FSL < 6.0.4"
-    )
-    parser.add_argument(
         "--wbdir",
         help="Location of wb_command/bin_macosx64 (>= v1.5.0).",
         required=True
@@ -572,19 +567,6 @@ def main():
         'PA': Path(args.fmap_pa).resolve(strict=True)
     }
     grads = Path(args.grads).resolve(strict=True)
-
-    if args.fabberdir:
-        if not os.path.isfile(os.path.join(args.fabberdir, "bin", "fabber_asl")):
-            logger.error("ERROR: specified Fabber in %s, but no fabber_asl executable found in %s/bin" % (args.fabberdir, args.fabberdir))
-            sys.exit(1)
-
-        # To use a custom Fabber executable we set the FSLDEVDIR environment variable
-        # which prioritises executables in $FSLDEVDIR/bin over those in $FSLDIR/bin.
-        # Note that this could cause problems in the unlikely event that the user
-        # already has a $FSLDEVDIR set up with custom copies of other things that
-        # oxford_asl uses...
-        logger.info("Using Fabber-ASL executable %s/bin/fabber_asl" % args.fabberdir)
-        os.environ["FSLDEVDIR"] = os.path.abspath(args.fabberdir)
 
     # process subject
     logger.info(f"Processing subject {studydir/subid}.")
