@@ -12,6 +12,9 @@ import subprocess
 import json
 import logging
 
+from importlib.resources import path as resource_path
+from . import resources
+
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """
     Creates directories in a list.
@@ -273,3 +276,17 @@ def setup_logger(logger_name, out_name, level, verbose=False, mode="w"):
         logger.addHandler(handler)
     
     return logger
+
+def get_package_data_name(name):
+    """
+    This function returns the filepath to a given file which are
+    included as part of the pipeline.
+
+    The choices are:
+    * report_template.ipynb
+    * scaling_factors.txt
+    """
+    p = resource_path(resources, name)
+    with p as filename:
+        name = filename
+    return name
