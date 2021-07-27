@@ -524,12 +524,12 @@ def main():
     parser.add_argument(
         "--territories_atlas",
         help="Location of vascular territory atlas.",
-        required=True
+        default=get_package_data_name("vascular_territories_atlas.nii.gz")
     )
     parser.add_argument(
         "--territories_labels",
         help="Location of txt file with labels for vascular territory atlas.",
-        required=True
+        default=get_package_data_name("vascular_territories_atlas_labels.txt")
     )
     parser.add_argument(
         "--outdir",

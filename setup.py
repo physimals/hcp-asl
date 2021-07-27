@@ -123,6 +123,8 @@ setup(
     ],
     package_data = {
         "hcpasl": ["resources/report_template.ipynb",
-                   "resources/scaling_factors.txt"]
+                   "resources/scaling_factors.txt",
+                   "resources/vascular_territories_atlas.nii.gz",
+                   "resources/vascular_territories_atlas_labels.txt"]
     }
 )
