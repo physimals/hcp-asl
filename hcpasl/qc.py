@@ -25,7 +25,7 @@ def create_qc_report(subject_dir, outdir):
     _ = execute(new_nb)
 
     # save notebook in subject's main output directory
-    new_nb_name = Path(subject_dir)/outdir/"report.ipynb"
+    new_nb_name = Path(subject_dir)/outdir/"hcp_asl_report.ipynb"
     with open(new_nb_name, "w") as f:
         nbformat.write(new_nb, f)
 

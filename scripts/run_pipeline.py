@@ -538,7 +538,7 @@ def main():
     # create file handler
     base_dir = Path(studydir/subid/args.outdir)
     base_dir.mkdir(exist_ok=True)
-    fh_name = base_dir/f"{subid}.log"
+    fh_name = base_dir/f"{subid}_hcp_asl.log"
     logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
     
     logger.info(f"Welcome to HCPASL v{__version__} (commit {__sha1__} on {__timestamp__}.")
