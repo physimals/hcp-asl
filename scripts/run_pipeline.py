@@ -347,10 +347,10 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
     script         = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path        = str(Path(wbdir).resolve(strict=True))
 
-    ASLVariable    = ["perfusion_calib", "arrival"]
-    ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
+    ASLVariable    = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
+    ASLVariableVar = ["perfusion_var_calib", "arrival_var", "perfusion_var_calib", "arrival_var"]
 
-    for idx in range(2):
+    for idx in range(4):
         non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx],
                 lowresmesh, FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false", outdir]
 

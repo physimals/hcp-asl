@@ -59,16 +59,16 @@ ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 # log_Msg "Do volume to surface mapping"
 # log_Msg "mkdir -p ${ResultsFolder}/OutputtoCIFTI"
 mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
-mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
+mkdir -p "$T1wSpcResultsFolder"/OutputtoMSMAll_32k
 VolumetoSurfaceASL.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
-        "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
+        "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoMSMAll_32k" \
         "$T1wFolder"/"$NativeFolder" \
         "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
         "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$CARET7DIR"
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-SurfaceSmoothASL.sh "$Subject" "$T1wSpcResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+SurfaceSmoothASL.sh "$Subject" "$T1wSpcResultsFolder"/"OutputtoMSMAll_32k"/"$ASLVariable" \
         "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$LowResMesh" "$SmoothingFWHM" \
         "${RegName}" "$CARET7DIR"
 
@@ -91,13 +91,13 @@ CreateDenseScalarASL.sh "$Subject" "${ASLVariable}" \
         "$ROIFolder" "$LowResMesh" "$GrayordinatesResolution" "$SmoothingFWHM" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
         "$AtlasDownSampleFolder" "$AtlasResultsFolder"/"OutputtoCIFTI" \
-        "$T1wSpcResultsFolder"/"OutputtoCIFTI" "$CARET7DIR"
+        "$T1wSpcResultsFolder"/"OutputtoMSMAll_32k" "$CARET7DIR"
 
 # Move the T1w/ASL/Results/OutputtoCIFTI to MNINonLinear/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
 
-mkdir -p "$AtlasResultsFolder"/Native
+# mkdir -p "$AtlasResultsFolder"/Native
 
-if [ -d "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"/"OutputtoCIFTI" ]; then rm -rf "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"/"OutputtoCIFTI"; fi
-mv "$T1wSpcResultsFolder"/OutputtoCIFTI "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"
+# if [ -d "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"/"OutputtoCIFTI" ]; then rm -rf "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"/"OutputtoCIFTI"; fi
+# mv "$T1wSpcResultsFolder"/OutputtoCIFTI "$AtlasResultsFolder"/"Native"/"T1wOutputtoCIFTI"
 
 # log_Msg "Completed"
