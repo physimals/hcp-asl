@@ -50,7 +50,8 @@ else
     AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"/"pvcorr"
 fi
 echo "Projecting ASL Variables from: $InitialASLResults"
-DownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
+T1DownSampleFolder="$T1wFolder"/"$DownSampleFolder"
+AtlasDownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
 ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
 
 #Ribbon-based Volume to Surface mapping and resampling to standard surface
@@ -61,14 +62,15 @@ mkdir -p "$AtlasResultsFolder"/OutputtoCIFTI
 mkdir -p "$T1wSpcResultsFolder"/OutputtoCIFTI
 VolumetoSurfaceASL.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
         "$ASLVariableVar" "$T1wSpcResultsFolder"/"OutputtoCIFTI" \
-        "$AtlasResultsFolder"/"OutputtoCIFTI" "$T1wFolder"/"$NativeFolder" \
+        "$T1wFolder"/"$NativeFolder" \
         "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "${RegName}" \
-        "$DownSampleFolder" "$CARET7DIR"
+        "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$CARET7DIR"
 
 #Surface Smoothing
 # log_Msg "Surface Smoothing"
-SurfaceSmoothASL.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
-        "$DownSampleFolder" "$LowResMesh" "$SmoothingFWHM" "$CARET7DIR"
+SurfaceSmoothASL.sh "$Subject" "$T1wSpcResultsFolder"/"OutputtoCIFTI"/"$ASLVariable" \
+        "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$LowResMesh" "$SmoothingFWHM" \
+        "${RegName}" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
 results_to_mni_asl "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
@@ -85,10 +87,11 @@ SubcorticalProcessingASL.sh "$ASLVariable" "$AtlasSpaceFolder" \
 
 #Generation of Dense Timeseries
 # log_Msg "Generation of Dense Scalar"
-CreateDenseScalarASL.sh "$Subject" "$AtlasResultsFolder"/"OutputtoCIFTI"/"${ASLVariable}" \
+CreateDenseScalarASL.sh "$Subject" "${ASLVariable}" \
         "$ROIFolder" "$LowResMesh" "$GrayordinatesResolution" "$SmoothingFWHM" \
         "$AtlasResultsFolder"/"OutputtoCIFTI"/"$OutputAtlasDenseScalar" \
-        "$DownSampleFolder" "$CARET7DIR"
+        "$AtlasDownSampleFolder" "$AtlasResultsFolder"/"OutputtoCIFTI" \
+        "$T1wSpcResultsFolder"/"OutputtoCIFTI" "$CARET7DIR"
 
 # Move the T1w/ASL/Results/OutputtoCIFTI to MNINonLinear/ASL/Results/OutputtoCIFTI/T1wOutputtoCIFTI
 

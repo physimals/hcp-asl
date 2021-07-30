@@ -12,7 +12,7 @@ echo "${script_name}: ROIFolder: ${ROIFolder}"
 FinalASLResolution="$4" # "2.5" # 
 echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
-ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/T1w/ASL/Results/RibbonVolumetoSurface" # 
+ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/MINNonLinear/ASL/Results/OutputtoCIFTI" # 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
 ASLVariable="$1" #"perfusion_calib" #
@@ -49,7 +49,7 @@ then
         -volume "${VolumeASL}_MNI".nii.gz \
         "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz
 else
-    echo "${script_name}: Creating subject-roi subcortical cifti at differing fMRI resolution"
+    echo "${script_name}: Creating subject-roi subcortical cifti at differing resolution"
     ${CARET7DIR}/wb_command -volume-affine-resample \
         "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz \
         $FSLDIR/etc/flirtsch/ident.mat \
@@ -82,7 +82,7 @@ ${CARET7DIR}/wb_command -cifti-create-label \
 if [[ `echo "${Sigma} > 0" | bc -l | cut -f1 -d.` == "1" ]]
 then
     echo "${script_name}: Smoothing and resampling"
-    #this is the whole timeseries, so don't overwrite, in order to allow on-disk writing, then delete temporary
+    
     ${CARET7DIR}/wb_command -cifti-smoothing \
         ${ResultsFolder}/${ASLVariable}_temp_subject_dilate.dscalar.nii 0 ${Sigma} \
         COLUMN ${ResultsFolder}/${ASLVariable}_temp_subject_smooth.dscalar.nii \
