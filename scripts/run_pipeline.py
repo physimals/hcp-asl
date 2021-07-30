@@ -99,20 +99,20 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     logger.info("Splitting mbPCASL sequence into ASL series and calibration images.")
     tis_name, calib0_name, calib1_name = [d/name for d, name in zip((tis_dir, calib0_dir, calib1_dir), 
                                                                     ("tis.nii.gz", "calib0.nii.gz", "calib1.nii.gz"))]
-    split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
+    #split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
 
     # run gradient_unwarp and topup, storing results 
     # in gradunwarp_dir and topup_dir respectively
     logger.info("Running gradient_unwarp and topup.")
     gradunwarp_dir = asl_dir/"gradient_unwarp"
     topup_dir = asl_dir/"topup"
-    gradunwarp_and_topup(vol=str(calib0_name), 
-                         coeffs_path=gradients, 
-                         gradunwarp_dir=gradunwarp_dir, 
-                         topup_dir=topup_dir, 
-                         pa_sefm=str(fmaps["PA"]), 
-                         ap_sefm=str(fmaps["AP"]), 
-                         interpolation=interpolation)
+    #gradunwarp_and_topup(vol=str(calib0_name), 
+                        #  coeffs_path=gradients, 
+                        #  gradunwarp_dir=gradunwarp_dir, 
+                        #  topup_dir=topup_dir, 
+                        #  pa_sefm=str(fmaps["PA"]), 
+                        #  ap_sefm=str(fmaps["AP"]), 
+                        #  interpolation=interpolation)
 
     # apply corrections to the calibration images
     logger.info("Running M0 corrections.")
@@ -120,20 +120,20 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     corticallut = hcppipedir/'global/config/FreeSurferCorticalLabelTableLut.txt'
     subcorticallut = hcppipedir/'global/config/FreeSurferSubcorticalLabelTableLut.txt'
     t1w_dir = structural["struct"].parent
-    correct_M0(subject_dir=subject_dir, 
-               calib_dir=calib0_dir.parent, 
-               mt_factors=mt_factors, 
-               t1w_dir=t1w_dir, 
-               aslt1w_dir=aslt1w_dir, 
-               gradunwarp_dir=gradunwarp_dir, 
-               topup_dir=topup_dir, 
-               wmparc=wmparc, 
-               ribbon=ribbon, 
-               corticallut=corticallut, 
-               subcorticallut=subcorticallut, 
-               interpolation=interpolation, 
-               nobandingcorr=nobandingcorr, 
-               outdir=outdir)
+    #correct_M0(subject_dir=subject_dir, 
+            #    calib_dir=calib0_dir.parent, 
+            #    mt_factors=mt_factors, 
+            #    t1w_dir=t1w_dir, 
+            #    aslt1w_dir=aslt1w_dir, 
+            #    gradunwarp_dir=gradunwarp_dir, 
+            #    topup_dir=topup_dir, 
+            #    wmparc=wmparc, 
+            #    ribbon=ribbon, 
+            #    corticallut=corticallut, 
+            #    subcorticallut=subcorticallut, 
+            #    interpolation=interpolation, 
+            #    nobandingcorr=nobandingcorr, 
+            #    outdir=outdir)
 
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
@@ -144,19 +144,19 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     else:
         calib_corr = calib0_dir/"BiasCorr/calib0_gdc_dc_restore.nii.gz"
     calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
-    single_step_resample_to_asl0(subject_dir=subject_dir, 
-                                 tis_dir=tis_dir, 
-                                 mt_factors=mt_factors, 
-                                 bias_name=bias_field, 
-                                 calib_name=calib_corr, 
-                                 calib2struct=calib2struct, 
-                                 gradunwarp_dir=gradunwarp_dir, 
-                                 topup_dir=topup_dir, 
-                                 t1w_dir=t1w_dir, 
-                                 cores=cores, 
-                                 interpolation=interpolation, 
-                                 nobandingcorr=nobandingcorr, 
-                                 outdir=outdir)
+    #single_step_resample_to_asl0(subject_dir=subject_dir, 
+                                #  tis_dir=tis_dir, 
+                                #  mt_factors=mt_factors, 
+                                #  bias_name=bias_field, 
+                                #  calib_name=calib_corr, 
+                                #  calib2struct=calib2struct, 
+                                #  gradunwarp_dir=gradunwarp_dir, 
+                                #  topup_dir=topup_dir, 
+                                #  t1w_dir=t1w_dir, 
+                                #  cores=cores, 
+                                #  interpolation=interpolation, 
+                                #  nobandingcorr=nobandingcorr, 
+                                #  outdir=outdir)
                                  
     # perform tag-control subtraction in ASL0 space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
@@ -166,7 +166,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         series = tis_dir/"tis_gdc_dc_moco_restore.nii.gz"
     scaling_factors = tis_dir/"combined_scaling_factors.nii.gz"
     betas_dir = tis_dir/"Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+    #tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     # estimate perfusion in ASL0 space using oxford_asl
     logger.info("Running oxford_asl in ASL0 space.")
@@ -176,30 +176,30 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     oxford_asl_dir = tis_dir/"OxfordASL"
     oxford_asl_dir.mkdir(exist_ok=True)
     logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO")
-    oxford_asl_call = [
-        "oxford_asl",
-        f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
-        f"-m {str(asl0_brainmask)}", "--tis=1.7,2.2,2.7,3.2,3.7", 
-        "--slicedt=0.059", "--sliceband=10", "--casl", 
-        "--ibf=tis", "--iaf=diff", "--rpts=6,6,6,10,15",
-        "--fixbolus", "--bolus=1.5", "--te=19",
-        "--debug", "--spatial=off"
-    ]
-    if use_t1:
-        est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
-        oxford_asl_call.append(f"--t1im={str(est_t1)}")
-    oxford_asl_call = " ".join(oxford_asl_call)
-    logger_oxasl.info(oxford_asl_call)
-    process = subprocess.Popen(oxford_asl_call, shell=True, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    #oxford_asl_call = [
+    #     "oxford_asl",
+    #     f"-i {str(betas_dir/'beta_perf.nii.gz')}", f"-o {str(oxford_asl_dir)}",
+    #     f"-m {str(asl0_brainmask)}", "--tis=1.7,2.2,2.7,3.2,3.7", 
+    #     "--slicedt=0.059", "--sliceband=10", "--casl", 
+    #     "--ibf=tis", "--iaf=diff", "--rpts=6,6,6,10,15",
+    #     "--fixbolus", "--bolus=1.5", "--te=19",
+    #     "--debug", "--spatial=off"
+    # ]
+    # if use_t1:
+    #     est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
+    #     oxford_asl_call.append(f"--t1im={str(est_t1)}")
+    # oxford_asl_call = " ".join(oxford_asl_call)
+    # logger_oxasl.info(oxford_asl_call)
+    #process = subprocess.Popen(oxford_asl_call, shell=True, stdout=subprocess.PIPE)
+    # while 1:
+    #     retcode = process.poll()
+    #     line = process.stdout.readline().decode("utf-8")
+    #     logger.info(line)
+    #     if line == "" and retcode is not None:
+    #         break
+    # if retcode != 0:
+    #     logger.info(f"retcode={retcode}")
+    #     logger.exception("Process failed.")
         
     # get data in ASLT1w space
     logger.info("Get data into ASLT1w space and re-estimate bias field.")
@@ -209,49 +209,49 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     else:
         asl_scaling_factors, mt_name = None, None
     t1_est = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
-    single_step_resample_to_aslt1w(asl_name=tis_name,
-                                   calib_name=calib0_name,
-                                   subject_dir=subject_dir,
-                                   t1w_dir=t1w_dir,
-                                   aslt1w_dir=aslt1w_dir,
-                                   moco_dir=tis_dir/"MoCo/asln2m0_final.mat",
-                                   perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
-                                   gradunwarp_dir=gradunwarp_dir,
-                                   topup_dir=topup_dir,
-                                   ribbon=ribbon,
-                                   wmparc=wmparc,
-                                   corticallut=corticallut,
-                                   subcorticallut=subcorticallut,
-                                   asl_scaling_factors=asl_scaling_factors,
-                                   mt_factors=mt_name,
-                                   t1_est=t1_est,
-                                   nobandingcorr=nobandingcorr,
-                                   interpolation=interpolation,
-                                   cores=cores)
+    #single_step_resample_to_aslt1w(asl_name=tis_name,
+                                #    calib_name=calib0_name,
+                                #    subject_dir=subject_dir,
+                                #    t1w_dir=t1w_dir,
+                                #    aslt1w_dir=aslt1w_dir,
+                                #    moco_dir=tis_dir/"MoCo/asln2m0_final.mat",
+                                #    perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
+                                #    gradunwarp_dir=gradunwarp_dir,
+                                #    topup_dir=topup_dir,
+                                #    ribbon=ribbon,
+                                #    wmparc=wmparc,
+                                #    corticallut=corticallut,
+                                #    subcorticallut=subcorticallut,
+                                #    asl_scaling_factors=asl_scaling_factors,
+                                #    mt_factors=mt_name,
+                                #    t1_est=t1_est,
+                                #    nobandingcorr=nobandingcorr,
+                                #    interpolation=interpolation,
+                                #    cores=cores)
 
     # perform partial volume estimation
     logger.info("Performing partial volume estimation.")
     pves_dir = aslt1w_dir/"PVEs"
     pves_dir.mkdir(exist_ok=True)
     logger_pv = setup_logger("HCPASL.pv_est_asl", pves_dir/"pv_est.log", "INFO")
-    pv_est_call = [
-        "pv_est_asl",
-        str(studydir),
-        subid,
-        "--cores", str(cores),
-        "--outdir", outdir,
-        "--interpolation", str(interpolation)
-    ]
-    process = subprocess.Popen(pv_est_call, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    #pv_est_call = [
+    #     "pv_est_asl",
+    #     str(studydir),
+    #     subid,
+    #     "--cores", str(cores),
+    #     "--outdir", outdir,
+    #     "--interpolation", str(interpolation)
+    # ]
+    # process = subprocess.Popen(pv_est_call, stdout=subprocess.PIPE)
+    # while 1:
+    #     retcode = process.poll()
+    #     line = process.stdout.readline().decode("utf-8")
+    #     logger.info(line)
+    #     if line == "" and retcode is not None:
+    #         break
+    # if retcode != 0:
+    #     logger.info(f"retcode={retcode}")
+    #     logger.exception("Process failed.")
 
     
     # perform tag-control subtraction in ASLT1w space
@@ -260,7 +260,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     series = aslt1w_dir/"TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir/"TIs/Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+    # tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
 
     # final perfusion estimation in ASLT1w space
     logger.info("Running oxford_asl in ASLT1w space.")
@@ -269,43 +269,43 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     oxford_aslt1w_dir = aslt1w_dir/"TIs/OxfordASL"
     oxford_aslt1w_dir.mkdir(exist_ok=True)
     logger_oxaslt1w = setup_logger("HCPASL.oxford_aslt1w", oxford_aslt1w_dir/"oxford_aslt1w.log", "INFO")
-    oxford_aslt1w_call = [
-        "oxford_asl",
-        f"-i {str(betas_dir/'beta_perf.nii.gz')}",
-        f"-o {str(oxford_aslt1w_dir)}",
-        f"--pvgm={str(gm_pve)}",
-        f"--pvwm={str(wm_pve)}",
-        f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
-        f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
-        f"-m {str(aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz')}",
-        f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
-        "--casl",
-        "--ibf=tis",
-        "--iaf=diff",
-        "--rpts=6,6,6,10,15",
-        "--fixbolus",
-        "--bolus=1.5",
-        "--te=19",
-        "--debug",
-        "--spatial=off",
-        "--tr=8",
-        "--pvcorr"
-    ]
-    if use_t1:
-        est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
-        oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
-    oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
-    logger_oxaslt1w.info(oxford_aslt1w_call)
-    process = subprocess.Popen(oxford_aslt1w_call, shell=True, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    # oxford_aslt1w_call = [
+    #     "oxford_asl",
+    #     f"-i {str(betas_dir/'beta_perf.nii.gz')}",
+    #     f"-o {str(oxford_aslt1w_dir)}",
+    #     f"--pvgm={str(gm_pve)}",
+    #     f"--pvwm={str(wm_pve)}",
+    #     f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
+    #     f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
+    #     f"-m {str(aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz')}",
+    #     f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
+    #     "--casl",
+    #     "--ibf=tis",
+    #     "--iaf=diff",
+    #     "--rpts=6,6,6,10,15",
+    #     "--fixbolus",
+    #     "--bolus=1.5",
+    #     "--te=19",
+    #     "--debug",
+    #     "--spatial=off",
+    #     "--tr=8",
+    #     "--pvcorr"
+    # ]
+    # if use_t1:
+    #     est_t1 = aslt1w_dir/"TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
+    #     oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
+    # oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
+    # logger_oxaslt1w.info(oxford_aslt1w_call)
+    # process = subprocess.Popen(oxford_aslt1w_call, shell=True, stdout=subprocess.PIPE)
+    # while 1:
+    #     retcode = process.poll()
+    #     line = process.stdout.readline().decode("utf-8")
+    #     logger.info(line)
+    #     if line == "" and retcode is not None:
+    #         break
+    # if retcode != 0:
+    #     logger.info(f"retcode={retcode}")
+    #     logger.exception("Process failed.")
 
     logger.info(f"Copying oxford_asl inputs to one location ({str(oxford_aslt1w_dir/'oxford_asl_inputs')}).")
     oxasl_inputs = {
@@ -323,14 +323,14 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
 
     logger.info("Producing summary stats in ASLT1w ROIs.")
     mninonlinear_name = subject_dir/"MNINonLinear"
-    roi_stats(struct_name=structural["struct"],
-              oxford_asl_dir=oxford_aslt1w_dir,
-              gm_pve=gm_pve,
-              wm_pve=wm_pve,
-              std2struct_name=mninonlinear_name/"xfms/standard2acpc_dc.nii.gz",
-              roi_stats_dir=aslt1w_dir/"roi_stats",
-              territories_atlas=territories_atlas,
-              territories_labels=territories_labels)
+    # roi_stats(struct_name=structural["struct"],
+    #           oxford_asl_dir=oxford_aslt1w_dir,
+    #           gm_pve=gm_pve,
+    #           wm_pve=wm_pve,
+    #           std2struct_name=mninonlinear_name/"xfms/standard2acpc_dc.nii.gz",
+    #           roi_stats_dir=aslt1w_dir/"roi_stats",
+    #           territories_atlas=territories_atlas,
+    #           territories_labels=territories_labels)
 
     logger.info("Projecting volumetric results to surface.")
     project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
@@ -342,7 +342,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     create_qc_report(subject_dir, outdir)
 
 def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASLRes="2.5", 
-                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMSulc"):
+                       SmoothingFWHM="2", GreyOrdsRes="2", RegName="MSMAll"):
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
@@ -361,10 +361,10 @@ def project_to_surface(studydir, subid, outdir, wbdir, lowresmesh="32", FinalASL
     script         = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path        = str(Path(wbdir).resolve(strict=True))
 
-    ASLVariable    = ["perfusion_calib", "arrival"]
-    ASLVariableVar = ["perfusion_var_calib", "arrival_var"]
+    ASLVariable    = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
+    ASLVariableVar = ["perfusion_var_calib", "arrival_var", "perfusion_var_calib", "arrival_var"]
 
-    for idx in range(2):
+    for idx in range(4):
         non_pvcorr_cmd = [script, studydir, subid, ASLVariable[idx], ASLVariableVar[idx],
                 lowresmesh, FinalASLRes, SmoothingFWHM, GreyOrdsRes, RegName, wb_path, "false", outdir]
 

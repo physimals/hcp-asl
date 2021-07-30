@@ -102,6 +102,14 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
 
     surface_files = ["perfusion_calib_Atlas.dscalar.nii", \
                       "arrival_Atlas.dscalar.nii"]
+
+    key_volume_non_pvec = ["perfusion_calib.nii.gz", \
+                            "arrival.nii.gz"]
+
+    key_volume_pvec = ["perfusion_gm_calib_masked.nii.gz", \
+                        "perfusion_wm_calib_masked.nii.gz", \
+                        "arrival_gm_masked.nii.gz", \
+                        "arrival_wm_masked.nii.gz"]
     
     # Make key outputs more prominent in /T1w/ASL/ and warp the voxelwise results to 
     # MNI space
@@ -136,7 +144,13 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     for b in surface_files:
         copy((source_path_MNI + b), (destination_path_MNI + b))
         copy((source_path_MNI_pv + b), destination_path_MNI + pv_prefix + "_" + b)
-    
+
+    # Make key perfusion and arrival volume results more prominent in /MNINonLinear/ASL
+    for c in key_volume_non_pvec:
+        copy((destination_path_MNI + "Results/OxfordASL/std_space/" + c), (destination_path_MNI + c))
+    for d in key_volume_pvec:
+        copy((destination_path_MNI + "Results/OxfordASL/std_space/" + pv_prefix + "/" + d), (destination_path_MNI + pv_prefix + "_" + d))
+        
     # Produce arrival and perfusion CIFTI summary values in /MNINonLinear/ASL/
     cmd_cbf = ["wb_command", "-cifti-stats", (source_path_MNI + surface_files[0]), "-reduce", "MEAN", ">", 
                 destination_path_MNI + "perfusion_calib_cifti_mean_nonzero.txt"]
