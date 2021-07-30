@@ -1,3 +1,4 @@
+import shutil
 from fsl.data import atlases
 from fsl.data.image import Image
 from fsl.wrappers import fslroi, fslmaths, LOAD
@@ -290,3 +291,17 @@ def get_package_data_name(name):
     with p as filename:
         name = filename
     return name
+
+def copy_oxford_asl_inputs(input_dict, output_dir):
+    """
+    Take a dictionary of inputs to oxford_asl and copy them into one directory.
+    """
+    # create new output directory
+    output_dir.mkdir(exist_ok=True)
+
+    # create dict of new filenames
+    new_dict = {key: output_dir/val.name for key, val in input_dict.items()}
+
+    # copy files from original locations in input_dict to new location in new_dict
+    for old_loc, new_loc in zip(input_dict.values(), new_dict.values()):
+        shutil.copy2(old_loc, new_loc)

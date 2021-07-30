@@ -17,7 +17,7 @@ from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.m0_correction import correct_M0
 from hcpasl.asl_correction import single_step_resample_to_asl0, single_step_resample_to_aslt1w
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.utils import get_package_data_name, setup_logger, create_dirs, split_mbpcasl
+from hcpasl.utils import get_package_data_name, setup_logger, create_dirs, split_mbpcasl, copy_oxford_asl_inputs
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
@@ -306,6 +306,20 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     if retcode != 0:
         logger.info(f"retcode={retcode}")
         logger.exception("Process failed.")
+
+    logger.info(f"Copying oxford_asl inputs to one location ({str(oxford_aslt1w_dir/'oxford_asl_inputs')}).")
+    oxasl_inputs = {
+        "-i": betas_dir/'beta_perf.nii.gz',
+        "--pvgm": gm_pve,
+        "--pvwm": wm_pve,
+        "--csf": pve_dir/'vent_csf_mask.nii.gz',
+        "-c": aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz',
+        "-m": aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz',
+        "--tiimg": aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz'
+    }
+    if use_t1:
+        oxasl_inputs["--t1im"] = aslt1w_dir/"TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
+    copy_oxford_asl_inputs(oxasl_inputs, oxford_aslt1w_dir/"oxford_asl_inputs")
 
     logger.info("Producing summary stats in ASLT1w ROIs.")
     mninonlinear_name = subject_dir/"MNINonLinear"
