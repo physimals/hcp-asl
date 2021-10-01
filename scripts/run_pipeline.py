@@ -183,7 +183,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         "--slicedt=0.059", "--sliceband=10", "--casl", 
         "--ibf=tis", "--iaf=diff", "--rpts=6,6,6,10,15",
         "--fixbolus", "--bolus=1.5", "--te=19",
-        "--debug", "--spatial=off"
+        "--spatial=off"
     ]
     if use_t1:
         est_t1 = tis_dir/"SatRecov2/spatial/mean_T1t_filt.nii.gz"
@@ -286,7 +286,6 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         "--fixbolus",
         "--bolus=1.5",
         "--te=19",
-        "--debug",
         "--spatial=off",
         "--tr=8",
         "--pvcorr"
