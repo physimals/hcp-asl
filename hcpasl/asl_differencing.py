@@ -16,7 +16,7 @@ from pathlib import Path
 import subprocess
 import numpy as np
 
-def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl"):
+def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl", mask=None):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -41,7 +41,9 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
        EPI." Magnetic resonance in medicine 81.3 (2019): 
        1553-1565.
     """
-
+    # create output directory
+    betas_dir.mkdir(exist_ok=True)
+    
     # load motion- and distortion- corrected data, Y_moco
     Y_moco = nb.load(series)
 
@@ -59,12 +61,26 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
     Y_odd = Y_moco.get_data()[:, :, :, 1::2]
     Y_even = Y_moco.get_data()[:, :, :, 0::2]
 
-    # calculate B_perf and B_baseline
-    B_perf = (Y_odd - Y_even) / (X_odd - X_even)
-    B_baseline = (X_odd*Y_even - X_even*Y_odd) / (X_odd - X_even)
+    # ignore voxels where below would lead to dividing by zero
+    nonzero_mask = np.abs(X_odd-X_even) > 1e-6
+    mask_name = betas_dir/"difference_mask.nii.gz"
+    nb.save(nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name)
+
+    # only perform calculation within the provided mask
+    if mask is not None:
+        mask = nb.load(mask).get_fdata()
+        if mask.ndim == 3:
+            mask = mask[..., np.newaxis]
+        nonzero_mask = np.logical_and(nonzero_mask, mask)
+        mask_name = betas_dir/"combined_mask.nii.gz"
+        nb.save(nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name)
+
+    # calculate B_perf and B_baseline at voxels within mask
+    B_perf, B_baseline = np.zeros_like(X_odd), np.zeros_like(X_even)
+    B_perf[nonzero_mask] = (Y_odd[nonzero_mask] - Y_even[nonzero_mask]) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
+    B_baseline[nonzero_mask] = (X_odd[nonzero_mask]*Y_even[nonzero_mask] - X_even[nonzero_mask]*Y_odd[nonzero_mask]) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
 
     # save both images
-    betas_dir.mkdir(exist_ok=True)
     B_perf_name = betas_dir / 'beta_perf.nii.gz'
     B_perf_img = nb.nifti1.Nifti1Image(B_perf,
                                        affine=Y_moco.affine)

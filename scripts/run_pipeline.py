@@ -166,13 +166,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         series = tis_dir/"tis_gdc_dc_moco_restore.nii.gz"
     scaling_factors = tis_dir/"combined_scaling_factors.nii.gz"
     betas_dir = tis_dir/"Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+    asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir, mask=asl0_brainmask)
 
     # estimate perfusion in ASL0 space using oxford_asl
     logger.info("Running oxford_asl in ASL0 space.")
 
     beta_perf = betas_dir/"beta_perf.nii.gz"
-    asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
     oxford_asl_dir = tis_dir/"OxfordASL"
     oxford_asl_dir.mkdir(exist_ok=True)
     logger_oxasl = setup_logger("HCPASL.oxford_asl", oxford_asl_dir/"oxford_asl.log", "INFO")
@@ -260,7 +260,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     series = aslt1w_dir/"TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir/"TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir/"TIs/Betas"
-    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir)
+    brainmask = aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz'
+    tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir, mask=brainmask)
 
     # final perfusion estimation in ASLT1w space
     logger.info("Running oxford_asl in ASLT1w space.")
@@ -277,7 +278,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
         f"--pvwm={str(wm_pve)}",
         f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
         f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
-        f"-m {str(aslt1w_dir/'TIs/reg/ASL_FoV_brain_mask.nii.gz')}",
+        f"-m {str(brainmask)}",
         f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
         "--casl",
         "--ibf=tis",
