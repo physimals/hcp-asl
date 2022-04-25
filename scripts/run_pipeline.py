@@ -103,7 +103,13 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
 
     # run gradient_unwarp and topup, storing results 
     # in gradunwarp_dir and topup_dir respectively
-    logger.info("Running gradient_unwarp and topup.")
+    if gradients is None:
+        logger.info("Gradient coefficient file not provided. Gradient distortion correction steps will be skipped.")
+        logger.info("Running EPI distortion estimation steps.")
+        gd_corr = False
+    else:
+        logger.info("Running gradient_unwarp and topup.")
+        gd_corr = True
     gradunwarp_dir = asl_dir/"gradient_unwarp"
     topup_dir = asl_dir/"topup"
     gradunwarp_and_topup(vol=str(calib0_name), 
@@ -112,7 +118,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                          topup_dir=topup_dir, 
                          pa_sefm=str(fmaps["PA"]), 
                          ap_sefm=str(fmaps["AP"]), 
-                         interpolation=interpolation)
+                         interpolation=interpolation,
+                         gd_corr=gd_corr)
 
     # apply corrections to the calibration images
     logger.info("Running M0 corrections.")
@@ -125,7 +132,8 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                mt_factors=mt_factors, 
                t1w_dir=t1w_dir, 
                aslt1w_dir=aslt1w_dir, 
-               gradunwarp_dir=gradunwarp_dir, 
+               gradunwarp_dir=gradunwarp_dir,
+               gd_corr=gd_corr, 
                topup_dir=topup_dir, 
                wmparc=wmparc, 
                ribbon=ribbon, 
@@ -138,11 +146,15 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
     logger.info("Estimating ASL motion.")
-    bias_field = calib0_dir/"BiasCorr/calib0_bias.nii.gz"
+    calib_prefix = "dc"
+    if gd_corr:
+        calib_prefix = "gdc_" + calib_prefix
+    bias_field = calib0_dir/f"BiasCorr/{calib_prefix}_calib0_bias.nii.gz"
     if not nobandingcorr:
-        calib_corr = calib0_dir/"MTCorr/calib0_mtcorr_gdc_dc_restore.nii.gz"
+        calib_prefix = "mtcorr_" + calib_prefix
+        calib_corr = calib0_dir/f"MTCorr/{calib_prefix}_calib0_restore.nii.gz"
     else:
-        calib_corr = calib0_dir/"BiasCorr/calib0_gdc_dc_restore.nii.gz"
+        calib_corr = calib0_dir/f"BiasCorr/{calib_prefix}_calib0_restore.nii.gz"
     calib2struct = calib0_dir/"DistCorr/asl2struct.mat"
     single_step_resample_to_asl0(subject_dir=subject_dir, 
                                  tis_dir=tis_dir, 
@@ -151,6 +163,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                                  calib_name=calib_corr, 
                                  calib2struct=calib2struct, 
                                  gradunwarp_dir=gradunwarp_dir, 
+                                 gd_corr=gd_corr,
                                  topup_dir=topup_dir, 
                                  t1w_dir=t1w_dir, 
                                  cores=cores, 
@@ -161,9 +174,9 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
     # perform tag-control subtraction in ASL0 space
     logger.info("Performing tag-control subtraction of the corrected ASL series in ASL0 space.")
     if not nobandingcorr:
-        series = tis_dir/"tis_gdc_dc_moco_restore_bandcorr.nii.gz"
+        series = tis_dir/"tis_dc_moco_restore_bandcorr.nii.gz"
     else:
-        series = tis_dir/"tis_gdc_dc_moco_restore.nii.gz"
+        series = tis_dir/"tis_dc_moco_restore.nii.gz"
     scaling_factors = tis_dir/"combined_scaling_factors.nii.gz"
     betas_dir = tis_dir/"Betas"
     asl0_brainmask = tis_dir/"aslfs_mask.nii.gz"
@@ -217,6 +230,7 @@ def process_subject(studydir, subid, mt_factors, mbpcasl, structural,
                                    moco_dir=tis_dir/"MoCo/asln2m0_final.mat",
                                    perfusion_name=tis_dir/"OxfordASL/native_space/perfusion.nii.gz",
                                    gradunwarp_dir=gradunwarp_dir,
+                                   gd_corr=gd_corr,
                                    topup_dir=topup_dir,
                                    ribbon=ribbon,
                                    wmparc=wmparc,
@@ -441,7 +455,7 @@ def main():
         "--grads",
         help="Filename of the gradient coefficients for gradient"
             + "distortion correction.",
-        required=True
+        required=False
     )
     parser.add_argument(
         "-s",
@@ -572,7 +586,11 @@ def main():
         'AP': Path(args.fmap_ap).resolve(strict=True), 
         'PA': Path(args.fmap_pa).resolve(strict=True)
     }
-    grads = Path(args.grads).resolve(strict=True)
+    if args.grads is not None:
+        grads = Path(args.grads).resolve(strict=True)
+    else:
+        logger.info(f"No gradient coefficients provided. Gradient distortion correction won't be performed.")
+        grads = None
 
     # process subject
     logger.info(f"Processing subject {studydir/subid}.")

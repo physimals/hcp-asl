@@ -110,7 +110,7 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
                t1w_dir, aslt1w_dir, gradunwarp_dir, topup_dir, 
                wmparc, ribbon, corticallut, subcorticallut, 
                interpolation=3, nobandingcorr=False, 
-               outdir="hcp_asl"):
+               outdir="hcp_asl", gd_corr=True):
     """
     Correct the M0 images.
     
@@ -163,6 +163,9 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         banding corrections are applied by default).
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
+    gd_corr: bool
+        Whether to perform gradient distortion correction or not. 
+        Default is True
     """
     logger_name = "HCPASL.correct_M0"
     log_name = subject_dir/outdir/"ASL/Calib/correct_M0.log"
@@ -191,11 +194,15 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
 
     # load gradient distortion correction warp, fieldmaps and PA epidc warp
     logger.info("Loading gradient and EPI distortion correction warps.")
-    gdc_name = (gradunwarp_dir/'fullWarp_abs.nii.gz').resolve(strict=True)
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name),
-                                                   src=str(calib0),
-                                                   ref=str(calib0),
-                                                   intensity_correct=True)
+    gdc_name = (gradunwarp_dir/'fullWarp_abs.nii.gz').resolve()
+    if gd_corr:
+        logger.info(f"gradient_unwarp.py was run, loading {gdc_name}")
+        gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name),
+                                                        src=str(calib0),
+                                                        ref=str(calib0),
+                                                        intensity_correct=True)
+    else:
+        logger.info(f"gradient_unwarp.py was not run, not applying gradient distortion correction.")
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" 
                                    for ext in ('', 'mag', 'magbrain')]
     epi_dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(topup_dir/"WarpField_01.nii.gz"),
@@ -221,29 +228,32 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         calib_dir = calib_name.parent
         calib_name_stem = calib_name.stem.split('.')[0]
         logger.info(f"Processing {calib_name_stem}.")
-
-        # apply gdc to the calibration image
-        logger.info(f"Applying gradient distortion correction to {calib_name_stem}.")
-        gdc_calib_img = gdc_warp.apply_to_image(str(calib_name), str(calib_name), order=interpolation)
         distcorr_dir = calib_dir/"DistCorr"
         distcorr_dir.mkdir(exist_ok=True)
-        gdc_calib_name = distcorr_dir/f"gdc_{calib_name_stem}.nii.gz"
-        nb.save(gdc_calib_img, gdc_calib_name)
 
-        # apply mt scaling factors to the gradient distortion-corrected calibration image
+        # apply gdc to the calibration image
+        if gd_corr:
+            logger.info(f"Applying gradient distortion correction to {calib_name_stem}.")
+            calib_img = gdc_warp.apply_to_image(str(calib_name), str(calib_name), order=interpolation)
+            calib_name_stem = "gdc_" + calib_name_stem
+            calib_corr_name = distcorr_dir/f"{calib_name_stem}.nii.gz"
+            nb.save(calib_img, calib_corr_name)
+        else:
+            calib_corr_name = calib_name
+            calib_img = nb.load(calib_corr_name)
+
+        # apply mt scaling factors to the (potentially) gradient distortion-corrected calibration image
         if not nobandingcorr:
             logger.info(f"Applying MT scaling factors to {calib_name_stem}.")
             mt_sfs = np.loadtxt(mt_factors)
-            assert (len(mt_sfs) == gdc_calib_img.shape[2])
-            mt_gdc_calib_img = nb.nifti1.Nifti1Image(gdc_calib_img.get_fdata()*mt_sfs, 
-                                                     gdc_calib_img.affine)
+            assert (len(mt_sfs) == calib_img.shape[2])
+            mt_gdc_calib_img = nb.nifti1.Nifti1Image(calib_img.get_fdata()*mt_sfs, 
+                                                     calib_img.affine)
             mtcorr_dir = calib_dir/"MTCorr"
             mtcorr_dir.mkdir(exist_ok=True)
-            mt_gdc_calib_name = mtcorr_dir/f"mtcorr_gdc_{calib_name_stem}.nii.gz"
-            nb.save(mt_gdc_calib_img, mt_gdc_calib_name)
-            calib_corr_name = mt_gdc_calib_name
-        else:
-            calib_corr_name = gdc_calib_name
+            calib_name_stem = "mtcorr_" + calib_name_stem
+            calib_corr_name = mtcorr_dir/f"{calib_name_stem}.nii.gz"
+            nb.save(mt_gdc_calib_img, calib_corr_name)
 
         # get registration to structural
         logger.info("Generate registration to structural.")
@@ -260,15 +270,20 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         # now that we have registrations from calib2str and fmap2str, use 
         # this to apply gdc, epidc and MT correction to the calibration image
         # apply distortion corrections
-        logger.info(f"Applying gradient and EPI distortion corrections to {calib_name_stem}.")
+        calib_name_stem = calib_name_stem.split("_")[-1]
+        logger.info(f"Applying distortion corrections to {calib_name_stem}.")
         fmap2calib_reg = rt.chain(bbr_fmap2struct, struct2calib_reg)
-        gdc_epidc_calibspc_warp = rt.chain(gdc_warp, fmap2calib_reg.inverse(),
-                                           epi_dc_warp, fmap2calib_reg)
-        gdc_epidc_calib = gdc_epidc_calibspc_warp.apply_to_image(src=str(calib_name),
-                                                                 ref=str(calib_name),
-                                                                 order=interpolation)
-        gdc_epidc_calib_name = distcorr_dir/f"gdc_dc_{calib_name_stem}.nii.gz"
-        nb.save(gdc_epidc_calib, gdc_epidc_calib_name)
+        dc_calibspc_warp = rt.chain(fmap2calib_reg.inverse(), epi_dc_warp, fmap2calib_reg)
+        if gd_corr:
+            dc_calibspc_warp = rt.chain(gdc_warp, dc_calibspc_warp)
+            calib_name_stem = "gdc_dc_" + calib_name_stem
+        else:
+            calib_name_stem = "dc_" + calib_name_stem
+        dc_calib_name = distcorr_dir/f"{calib_name_stem}.nii.gz"
+        dc_calib = dc_calibspc_warp.apply_to_image(src=str(calib_name),
+                                                    ref=str(calib_name),
+                                                    order=interpolation)
+        nb.save(dc_calib, dc_calib_name)
 
         # register fmapmag to calibration image space to perform SE-based bias estimation
         logger.info(f"Registering {fmapmag.stem} to {calib_name_stem}")
@@ -289,13 +304,13 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
                                                      ref=str(calib_name),
                                                      order=0)
         aslfs_mask = nb.nifti1.Nifti1Image(np.where(aslfs_mask.get_fdata()>0., 1., 0.),
-                                           affine=gdc_epidc_calib.affine)
+                                           affine=dc_calib.affine)
         nb.save(aslfs_mask, aslfs_mask_name)
 
         # get sebased bias estimate
         sebased_cmd = [
             "get_sebased_bias_asl",
-            "-i", gdc_epidc_calib_name, "-f", fmapmag_cspc_name,
+            "-i", dc_calib_name, "-f", fmapmag_cspc_name,
             "-m", aslfs_mask_name, "-o", sebased_dir, 
             "--ribbon", ribbon, "--wmparc", wmparc,
             "--corticallut", corticallut, "--subcorticallut", subcorticallut,
@@ -321,18 +336,18 @@ def correct_M0(subject_dir, calib_dir, mt_factors,
         dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
         subprocess.run(dilall_cmd, check=True)
 
-        # bias correct and mt correct the gdc_dc_calib image
+        # bias correct and mt correct the distortion corrected calib image
         logger.info(f"Performing bias correction.")
         bias_img = nb.load(dilall_name)
-        bc_calib = nb.nifti1.Nifti1Image(gdc_epidc_calib.get_fdata() / bias_img.get_fdata(),
-                                         gdc_epidc_calib.affine)
-        biascorr_name = biascorr_dir / f'{calib_name_stem}_gdc_dc_restore.nii.gz'
+        bc_calib = nb.nifti1.Nifti1Image(dc_calib.get_fdata() / bias_img.get_fdata(),
+                                         dc_calib.affine)
+        biascorr_name = biascorr_dir / f'{calib_name_stem}_restore.nii.gz'
         nb.save(bc_calib, biascorr_name)
 
         if not nobandingcorr:
             logger.info(f"Performing MT correction.")
             mt_bc_calib = nb.nifti1.Nifti1Image(bc_calib.get_fdata()*mt_sfs,
                                                 bc_calib.affine)
-            mtcorr_name = mtcorr_dir / f'{calib_name_stem}_mtcorr_gdc_dc_restore.nii.gz'
+            mtcorr_name = mtcorr_dir / f'mtcorr_{calib_name_stem}_restore.nii.gz'
             nb.save(mt_bc_calib, mtcorr_name)
         

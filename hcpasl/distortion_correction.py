@@ -75,7 +75,7 @@ def stack_fmaps(pa_sefm, ap_sefm, savename):
         path=str(savename)
     )
 
-def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
+def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3, gd_corr=True):
     # load topup EPI distortion correction warps and motion correction
     topup_warps = [
         rt.NonLinearRegistration.from_fnirt(coefficients=str(warp_name),
@@ -91,10 +91,14 @@ def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
                                                   ref=str(pa_ap_sefms))
 
     # load gradient_unwarp's gdc warp
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
-                                                   src=str(pa_ap_sefms),
-                                                   ref=str(pa_ap_sefms),
-                                                   intensity_correct=True)
+    # use an affine identity registration if gd_corr==False
+    if gd_corr:
+        gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
+                                                    src=str(pa_ap_sefms),
+                                                    ref=str(pa_ap_sefms),
+                                                    intensity_correct=True)
+    else:
+        gdc_warp = rt.Registration.identity()
     
     # chain gdc, epidc and moco together to apply all together
     topup_gdc_dc_moco = [rt.chain(gdc_warp, topup_moco[n], topup_warps[n]) for n in range(0, 2)]
@@ -116,7 +120,7 @@ def apply_gdc_and_topup(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3):
     )
     return pa_ap_sefms_gdc_dc
 
-def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpolation=3): 
+def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpolation=3, gd_corr=True): 
     """
     Generate fieldmaps via topup for use with asl_reg. 
 
@@ -129,6 +133,7 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
         gdc_warp: path to gradient_unwarp's gradient distortion correction warp
         interpolation: order of interpolation to be used when applying registrations, 
             default=3
+        gd_corr: Boolean whether to perform gradient distortion correction or not, default True
     
     Returns: 
         n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
@@ -141,27 +146,31 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
     logger.info(f"Topup config file: {config}")
     logger.info(f"Topup output directory: {distcorr_dir}")
     logger.info(f"Gradient distortion correction warp: {gdc_warp}")
+    logger.info(f"Perform gradient distortion correction: {gd_corr}")
     logger.info(f"Interpolation order: {interpolation}")
 
     pwd = os.getcwd()
     os.chdir(distcorr_dir)
 
     # apply gradient distortion correction to stacked SEFMs
-    gdc = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
-                                              src=str(pa_ap_sefms),
-                                              ref=str(pa_ap_sefms),
-                                              intensity_correct=True)
-    gdc_corr_pa_ap_sefms = gdc.apply_to_image(src=str(pa_ap_sefms),
-                                              ref=str(pa_ap_sefms),
-                                              order=interpolation,
-                                              cores=1)
-    gdc_corr_pa_ap_sefms_name = distcorr_dir/"merged_sefms_gdc.nii.gz"
-    nb.save(gdc_corr_pa_ap_sefms, gdc_corr_pa_ap_sefms_name)
+    if gd_corr:
+        gdc = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp),
+                                                src=str(pa_ap_sefms),
+                                                ref=str(pa_ap_sefms),
+                                                intensity_correct=True)
+        topup_input_pa_ap_sefms = gdc.apply_to_image(src=str(pa_ap_sefms),
+                                                ref=str(pa_ap_sefms),
+                                                order=interpolation,
+                                                cores=1)
+    else:
+        topup_input_pa_ap_sefms = nb.load(pa_ap_sefms)
+    topup_input_pa_ap_sefms_name = distcorr_dir/"merged_sefms_topup_input.nii.gz"
+    nb.save(topup_input_pa_ap_sefms, topup_input_pa_ap_sefms_name)
 
     # Run topup to get fmap in Hz
     topup_fmap = op.join(distcorr_dir, 'topup_fmap_hz.nii.gz')
     topup_cmd = ["topup",
-                 f"--imain={gdc_corr_pa_ap_sefms_name}",
+                 f"--imain={topup_input_pa_ap_sefms_name}",
                  f"--datain={params}",
                  f"--config={config}",
                  f"--out=topup",
@@ -197,11 +206,12 @@ def generate_fmaps(pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpol
 
     # Apply gdc warp from gradient_unwarp and topup's EPI-DC
     # warp (just generated) in one interpolation step
-    logger.info("Applying gdc and epi-dc to fieldmap images in one interpolation step.")
+    logger.info("Applying distortion correction to fieldmap images in one interpolation step.")
     pa_ap_sefms_gdc_dc = apply_gdc_and_topup(pa_ap_sefms, 
                                              distcorr_dir,
                                              gdc_warp,
-                                             interpolation=interpolation)
+                                             interpolation=interpolation,
+                                             gd_corr=gd_corr)
 
     # Mean across volumes of corrected sefms to get fmapmag
     logger.info("Taking mean of corrected fieldmap images to get fmapmag.nii.gz")
@@ -260,7 +270,7 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
     return str(bbr_xform)
 
 def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir, 
-                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True):
+                         pa_sefm, ap_sefm, interpolation=1, force_refresh=True, gd_corr=True):
     """
     Run gradient_unwarp and topup.
 
@@ -274,6 +284,7 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     ap_sefm: path to AP spin-echo fieldmap image
     interpolation: integer order for image interpolation, default 1
     force_refresh: Boolean whether to refresh already existing files, default True
+    gd_corr: Boolean whether to perform gradient distortion correction or not, default True
 
     Returns
     -------
@@ -286,16 +297,14 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     logger = setup_logger(log_name, out_log, "INFO")
 
     # run gradient_unwarp
-    gradunwarp_dir.mkdir(exist_ok=True)
-    gdc_warp_name = gradunwarp_dir/"fullWarp_abs.nii.gz"
-    logger.info("Running generate_gdc_warp().")
-    if not gdc_warp_name.exists() or force_refresh:
-        generate_gdc_warp(vol, coeffs_path, gradunwarp_dir, interpolation)
-    logger.info("Loading gradient distortion correction warp from gradient_unwarp.py.")
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_warp_name),
-                                                   src=str(pa_sefm),
-                                                   ref=str(pa_sefm),
-                                                   intensity_correct=True)
+    if gd_corr:
+        gradunwarp_dir.mkdir(exist_ok=True)
+        gdc_warp_name = gradunwarp_dir/"fullWarp_abs.nii.gz"
+        logger.info("Running generate_gdc_warp().")
+        if not gdc_warp_name.exists() or force_refresh:
+            generate_gdc_warp(vol, coeffs_path, gradunwarp_dir, interpolation)
+    else:
+        gdc_warp_name = None
 
     # create topup results directory
     topup_dir.mkdir(exist_ok=True)
@@ -316,7 +325,7 @@ def gradunwarp_and_topup(vol, coeffs_path, gradunwarp_dir, topup_dir,
     topup_config = "b02b0.cnf"
     fmap, fmapmag, fmapmagbrain = [topup_dir/f"fmap{ext}.nii.gz" for ext in ('', 'mag', 'magbrain')]
     if not all([f.exists() for f in (fmap, fmapmag, fmapmagbrain)]) or force_refresh:
-        generate_fmaps(pa_ap_sefms, topup_params, topup_config, topup_dir, str(gdc_warp_name), interpolation=interpolation)
+        generate_fmaps(pa_ap_sefms, topup_params, topup_config, topup_dir, gdc_warp_name, interpolation=interpolation, gd_corr=gd_corr)
         
 def generate_epidc_warp(asl_vol0_brain, struct, struct_brain, asl_mask,
                        wmmask, asl2struct, fmap, fmapmag, fmapmagbrain, 

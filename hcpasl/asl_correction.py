@@ -400,7 +400,7 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
 def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
                                  calib_name, calib2struct, gradunwarp_dir, topup_dir,
                                  t1w_dir, cores=1, interpolation=3,
-                                 nobandingcorr=False, outdir="hcp_asl"):
+                                 nobandingcorr=False, outdir="hcp_asl", gd_corr=True):
     """
     Full ASL correction and motion estimation pipeline.
 
@@ -462,6 +462,9 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         banding corrections are applied by default).
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
+    gd_corr: bool
+        Whether to perform gradient distortion correction or not. 
+        Default is True
     """
     # set up logger
     logger_name = "HCPASL.single_step_resample_to_asl0"
@@ -510,13 +513,15 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         create_dirs([mtcorr_dir, stcorr_dir])
 
     # apply gradient distortion correction to the ASL series
-    logger.info("Applying gradient distortion correction to original ASL series.")
+    
     # load gdc warp
-    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
-                                                   src=str(asl_name), 
-                                                   ref=str(asl_name), 
-                                                   intensity_correct=True)
+    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve()
+    if gd_corr:
+        logger.info("Applying gradient distortion correction to original ASL series.")
+        gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
+                                                    src=str(asl_name), 
+                                                    ref=str(asl_name), 
+                                                    intensity_correct=True)
     # load topup's epi dc warp and fmap2struct registration
     dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
     fmapmag_name = (topup_dir/"fmapmag.nii.gz").resolve(strict=True)
@@ -530,27 +535,31 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
                                                  src=str(fmapmag_name),
                                                  ref=str(t1w_name))
     # apply gdc to ASL series
-    asl_gdc = gdc_warp.apply_to_image(src=str(asl_name),
-                                      ref=str(asl_name),
-                                      order=interpolation,
-                                      cores=cores)
-    asl_gdc = nb.nifti1.Nifti1Image(asl_gdc.get_fdata().astype(np.float32),
-                                    affine=asl_gdc.affine)
-    asl_gdc_name = distcorr_dir/"tis_gdc.nii.gz"
-    nb.save(asl_gdc, asl_gdc_name)
+    if gd_corr:
+        asl_corr = gdc_warp.apply_to_image(src=str(asl_name),
+                                        ref=str(asl_name),
+                                        order=interpolation,
+                                        cores=cores)
+        asl_corr = nb.nifti1.Nifti1Image(asl_corr.get_fdata().astype(np.float32),
+                                        affine=asl_corr.affine)
+        asl_corr_name = distcorr_dir/"tis_gdc.nii.gz"
+        nb.save(asl_corr, asl_corr_name)
+    else:
+        asl_corr_name = asl_name
+        asl_corr = nb.load(asl_name)
 
     # bias correct the ASL series
-    logger.info("Bias-correcting the distortion-corrected ASL series.")
+    logger.info("Bias-correcting the ASL series.")
     bcorr_img = bcorr_dir / 'tis_biascorr.nii.gz'
-    fslmaths(str(asl_gdc_name)).div(str(bias_name)).run(str(bcorr_img))
+    fslmaths(str(asl_corr_name)).div(str(bias_name)).run(str(bcorr_img))
 
     # apply MT scaling factors to the bias-corrected ASL series
     if not nobandingcorr:
-        logger.info("MT-correcting the distortion-corrected ASL series.")
+        logger.info("MT-correcting the ASL series.")
         mtcorr_name = mtcorr_dir / 'tis_mtcorr.nii.gz'
         mt_sfs = np.loadtxt(mt_factors)
         mt_arr = np.repeat(np.tile(mt_sfs, (86, 86, 1))[..., np.newaxis], 86, axis=-1)
-        mt_img = nb.nifti1.Nifti1Image(mt_arr, affine=asl_gdc.affine)
+        mt_img = nb.nifti1.Nifti1Image(mt_arr, affine=asl_corr.affine)
         biascorr_img = nb.load(bcorr_img)
         assert (len(mt_sfs) == biascorr_img.shape[2])
         mtcorr_img = nb.nifti1.Nifti1Image((biascorr_img.get_fdata()*mt_img.get_fdata()).astype(np.float32), 
@@ -614,15 +623,17 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     asl02m0 = asln2m0_moco.transforms[0]
     asln2asl0 = rt.chain(asln2m0_moco, asl02m0.inverse())
     asl02fmap = rt.chain(asl02m0, calib2struct_reg, fmap2struct_reg.inverse())
-    gdc_dc_asln2asl0 = rt.chain(gdc_warp, asln2asl0, asl02fmap, dc_warp, asl02fmap.inverse())
-    reg_gdc_dc = gdc_dc_asln2asl0.apply_to_image(str(asl_name), 
-                                                 str(calib_name),
-                                                 cores=cores,
-                                                 order=interpolation)
-    reg_gdc_dc = nb.nifti1.Nifti1Image((reg_gdc_dc.get_fdata()*mask4d).astype(np.float32),
-                                       affine=reg_gdc_dc.affine)
-    reg_gdc_dc_name = distcorr_dir/"temp_reg_gdc_dc_tis.nii.gz"
-    nb.save(reg_gdc_dc, reg_gdc_dc_name)
+    dc_asln2asl0 = rt.chain(asln2asl0, asl02fmap, dc_warp, asl02fmap.inverse())
+    if gd_corr:
+        dc_asln2asl0 = rt.chain(gdc_warp, dc_asln2asl0)
+    reg_dc = dc_asln2asl0.apply_to_image(str(asl_name), 
+                                         str(calib_name),
+                                         cores=cores,
+                                         order=interpolation)
+    reg_dc = nb.nifti1.Nifti1Image((reg_dc.get_fdata()*mask4d).astype(np.float32),
+                                       affine=reg_dc.affine)
+    reg_dc_name = distcorr_dir/"temp_reg_dc_tis.nii.gz"
+    nb.save(reg_dc, reg_dc_name)
     
     # apply moco to MT scaling factors image
     if not nobandingcorr:
@@ -639,22 +650,22 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     # apply bias-correction to motion- and distortion-corrected ASL series
     logger.info("Apply bias correction to the distortion- and motion-corrected ASL series.")
     bias_img = nb.load(bias_name)
-    reg_gdc_dc_biascorr = nb.nifti1.Nifti1Image(
-        ((reg_gdc_dc.get_fdata() * mask4d)/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
-        affine=reg_gdc_dc.affine)
-    reg_gdc_dc_biascorr_name = moco_dir / 'reg_gdc_dc_tis_biascorr.nii.gz'
-    nb.save(reg_gdc_dc_biascorr, reg_gdc_dc_biascorr_name)
+    reg_dc_biascorr = nb.nifti1.Nifti1Image(
+        ((reg_dc.get_fdata() * mask4d)/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
+        affine=reg_dc.affine)
+    reg_dc_biascorr_name = moco_dir / 'reg_dc_tis_biascorr.nii.gz'
+    nb.save(reg_dc_biascorr, reg_dc_biascorr_name)
 
     # apply MT-correction
     if not nobandingcorr:
-        temp_reg_gdc_dc_mtcorr = moco_dir / 'temp_reg_dc_tis_mtcorr.nii.gz'
-        reg_gdc_dc_mtcorr = nb.nifti1.Nifti1Image(
-            (reg_gdc_dc_biascorr.get_fdata()*mt_reg_img.get_fdata()*mask4d).astype(np.float32),
-            affine=reg_gdc_dc.affine)
-        nb.save(reg_gdc_dc_mtcorr, temp_reg_gdc_dc_mtcorr)
-        asl_corr = temp_reg_gdc_dc_mtcorr
+        temp_reg_dc_mtcorr = moco_dir / 'temp_reg_dc_tis_mtcorr.nii.gz'
+        reg_dc_mtcorr = nb.nifti1.Nifti1Image(
+            (reg_dc_biascorr.get_fdata()*mt_reg_img.get_fdata()*mask4d).astype(np.float32),
+            affine=reg_dc.affine)
+        nb.save(reg_dc_mtcorr, temp_reg_dc_mtcorr)
+        asl_corr = temp_reg_dc_mtcorr
     else:
-        asl_corr = reg_gdc_dc_biascorr_name
+        asl_corr = reg_dc_biascorr_name
 
     # re-estimate satrecov model on distortion- and motion-corrected data
     logger.info("Re-fitting the satrecov model since data has been motion-corrected.")
@@ -678,40 +689,40 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     
     # apply gdc and epi dc to the ASL series so it is fully distortion 
     # corrected in its original space
-    logger.info("Applying gradient and EPI distortion corrections to ASL volumes in their original spaces.")
-    gdc_dc_asln2asln = rt.chain(gdc_dc_asln2asl0, asln2asl0.inverse())
-    gdc_dc_asl = gdc_dc_asln2asln.apply_to_image(src=str(asl_name),
-                                                 ref=str(asl_name),
-                                                 order=interpolation,
-                                                 cores=cores)
-    gdc_dc_asl = nb.nifti1.Nifti1Image(gdc_dc_asl.get_fdata().astype(np.float32),
-                                       affine=gdc_dc_asl.affine)
-    gdc_dc_asl_name = distcorr_dir/"gdc_dc_tis.nii.gz"
-    nb.save(gdc_dc_asl, gdc_dc_asl_name)
+    logger.info("Applying distortion corrections to ASL volumes in their original spaces.")
+    dc_asln2asln = rt.chain(dc_asln2asl0, asln2asl0.inverse())
+    dc_asl = dc_asln2asln.apply_to_image(src=str(asl_name),
+                                         ref=str(asl_name),
+                                         order=interpolation,
+                                         cores=cores)
+    dc_asl = nb.nifti1.Nifti1Image(dc_asl.get_fdata().astype(np.float32),
+                                       affine=dc_asl.affine)
+    dc_asl_name = distcorr_dir/"dc_tis.nii.gz"
+    nb.save(dc_asl, dc_asl_name)
 
     # apply bias correction to the distortion corrected ASL series
     logger.info("Applying bias correction to the distortion corrected ASL series.")
-    biascorr_gdc_dc_asl = nb.nifti1.Nifti1Image(
-        (gdc_dc_asl.get_fdata()/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
-        affine=gdc_dc_asl.affine
+    biascorr_dc_asl = nb.nifti1.Nifti1Image(
+        (dc_asl.get_fdata()/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
+        affine=dc_asl.affine
     )
-    biascorr_gdc_dc_asl_name = bcorr_dir/"tis_gdc_dc_restore.nii.gz"
-    nb.save(biascorr_gdc_dc_asl, biascorr_gdc_dc_asl_name)
+    biascorr_dc_asl_name = bcorr_dir/"tis_dc_restore.nii.gz"
+    nb.save(biascorr_dc_asl, biascorr_dc_asl_name)
 
     # reapply banding corrections to  ASL series
     if not nobandingcorr:
         # apply MT correction
         logger.info("Applying MT correction to the distortion corrected ASL series.")
-        mtcorr_biascorr_gdc_dc_asl = nb.nifti1.Nifti1Image(
-            (biascorr_gdc_dc_asl.get_fdata()*mt_img.get_fdata()).astype(np.float32),
-            affine=biascorr_gdc_dc_asl.affine
+        mtcorr_biascorr_dc_asl = nb.nifti1.Nifti1Image(
+            (biascorr_dc_asl.get_fdata()*mt_img.get_fdata()).astype(np.float32),
+            affine=biascorr_dc_asl.affine
         )
-        mtcorr_biascorr_gdc_dc_asl_name = mtcorr_dir/"tis_gdc_dc_restore_mtcorr.nii.gz"
-        nb.save(mtcorr_biascorr_gdc_dc_asl, mtcorr_biascorr_gdc_dc_asl_name)
+        mtcorr_biascorr_dc_asl_name = mtcorr_dir/"tis_dc_restore_mtcorr.nii.gz"
+        nb.save(mtcorr_biascorr_dc_asl, mtcorr_biascorr_dc_asl_name)
 
         # apply refined slice-time correction to distortion corrected ASL series
         logger.info("Apply refined slicetiming correction to the distortion corrected ASL series.")
-        stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_biascorr_gdc_dc_asl_name,
+        stcorr_img, stfactors_img = _slicetiming_correction(mtcorr_biascorr_dc_asl_name,
                                                             t1_filt_asln_name,
                                                             TIS,
                                                             RPTS,
@@ -721,7 +732,7 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         stcorr_img, stfactors_img = [nb.nifti1.Nifti1Image(img.get_fdata().astype(np.float32),
                                                            affine=img.affine)
                                      for img in (stcorr_img, stfactors_img)]
-        stcorr_name = stcorr_dir / 'tis_gdc_dc_restore_mtcorr_stcorr.nii.gz'
+        stcorr_name = stcorr_dir / 'tis_dc_restore_mtcorr_stcorr.nii.gz'
         stfactors_name = stcorr_dir / 'st_scaling_factors.nii.gz'
         nb.save(stcorr_img, stcorr_name)
         nb.save(stfactors_img, stfactors_name)
@@ -734,11 +745,11 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
         nb.save(combined_factors_img, combined_factors_name)
         asl_corr = stcorr_name
     else:
-        combined_factors_img = nb.nifti1.Nifti1Image(np.ones_like(biascorr_gdc_dc_asl.get_fdata(), dtype=np.float32),
-                                                     affine=biascorr_gdc_dc_asl.affine)
+        combined_factors_img = nb.nifti1.Nifti1Image(np.ones_like(biascorr_dc_asl.get_fdata(), dtype=np.float32),
+                                                     affine=biascorr_dc_asl.affine)
         combined_factors_name = moco_dir / 'combined_scaling_factors_asln.nii.gz'
         nb.save(combined_factors_img, combined_factors_name)
-        asl_corr = biascorr_gdc_dc_asl_name
+        asl_corr = biascorr_dc_asl_name
     
     # re-estimate motion correction for distortion and banding corrected ASL series
     logger.info("Re-running mcflirt on calibration image and fully corrected ASL series.")
@@ -752,31 +763,34 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     final_mcflirt.rename(asln2m0_final_name)
 
     # apply gdc, refined moco and epidc to the original ASL series
-    logger.info("Applying gdc, improved motion estimates and epidc to the ASL series.")
+    logger.info("Applying distortion correction and improved motion estimates to the ASL series.")
     asln2m0_final = rt.MotionCorrection.from_mcflirt(mats=str(asln2m0_final_name),
                                                      src=str(asl_name),
                                                      ref=str(calib_name))
     asl02m0_final = asln2m0_final.transforms[0]
     asln2asl0_final = rt.chain(asln2m0_final, asl02m0_final.inverse())
     asl02fmap_final = rt.chain(asl02m0_final, calib2struct_reg, fmap2struct_reg.inverse())
-    gdc_dc_asln2asl0_final = rt.chain(gdc_warp, asln2asl0_final, asl02fmap_final,
-                                      dc_warp, asl02fmap_final.inverse())
-    gdc_dc_moco_asl_final = gdc_dc_asln2asl0_final.apply_to_image(src=str(asl_name),
-                                                                  ref=str(asl_name),
-                                                                  order=interpolation,
-                                                                  cores=cores)
-    gdc_dc_moco_asl_final = nb.nifti1.Nifti1Image(gdc_dc_moco_asl_final.get_fdata().astype(np.float32),
-                                                  affine=gdc_dc_moco_asl_final.affine)
-    gdc_dc_moco_asl_final_name = moco_dir/"tis_gdc_dc_moco.nii.gz"
-    nb.save(gdc_dc_moco_asl_final, gdc_dc_moco_asl_final_name)
+    dc_asln2asl0_final = rt.chain(asln2asl0_final, asl02fmap_final,
+                                  dc_warp, asl02fmap_final.inverse())
+    if gd_corr:
+        dc_asln2asl0_final = rt.chain(gdc_warp, dc_asln2asl0_final)
+    dc_moco_asl_final = dc_asln2asl0_final.apply_to_image(src=str(asl_name),
+                                                          ref=str(asl_name),
+                                                          order=interpolation,
+                                                          cores=cores)
+    dc_moco_asl_final = nb.nifti1.Nifti1Image(dc_moco_asl_final.get_fdata().astype(np.float32),
+                                              affine=dc_moco_asl_final.affine)
+    gdc_dc_moco_asl_final_name = moco_dir/"tis_dc_moco.nii.gz"
+    nb.save(dc_moco_asl_final, gdc_dc_moco_asl_final_name)
 
     # apply bias correction to the fully distortion and motion corrected ASL series
     logger.info("Applying bias correction to the distortion and motion corrected ASL series.")
-    gdc_dc_moco_asl_final_restore = nb.nifti1.Nifti1Image(
-        (gdc_dc_moco_asl_final.get_fdata()/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
-        affine=gdc_dc_moco_asl_final.affine
+    dc_moco_asl_final_restore = nb.nifti1.Nifti1Image(
+        (dc_moco_asl_final.get_fdata()/bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
+        affine=dc_moco_asl_final.affine
     )
-    gdc_dc_moco_asl_final_restore_name = tis_dir/"tis_gdc_dc_moco_restore.nii.gz"
+    dc_moco_asl_final_restore_name = tis_dir/"tis_dc_moco_restore.nii.gz"
+    nb.save(dc_moco_asl_final_restore, dc_moco_asl_final_restore_name)
 
     # apply final motion estimates to scaling factors
     logger.info("Applying motion estimates to the scaling factors.")
@@ -792,18 +806,18 @@ def single_step_resample_to_asl0(subject_dir, tis_dir, mt_factors, bias_name,
     # apply banding corrections to the motion corrected ASL series
     if not nobandingcorr:
         logger.info("Banding correcting the registered ASL series.")
-        gdc_dc_moco_bandcorr_asl = nb.nifti1.Nifti1Image(
-            (gdc_dc_moco_asl_final_restore.get_fdata()*combined_factors_moco.get_fdata()).astype(np.float32),
-            affine=gdc_dc_moco_asl_final_restore.affine
+        dc_moco_bandcorr_asl = nb.nifti1.Nifti1Image(
+            (dc_moco_asl_final_restore.get_fdata()*combined_factors_moco.get_fdata()).astype(np.float32),
+            affine=dc_moco_asl_final_restore.affine
         )
-        gdc_dc_moco_bandcorr_asl_name = tis_dir/"tis_gdc_dc_moco_restore_bandcorr.nii.gz"
-        nb.save(gdc_dc_moco_bandcorr_asl, gdc_dc_moco_bandcorr_asl_name)
+        dc_moco_bandcorr_asl_name = tis_dir/"tis_dc_moco_restore_bandcorr.nii.gz"
+        nb.save(dc_moco_bandcorr_asl, dc_moco_bandcorr_asl_name)
     
 def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                    moco_dir, perfusion_name, gradunwarp_dir, topup_dir,
                                    aslt1w_dir, ribbon, wmparc, corticallut, subcorticallut, 
                                    asl_scaling_factors=None, mt_factors=None, t1_est=None,
-                                   nobandingcorr=False, interpolation=3, cores=1):
+                                   nobandingcorr=False, interpolation=3, cores=1., gd_corr=True):
     # set up logger
     logger_name = "HCPASL.single_step_resample_to_aslt1w"
     tis_aslt1w_dir = aslt1w_dir/"TIs"
@@ -819,6 +833,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     logger.info(f"Mcflirt motion estimate directory: {moco_dir}")
     logger.info(f"Perfusion image: {perfusion_name}")
     logger.info(f"gradient_unwarp output directory: {gradunwarp_dir}")
+    logger.info(f"gd_corr: {gd_corr}")
     logger.info(f"Topup output directory: {topup_dir}")
     logger.info(f"ASLT1w directory: {aslt1w_dir}")
     logger.info(f"ribbon.nii.gz: {ribbon}")
@@ -894,11 +909,15 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
 
     # load gradient_unwarp gradient distortion correction warp
     logger.info("Loading distortion correction warps.")
-    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve(strict=True)
-    gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
-                                                    src=str(asl_name), 
-                                                    ref=str(asl_name), 
-                                                    intensity_correct=True)
+    gdc_name = (gradunwarp_dir/"fullWarp_abs.nii.gz").resolve()
+    if gd_corr:
+        logger.info("gradient_unwarp.py was run. Gradient distortion correction will be applied.")
+        gdc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(gdc_name), 
+                                                        src=str(asl_name), 
+                                                        ref=str(asl_name), 
+                                                        intensity_correct=True)
+    
+    # load topup EPI distortion correction warp
     dc_name = (topup_dir/"WarpField_01.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(coefficients=str(dc_name),
                                                     src=str(fmapmag),
@@ -916,9 +935,13 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     # form asl0 and calib0 distortion correction to structural warps
     asl02fmap_reg = rt.chain(asl2struct_reg, fmap2struct_reg.inverse())
     asl0_dc2struct_warp = rt.chain(asl02fmap_reg, dc_warp, fmap2struct_reg)
-    asl_gdc_moco_dc2struct_warp = rt.chain(gdc_warp, asln2asl0, asl0_dc2struct_warp)
+    asl_moco_dc2struct_warp = rt.chain(asln2asl0, asl0_dc2struct_warp)
+    if gd_corr:
+        asl_moco_dc2struct_warp = rt.chain(gdc_warp, asl_moco_dc2struct_warp)
     asl_moco2struct = rt.chain(asln2asl0, asl2struct_reg)
-    m0_gdc_dc2struct_warp = rt.chain(gdc_warp, m02asl0, asl0_dc2struct_warp)
+    m0_dc2struct_warp = rt.chain(m02asl0, asl0_dc2struct_warp)
+    if gd_corr:
+        m0_dc2struct_warp = rt.chain(gdc_warp, m0_dc2struct_warp)
 
     # register calibration image to structural and obtain new 
     # SE-based bias estimates
@@ -927,11 +950,11 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     logger.info("Registering calibration image to ASLT1w space.")
     calib_distcorr_dir = aslt1w_dir/"Calib/Calib0/DistCorr"
     calib_distcorr_dir.mkdir(exist_ok=True, parents=True)
-    calib_gdc_dc_aslt1w = m0_gdc_dc2struct_warp.apply_to_image(src=str(calib_name),
-                                                               ref=str(aslt1_brain_mask_name),
-                                                               order=interpolation)
-    calib_gdc_dc_aslt1w_name = calib_distcorr_dir/"calib0_gdc_dc.nii.gz"
-    nb.save(calib_gdc_dc_aslt1w, calib_gdc_dc_aslt1w_name)
+    calib_dc_aslt1w = m0_dc2struct_warp.apply_to_image(src=str(calib_name),
+                                                       ref=str(aslt1_brain_mask_name),
+                                                       order=interpolation)
+    calib_dc_aslt1w_name = calib_distcorr_dir/"calib0_dc.nii.gz"
+    nb.save(calib_dc_aslt1w, calib_dc_aslt1w_name)
 
     # create timing image in calibration image space to register to ASLT1w space
     calib_timing_name = calib_name.parent/"calib_timing.nii.gz"
@@ -950,7 +973,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     sebased_dir = aslt1w_dir/"Calib/Calib0/SEbased"
     sebased_dir.mkdir(exist_ok=True)
     sebased_cmd = ["get_sebased_bias_asl",
-                    "-i", calib_gdc_dc_aslt1w_name,
+                    "-i", calib_dc_aslt1w_name,
                     "-f", fmap_aslt1w_name,
                     "-m", fov_brainmask_name,
                     "-o", sebased_dir,
@@ -982,14 +1005,14 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     logger.info("Registering ASL series to ASLT1w space.")
     distcorr_dir = tis_aslt1w_dir/"DistCorr"
     distcorr_dir.mkdir(exist_ok=True, parents=True)
-    asl_gdc_dc_moco = asl_gdc_moco_dc2struct_warp.apply_to_image(src=str(asl_name),
-                                                                 ref=str(aslt1_brain_mask_name),
-                                                                 cores=cores,
-                                                                 order=interpolation)
-    asl_gdc_dc_moco = nb.nifti1.Nifti1Image((asl_gdc_dc_moco.get_fdata() * mask4d).astype(np.float32),
-                                            affine=asl_gdc_dc_moco.affine)
-    asl_gdc_dc_moco_name = distcorr_dir/"tis_gdc_dc_moco.nii.gz"
-    nb.save(asl_gdc_dc_moco, asl_gdc_dc_moco_name)
+    asl_dc_moco = asl_moco_dc2struct_warp.apply_to_image(src=str(asl_name),
+                                                         ref=str(aslt1_brain_mask_name),
+                                                         cores=cores,
+                                                         order=interpolation)
+    asl_dc_moco = nb.nifti1.Nifti1Image((asl_dc_moco.get_fdata() * mask4d).astype(np.float32),
+                                            affine=asl_dc_moco.affine)
+    asl_dc_moco_name = distcorr_dir/"tis_dc_moco.nii.gz"
+    nb.save(asl_dc_moco, asl_dc_moco_name)
 
     # register ASL scaling factors to ASL-gridded T1w space
     if asl_scaling_factors:
@@ -1001,8 +1024,8 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
         aslt1w_sfs = nb.nifti1.Nifti1Image((aslt1w_sfs.get_fdata() * mask4d).astype(np.float32),
                                            affine=aslt1w_sfs.affine)
     else:
-        aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_gdc_dc_moco.shape, dtype=np.float32),
-                                           affine=asl_gdc_dc_moco)
+        aslt1w_sfs = nb.nifti1.Nifti1Image(np.ones(asl_dc_moco.shape, dtype=np.float32),
+                                           affine=asl_dc_moco.affine)
     aslt1w_sfs_name = tis_aslt1w_dir/"combined_scaling_factors.nii.gz"
     nb.save(aslt1w_sfs, aslt1w_sfs_name)
 
@@ -1011,9 +1034,9 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
     bias = nb.load(bias_name)
     asl_corr = nb.nifti1.Nifti1Image(
         np.where(bias.get_fdata()[..., np.newaxis]!=0, 
-                 (asl_gdc_dc_moco.get_fdata()*aslt1w_sfs.get_fdata())/bias.get_fdata()[..., np.newaxis],
+                 (asl_dc_moco.get_fdata()*aslt1w_sfs.get_fdata())/bias.get_fdata()[..., np.newaxis],
                  0.).astype(np.float32),
-        affine=asl_gdc_dc_moco.affine
+        affine=asl_dc_moco.affine
     )
     asl_corr_name = tis_aslt1w_dir/"asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
@@ -1045,7 +1068,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                                        ref=str(aslt1_brain_mask_name),
                                                        order=interpolation)
         calib_mt_sfs_aslt1w = nb.nifti1.Nifti1Image(calib_mt_sfs_aslt1w,
-                                                    affine=calib_gdc_dc_aslt1w.affine)
+                                                    affine=calib_dc_aslt1w.affine)
         calib_mt_sfs_aslt1w_name = calib_distcorr_dir/"calib_mt_scaling_factors.nii.gz"
         nb.save(calib_mt_sfs_aslt1w, calib_mt_sfs_aslt1w_name)
         
@@ -1057,7 +1080,7 @@ def single_step_resample_to_aslt1w(asl_name, calib_name, subject_dir, t1w_dir,
                                 -calib_aslt1w_timing.get_fdata()/t1_est_aslt1w.get_fdata(),
                                 0))
         calib_aslt1w_stcorr_factors = np.where(den>0, num/den, 1)
-        calib_aslt1w_stcorr_factors_img = nb.nifti1.Nifti1Image(calib_aslt1w_stcorr_factors, affine=calib_gdc_dc_aslt1w.affine)
+        calib_aslt1w_stcorr_factors_img = nb.nifti1.Nifti1Image(calib_aslt1w_stcorr_factors, affine=calib_dc_aslt1w.affine)
         calib_aslt1w_stcorr_factors_name = aslt1w_dir/"Calib/Calib0/calib_aslt1w_stcorr_factors.nii.gz"
         nb.save(calib_aslt1w_stcorr_factors_img, calib_aslt1w_stcorr_factors_name)
 
