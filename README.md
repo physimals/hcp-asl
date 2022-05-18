@@ -9,12 +9,12 @@ This repository contains the ASL processing pipeline scripts for the Human Conne
 The HCP list some prerequisites for their pipelines: https://github.com/Washington-University/HCPpipelines/wiki/Installation-and-Usage-Instructions.
 
 The prerequisites specific to this pipeline, along with links to their installation pages, are listed below:
-- [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation) (version >= 6.0.4)
+- [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FslInstallation) (version >= 6.0.5.1)
 - [Workbench](https://www.humanconnectome.org/software/get-connectome-workbench) (version >= 1.5.0)
 - [HCP Pipelines](https://github.com/Washington-University/HCPpipelines)
 - [HCP's gradunwarp](https://github.com/Washington-University/gradunwarp)
 
-FSL version 6.0.4 is required to use new features in fabber, added for this pipeline.
+FSL version 6.0.5.1 is required to use new features in fabber and oxford_asl_roi_stats.py, which were added for this pipeline.
 
 Workbench >= v1.5.0 is required. The `-weighted` option in `wb_command`'s `-volume-to-surface-mapping` introduced in version 1.5.0 is used in projections to the surface.
 
