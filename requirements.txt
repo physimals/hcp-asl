@@ -3,7 +3,7 @@ fslpy
 nibabel
 pyfab
 regtricks
-toblerone
+toblerone >= 0.8.2
 gradunwarp
 requests
 regtricks
