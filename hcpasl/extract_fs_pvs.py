@@ -293,7 +293,8 @@ def main():
     args = parser.parse_args()
     surf_dict = dict([ (k, getattr(args, k)) for k in ['LWS', 'LPS', 'RPS', 'RWS'] ])
 
-    pvs = extract_fs_pvs(args.aparcseg, surf_dict, args.ref, args.cores)
+    pvs = extract_fs_pvs(aparcseg=args.aparcseg, surf_dict=surf_dict, 
+                            ref_spc=args.ref, cores=args.cores)
 
     if args.stack: 
         nib.save(pvs, args.out)
