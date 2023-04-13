@@ -1,11 +1,12 @@
 import argparse
-import sys
-from pathlib import Path
-from hcpasl.MTEstimation import setup_mtestimation, estimate_mt
 import multiprocessing as mp
-from functools import partial
-import numpy as np
 import time
+from functools import partial
+from pathlib import Path
+
+import numpy as np
+
+from hcpasl.MTEstimation import estimate_mt, setup_mtestimation
 
 TR = 8
 ROIS = {

@@ -1,11 +1,13 @@
-from .utils import create_dirs, load_json, update_json
-from pathlib import Path
-import subprocess
-from fsl.wrappers.flirt import applyxfm
-from itertools import product
-import regtricks as rt
 import multiprocessing as mp
+import subprocess
+from itertools import product
+from pathlib import Path
+
 import nibabel as nb
+import regtricks as rt
+
+from .utils import create_dirs, load_json
+
 
 def project_to_surface(subject_dir, target='structural', outdir="hcp_asl"):
     """

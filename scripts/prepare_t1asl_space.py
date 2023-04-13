@@ -6,14 +6,12 @@ Prepare ventricle mask in this space for final calibration
 
 import os
 import os.path as op 
-import sys 
 import argparse
 import multiprocessing as mp 
 import glob 
 
 import scipy
 import numpy as np
-import toblerone as tob 
 import regtricks as rt 
 import nibabel as nib 
 

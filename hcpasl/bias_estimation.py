@@ -1,16 +1,14 @@
-from fsl.wrappers import bet, fast, LOAD
+import subprocess
+from pathlib import Path
+
 import nibabel as nb
+import numpy as np
 import regtricks as rt
+from fsl.wrappers import LOAD, bet, fast
 
 from hcpasl.distortion_correction import register_fmap
 from hcpasl.tissue_masks import generate_tissue_mask_in_ref_space
-from hcpasl.utils import binarise
 
-import numpy as np
-
-from pathlib import Path
-
-import subprocess
 
 def bias_estimation_calib(calib_name):
     """

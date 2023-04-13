@@ -7,9 +7,7 @@ the directories of the subjects of interest and finally the
 name of the MT correction scaling factors image.
 """
 
-import sys
 import os
-from itertools import product
 import logging
 
 from hcpasl import __version__, __timestamp__, __sha1__
@@ -24,7 +22,6 @@ from pathlib import Path
 import subprocess
 import argparse
 from multiprocessing import cpu_count
-import nibabel as nb
 
 def process_subject(studydir, subid, mt_factors, mbpcasl, structural, 
                     fmaps, gradients, wmparc, ribbon, wbdir, 

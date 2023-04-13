@@ -1,20 +1,19 @@
-import shutil
-from fsl.data import atlases
-from fsl.data.image import Image
-from fsl.wrappers import fslroi, fslmaths, LOAD
-from fsl.wrappers.fnirt import invwarp, applywarp
-from fsl.wrappers.misc import fslroi
-
-import nibabel as nb
-
-import numpy as np
-
-import subprocess
 import json
 import logging
-
+import shutil
+import subprocess
 from importlib.resources import path as resource_path
+from pathlib import Path
+
+import numpy as np
+from fsl.data import atlases
+from fsl.data.image import Image
+from fsl.wrappers import LOAD, fslmaths, fslroi
+from fsl.wrappers.fnirt import applywarp, invwarp
+from fsl.wrappers.misc import fslroi
+
 from . import resources
+
 
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """

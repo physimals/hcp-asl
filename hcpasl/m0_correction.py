@@ -2,21 +2,18 @@
 This contains a range of functions required to correct for the 
 Magnetisation Transfer effect visible in the HCP data.
 """
-
-import json
-from pathlib import Path
-from fsl.wrappers import fslmaths, LOAD, bet, fast
-from fsl.data.image import Image
-import numpy as np
-from .utils import create_dirs, load_json, update_json, setup_logger
-from .tissue_masks import generate_tissue_mask
-from .distortion_correction import register_fmap, generate_asl_mask
-import subprocess
-import regtricks as rt
-import nibabel as nb
-
 import os
 import os.path as op
+import subprocess
+from pathlib import Path
+
+import nibabel as nb
+import numpy as np
+import regtricks as rt
+
+from .tissue_masks import generate_tissue_mask
+from .utils import setup_logger
+
 
 def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     """

@@ -1,7 +1,8 @@
-from shutil import copy
+import os
 import subprocess
 from pathlib import Path
-import os
+from shutil import copy
+
 
 def copy_key_outputs(path, t1w_preproc, mni_raw):
 

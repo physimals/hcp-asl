@@ -12,3 +12,5 @@ _version.py
 hcpasl/resources/*.ipynb_checkpoints
 hcpasl/*.ipynb_checkpoints
 temp_calib
+HCA6002236*
+coeff_AS82_Prisma.grad

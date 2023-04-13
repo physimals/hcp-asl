@@ -1,13 +1,15 @@
-import subprocess
-from hcpasl.utils import setup_logger, get_package_data_name
-from nbclient import execute
-import nbformat
-from nbparameterise import extract_parameters, parameter_values, replace_definitions
-
-from pathlib import Path
 import os
+import subprocess
+from pathlib import Path
 
+import nbformat
 import regtricks as rt
+from nbclient import execute
+from nbparameterise import (extract_parameters, parameter_values,
+                            replace_definitions)
+
+from hcpasl.utils import get_package_data_name, setup_logger
+
 
 def create_qc_report(subject_dir, outdir):
     # get location of this file

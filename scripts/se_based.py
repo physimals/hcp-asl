@@ -1,15 +1,15 @@
+import argparse
 import subprocess
 import sys
-import argparse
 from pathlib import Path
-import shutil
-import regtricks as rt
-import nibabel as nb
+
 import numpy as np
-import scipy
 import pandas as pd
+import regtricks as rt
+import scipy
 from fsl.data.image import Image
 
+# FIXME could we pull this function from hcpasl.utils rather than copy it?
 def parse_LUT(LUT_name):
     """
     Parse a FreeSurfer Lookup-Table returning the desired label 

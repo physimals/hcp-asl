@@ -10,10 +10,7 @@ simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A.
 Chappell, M.J.P. van Osch
 """
 
-from .utils import load_json, update_json
 import nibabel as nb
-from pathlib import Path
-import subprocess
 import numpy as np
 
 def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl", mask=None):

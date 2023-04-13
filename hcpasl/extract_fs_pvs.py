@@ -1,14 +1,12 @@
 #! /usr/bin/env python3
 """Script to extract PVs from FS binary volumetric segmentation"""
 
-import pathlib
 import argparse
-import multiprocessing as mp 
+import pathlib
 
-import numpy as np 
 import nibabel as nib
-
-import regtricks as rt 
+import numpy as np
+import regtricks as rt
 from toblerone.pvestimation import cortex as estimate_cortex
 
 # The following values in the aparc image will be mapped either to a 
@@ -306,17 +304,3 @@ def main():
         for idx,tiss in enumerate(["GM", "WM", "CSF"]):
             n = opath.parent.joinpath(opath.stem.rsplit('.', 1)[0] + f"_{tiss}" + "".join(opath.suffixes))
             spc.save_image(pvs[...,idx], n.as_posix())
-
-
-if __name__ == "__main__":
-
-    cmd = """--aparcseg /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/aparc+aseg.nii.gz 
-    --LWS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.white.32k_fs_LR.surf.gii
-    --LPS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.pial.32k_fs_LR.surf.gii 
-    --RWS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.white.32k_fs_LR.surf.gii 
-    --RPS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.pial.32k_fs_LR.surf.gii 
-    --ref /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/T1w_acpc_dc_restore_brain.nii.gz --out test.nii.gz"""
-
-    import sys 
-    sys.argv[1:] = cmd.split()
-    main()
