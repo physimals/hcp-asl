@@ -13,7 +13,10 @@ Chappell, M.J.P. van Osch
 import nibabel as nb
 import numpy as np
 
-def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl", mask=None):
+
+def tag_control_differencing(
+    series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl", mask=None
+):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -32,15 +35,15 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
     outdir : str
         Name of the main results directory. Default is 'hcp_asl'.
 
-    .. [1] Suzuki, Yuriko, et al. "A framework for motion 
-       correction of background suppressed arterial spin labeling 
-       perfusion images acquired with simultaneous multi‐slice 
-       EPI." Magnetic resonance in medicine 81.3 (2019): 
+    .. [1] Suzuki, Yuriko, et al. "A framework for motion
+       correction of background suppressed arterial spin labeling
+       perfusion images acquired with simultaneous multi‐slice
+       EPI." Magnetic resonance in medicine 81.3 (2019):
        1553-1565.
     """
     # create output directory
     betas_dir.mkdir(exist_ok=True)
-    
+
     # load motion- and distortion- corrected data, Y_moco
     Y_moco = nb.load(series)
 
@@ -49,7 +52,7 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
 
     # calculate X_perf = X_tc * S_st
     X_tc = np.ones((1, 1, 1, 86)) * 0.5
-    X_tc[0, 0, 0, 0::2] =  -0.5
+    X_tc[0, 0, 0, 0::2] = -0.5
     X_perf = X_tc * S_st.get_fdata()
 
     # split X_perf and Y_moco into even and odd indices
@@ -59,8 +62,8 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
     Y_even = Y_moco.get_data()[:, :, :, 0::2]
 
     # ignore voxels where below would lead to dividing by zero
-    nonzero_mask = np.abs(X_odd-X_even) > 1e-6
-    mask_name = betas_dir/"difference_mask.nii.gz"
+    nonzero_mask = np.abs(X_odd - X_even) > 1e-6
+    mask_name = betas_dir / "difference_mask.nii.gz"
     nb.save(nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name)
 
     # only perform calculation within the provided mask
@@ -69,20 +72,25 @@ def tag_control_differencing(series, scaling_factors, betas_dir, subject_dir, ou
         if mask.ndim == 3:
             mask = mask[..., np.newaxis]
         nonzero_mask = np.logical_and(nonzero_mask, mask)
-        mask_name = betas_dir/"combined_mask.nii.gz"
-        nb.save(nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name)
+        mask_name = betas_dir / "combined_mask.nii.gz"
+        nb.save(
+            nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name
+        )
 
     # calculate B_perf and B_baseline at voxels within mask
     B_perf, B_baseline = np.zeros_like(X_odd), np.zeros_like(X_even)
-    B_perf[nonzero_mask] = (Y_odd[nonzero_mask] - Y_even[nonzero_mask]) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
-    B_baseline[nonzero_mask] = (X_odd[nonzero_mask]*Y_even[nonzero_mask] - X_even[nonzero_mask]*Y_odd[nonzero_mask]) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
+    B_perf[nonzero_mask] = (Y_odd[nonzero_mask] - Y_even[nonzero_mask]) / (
+        X_odd[nonzero_mask] - X_even[nonzero_mask]
+    )
+    B_baseline[nonzero_mask] = (
+        X_odd[nonzero_mask] * Y_even[nonzero_mask]
+        - X_even[nonzero_mask] * Y_odd[nonzero_mask]
+    ) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
 
     # save both images
-    B_perf_name = betas_dir / 'beta_perf.nii.gz'
-    B_perf_img = nb.nifti1.Nifti1Image(B_perf,
-                                       affine=Y_moco.affine)
+    B_perf_name = betas_dir / "beta_perf.nii.gz"
+    B_perf_img = nb.nifti1.Nifti1Image(B_perf, affine=Y_moco.affine)
     nb.save(B_perf_img, B_perf_name)
-    B_baseline_name = betas_dir / 'beta_baseline.nii.gz'
-    B_baseline_img = nb.nifti1.Nifti1Image(B_baseline,
-                                           affine=Y_moco.affine)
+    B_baseline_name = betas_dir / "beta_baseline.nii.gz"
+    B_baseline_img = nb.nifti1.Nifti1Image(B_baseline, affine=Y_moco.affine)
     nb.save(B_baseline_img, B_baseline_name)
