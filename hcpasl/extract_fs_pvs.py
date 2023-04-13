@@ -309,4 +309,14 @@ def main():
 
 
 if __name__ == "__main__":
+
+    cmd = """--aparcseg /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/aparc+aseg.nii.gz 
+    --LWS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.white.32k_fs_LR.surf.gii
+    --LPS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.L.pial.32k_fs_LR.surf.gii 
+    --RWS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.white.32k_fs_LR.surf.gii 
+    --RPS /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/fsaverage_LR32k/HCA6002236_V1_MR.R.pial.32k_fs_LR.surf.gii 
+    --ref /Users/thomaskirk/Modules/hcp-asl/testdata/T1w/T1w_acpc_dc_restore_brain.nii.gz --out test.nii.gz"""
+
+    import sys 
+    sys.argv[1:] = cmd.split()
     main()
