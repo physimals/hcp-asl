@@ -4,27 +4,16 @@ includes finding necessary files, creating results directories
 and running fsl_anat on the structural image.
 """
 
-from pathlib import Path
-from itertools import product
 from functools import partial
 
-from fsl.wrappers.fsl_anat import fsl_anat
-from fsl.wrappers import fslmaths, LOAD, bet
-from fsl.data.image import Image
-
-import regtricks as rt
 import nibabel as nb
+import regtricks as rt
+from fsl.wrappers import bet, fslmaths
 
 from hcpasl import distortion_correction
-from hcpasl.bias_estimation import bias_estimation, METHODS
-from hcpasl.utils import (
-    create_dirs,
-    linear_asl_reg,
-    setup,
-    binarise,
-    get_ventricular_csf_mask,
-)
+from hcpasl.bias_estimation import bias_estimation
 from hcpasl.tissue_masks import generate_tissue_mask, generate_tissue_mask_in_ref_space
+from hcpasl.utils import create_dirs, linear_asl_reg, setup
 
 
 def setup_mtestimation(

@@ -1,13 +1,12 @@
 """
 Set of functions for estimating the MT effect
 """
-from hcpasl.utils import create_dirs, load_json, update_json
-from fsl.data.image import Image
-import numpy as np
-from sklearn.linear_model import LinearRegression
 from pathlib import Path
-import multiprocessing
+
 import matplotlib.pyplot as plt
+import numpy as np
+from fsl.data.image import Image
+from sklearn.linear_model import LinearRegression
 
 T1_VALS = {"wm": 1.0, "gm": 1.3, "csf": 4.3}
 BAND_RANGE = {
