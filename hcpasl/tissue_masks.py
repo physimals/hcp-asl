@@ -12,24 +12,24 @@ TISSUE_LABELS = {
 }
 
 
-def parse_LUT(LUT_name):
-    """
-    Parse a FreeSurfer Lookup-Table returning the desired label
-    names.
+# def parse_LUT(LUT_name):
+#     """
+#     Parse a FreeSurfer Lookup-Table returning the desired label
+#     names.
 
-    Parameters
-    ----------
-    LUT_name : str
-        Path to the Lookup-Table
+#     Parameters
+#     ----------
+#     LUT_name : str
+#         Path to the Lookup-Table
 
-    Returns
-    -------
-    labels : list of ints
-        List of int labels from the LUT
-    """
-    with open(LUT_name) as f:
-        labels = [int(l.split(" ")[0]) for l in f.readlines()[1::2]]
-    return labels
+#     Returns
+#     -------
+#     labels : list of ints
+#         List of int labels from the LUT
+#     """
+#     with open(LUT_name) as f:
+#         labels = [int(l.split(" ")[0]) for l in f.readlines()[1::2]]
+#     return labels
 
 
 def generate_tissue_mask(aparc_aseg, tissue, erode=False):

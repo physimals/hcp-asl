@@ -93,7 +93,7 @@ def main():
     )
     parser.add_argument(
         "--outdir",
-        help="Name of the directory within which we will store all of the "
+        help="Name of the directory within which to store all of the "
         + "pipeline's outputs in sub-directories. Default is 'hcp_asl'",
         default="hcp_asl",
     )
