@@ -70,7 +70,7 @@ def generate_tissue_mask(aparc_aseg, tissue, erode=False):
 
     # potential round of eroding
     if erode:
-        mask = scipy.ndimage.morphology.binary_erosion(mask).astype(np.float)
+        mask = scipy.ndimage.morphology.binary_erosion(mask).astype(np.float32)
 
     # create and return Nifti1Image
     mask = nb.nifti1.Nifti1Image(mask, affine=aseg.affine)

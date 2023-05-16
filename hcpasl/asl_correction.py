@@ -1161,15 +1161,8 @@ def single_step_resample_to_aslt1w(
         "Applying SE-based bias correction and banding corrections to ASL series."
     )
     bias = nb.load(bias_name)
-    asl_corr = nb.nifti1.Nifti1Image(
-        np.where(
-            bias.get_fdata()[..., np.newaxis] != 0,
-            (asl_dc_moco.get_fdata() * aslt1w_sfs.get_fdata())
-            / bias.get_fdata()[..., np.newaxis],
-            0.0,
-        ).astype(np.float32),
-        affine=asl_dc_moco.affine,
-    )
+    asl_corr = np.zeros_like(asl_dc_moco.get_fdata())
+    np.divide(asl_dc_moco.get_fdata() * aslt1w_sfs.get_fdata(), 
     asl_corr_name = tis_aslt1w_dir / "asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
 

@@ -22,7 +22,7 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
     ref_spc = rt.ImageSpace(t1_asl)
 
     # get ventricles mask from aparc+aseg image
-    aseg = nib.load(aparc_aseg).get_data()
+    aseg = nib.load(aparc_aseg).get_fdata()
     vent_mask = np.logical_or(
         aseg == 43, aseg == 4  # left ventricle  # right ventricle
     )

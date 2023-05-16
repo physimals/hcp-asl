@@ -227,7 +227,7 @@ def generate_fmaps(
     # Convert fmap from Hz to rad/s
     logger.info("Converting fieldmap from Hz to rad/s.")
     fmap_spc = rt.ImageSpace(topup_fmap)
-    fmap_arr_hz = nb.load(topup_fmap).get_data()
+    fmap_arr_hz = nb.load(topup_fmap).get_fdata()
     fmap_arr = fmap_arr_hz * 2 * np.pi
     fmap_spc.save_image(fmap_arr, fmap)
 
@@ -481,7 +481,7 @@ def generate_asl_mask(struct_brain, asl, asl2struct):
         np.array, logical mask.
     """
 
-    brain_mask = (nb.load(struct_brain).get_data() > 0).astype(np.float32)
+    brain_mask = (nb.load(struct_brain).get_fdata() > 0).astype(np.float32)
     asl_mask = asl2struct.inverse().apply_to_array(brain_mask, struct_brain, asl)
     asl_mask = binary_fill_holes(asl_mask > 0.25)
     return asl_mask

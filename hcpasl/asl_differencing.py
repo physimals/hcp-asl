@@ -58,8 +58,8 @@ def tag_control_differencing(
     # split X_perf and Y_moco into even and odd indices
     X_odd = X_perf[:, :, :, 1::2]
     X_even = X_perf[:, :, :, 0::2]
-    Y_odd = Y_moco.get_data()[:, :, :, 1::2]
-    Y_even = Y_moco.get_data()[:, :, :, 0::2]
+    Y_odd = Y_moco.get_fdata()[:, :, :, 1::2]
+    Y_even = Y_moco.get_fdata()[:, :, :, 0::2]
 
     # ignore voxels where below would lead to dividing by zero
     nonzero_mask = np.abs(X_odd - X_even) > 1e-6
