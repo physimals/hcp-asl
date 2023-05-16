@@ -68,6 +68,12 @@ def update_metadata(version_str, timestamp_str, sha1_str):
         f.write("__sha1__ = '%s'\n" % sha1_str)
 
 
+def get_requirements():
+    """ Get a list of all entries in the requirements file """
+    with io.open(os.path.join(ROOTDIR, 'requirements.txt'), encoding='utf-8') as f:
+        return [l.strip() for l in f.readlines()]
+
+
 def get_version():
     """Get the current version number (and update it in the module _version.py file if necessary)"""
     version, timestamp, sha1 = git_version()[1], git_timestamp(), git_sha1()
@@ -107,25 +113,7 @@ setup(
     url="https://github.com/ibme-qubic/hcp-asl",
     packages=find_packages(),
     python_requires=">=3.6, <3.8",
-    install_requires=[
-        "pip<21.0",
-        "cython",
-        "numpy",
-        "fslpy>=3.1.0",
-        "pyfab",
-        "nibabel",
-        "regtricks",
-        "scikit-learn",
-        "nilearn",
-        "ipykernel",
-        "ipywidgets",
-        "toblerone @ git+https://github.com/tomfrankkirk/toblerone.git",
-        "matplotlib",
-        "pandas",
-        "nbclient",
-        "nbparameterise",
-        "nbformat",
-    ],
+    install_requires=get_requirements(), 
     entry_points={
         "console_scripts": [
             "hcp_asl = scripts.run_pipeline:main",

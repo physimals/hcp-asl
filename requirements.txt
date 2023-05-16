@@ -1,9 +1,18 @@
+gradunwarp @ git+https://github.com/Washington-University/gradunwarp@v1.2.1
+cython 
 numpy
-fslpy
+fslpy>=3.1.0
 nibabel
 pyfab
 regtricks
-toblerone >= 0.8.2
+toblerone>=0.8.2
 gradunwarp
 requests
 regtricks
+scikit-learn
+nilearn
+pandas
+nbformat
+nbclient
+nbparameterise
+ipywidgets
