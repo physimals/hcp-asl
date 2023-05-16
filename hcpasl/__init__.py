@@ -11,3 +11,10 @@ except ImportError:
     __sha1__ = "unknown"
 
 __all__ = ["__version__", "__timestamp__", "__sha1__"]
+
+import os 
+if not os.environ.get("HCPPIPEDIR"): 
+    raise RuntimeError("Environment variable HCPPIPEDIR must be set (see HCP pipeline installation)")
+
+if not os.environ.get("FREESURFER_HOME"): 
+    raise RuntimeError("Environment variable FREESURFER_HOME must be set (see FreeSurfer installation)")
