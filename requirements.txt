@@ -1,4 +1,4 @@
-gradunwarp @ git+https://github.com/Washington-University/gradunwarp@v1.2.1
+gradunwarp @ git+https://github.com/Washington-University/gradunwarp
 cython 
 numpy
 fslpy>=3.1.0
