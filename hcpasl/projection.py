@@ -73,4 +73,4 @@ def project_to_surface(subject_dir, target="structural", outdir="hcp_asl"):
             white_name,
             pial_name,
         ]
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=True)

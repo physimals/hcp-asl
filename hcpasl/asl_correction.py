@@ -261,7 +261,7 @@ def _fslmaths_med_filter_wrapper(image_name):
     """
     filtered_name = image_name.parent / f'{image_name.stem.split(".")[0]}_filt.nii.gz'
     cmd = ["fslmaths", image_name, "-fmedian", filtered_name]
-    subprocess.run(cmd)
+    subprocess.run(cmd, check=True)
     return filtered_name
 
 
@@ -392,10 +392,10 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
             str(transform),
             "-singlematrix",
         ]
-        subprocess.run(cmd)
+        subprocess.run(cmd, check=True)
     # merge registered parameter volumes into one time series
     cmd = ["fslmerge", "-t", str(param_reg_name), *out_names]
-    subprocess.run(cmd)
+    subprocess.run(cmd, check=True)
     # remove intermediate file names
     for out_n in out_names:
         out_n.unlink()
