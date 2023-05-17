@@ -174,7 +174,7 @@ def se_based_bias_estimation():
     fwhm = 5
     sigma = fwhm / np.sqrt(8 * np.log(2))
     # binarise and smooth the thresholded image
-    SEdivM0_brain_thr_roi = np.where(SEdivM0_brain_thr > 0, 1, 0).astype(np.float)
+    SEdivM0_brain_thr_roi = np.where(SEdivM0_brain_thr > 0, 1, 0).astype(np.float32)
     SEdivM0_brain_thr_s5 = scipy.ndimage.gaussian_filter(SEdivM0_brain_thr, sigma=sigma)
     SEdivM0_brain_thr_roi_s5 = scipy.ndimage.gaussian_filter(
         SEdivM0_brain_thr_roi, sigma=sigma
@@ -283,8 +283,8 @@ def se_based_bias_estimation():
     # mask M0 image with both the tissue mask and Dropouts_inv mask
     M0_grey = np.where(
         np.logical_and(tissue_mask == 1, Dropouts_inv == 1), m0_img.data, 0
-    ).astype(np.float)
-    M0_greyroi = np.where(M0_grey != 0, 1, 0).astype(np.float)
+    ).astype(np.float32)
+    M0_greyroi = np.where(M0_grey != 0, 1, 0).astype(np.float32)
     M0_grey_s5, M0_greyroi_s5 = [
         scipy.ndimage.gaussian_filter(arr, sigma=sigma) for arr in (M0_grey, M0_greyroi)
     ]
