@@ -326,13 +326,17 @@ def _slicetiming_correction(asl_name, t1_name, tis, rpts, slicedt, sliceband, n_
     elif t1_img.ndim == 4:
         t1_data = t1_img.get_fdata()
     # multiply asl sequence by satrecov model evaluated at TI
-    numexp = np.where(t1_data > 0, -tis_array / t1_data, 0)
+    numexp = np.zeros(asl_img.shape)
+    np.divide(-tis_array, t1_data, out=numexp, where=(t1_data > 0))
     num = 1 - np.exp(numexp)
     # divide asl sequence by satrecov model evaluated at actual slice-time
-    denexp = np.where(t1_data > 0, -slice_times / t1_data, 0)
+    denexp = np.zeros(asl_img.shape)
+    np.divide(-slice_times, t1_data, 
+              out=denexp, where=(t1_data > 0))
     den = 1 - np.exp(denexp)
     # evaluate scaling factors
-    stcorr_factors = np.where(den > 0, num / den, 1)
+    stcorr_factors = np.ones_like(num)
+    np.divide(num, den, out=stcorr_factors, where=(den > 0))
     stcorr_factors_img = nb.nifti1.Nifti1Image(stcorr_factors, affine=asl_img.affine)
     # correct asl series
     stcorr_data = asl_img.get_fdata() * stcorr_factors
@@ -1163,6 +1167,10 @@ def single_step_resample_to_aslt1w(
     bias = nb.load(bias_name)
     asl_corr = np.zeros_like(asl_dc_moco.get_fdata())
     np.divide(asl_dc_moco.get_fdata() * aslt1w_sfs.get_fdata(), 
+              bias.get_fdata()[...,np.newaxis],
+              out=asl_corr, where=(bias.get_fdata()[...,np.newaxis] != 0))
+    asl_corr = nb.nifti1.Nifti1Image(asl_corr.astype(np.float32), 
+                                     affine=asl_dc_moco.affine)
     asl_corr_name = tis_aslt1w_dir / "asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
 
@@ -1205,19 +1213,21 @@ def single_step_resample_to_aslt1w(
         nb.save(calib_mt_sfs_aslt1w, calib_mt_sfs_aslt1w_name)
 
         # perform slicetime correction on the calibration image
-        num = 1 - np.exp(
-            np.where(t1_est_aslt1w.get_fdata() > 0, -8 / t1_est_aslt1w.get_fdata(), 0)
-        )
-        den = 1 - np.exp(
-            np.where(
-                np.logical_and(
-                    t1_est_aslt1w.get_fdata() > 0, calib_aslt1w_timing.get_fdata() > 0.1
-                ),
-                -calib_aslt1w_timing.get_fdata() / t1_est_aslt1w.get_fdata(),
-                0,
-            )
-        )
-        calib_aslt1w_stcorr_factors = np.where(den > 0, num / den, 1)
+        num = np.zeros_like(t1_est_aslt1w.get_fdata())
+        np.divide(-8, t1_est_aslt1w.get_fdata(), 
+                  out=num, where=(t1_est_aslt1w.get_fdata() > 0))
+        num = 1 - np.exp(num)
+        den = np.zeros_like(t1_est_aslt1w.get_fdata())
+        fltr = ((t1_est_aslt1w.get_fdata() > 0) 
+                & (calib_aslt1w_timing.get_fdata() > 0.1))
+        np.divide(-calib_aslt1w_timing.get_fdata(), 
+                  t1_est_aslt1w.get_fdata(), 
+                  out=den, where=fltr)
+        den = 1 - np.exp(den)
+
+        calib_aslt1w_stcorr_factors = np.ones_like(den)
+        np.divide(num, den, where=(den > 0),
+                  out=calib_aslt1w_stcorr_factors)
         calib_aslt1w_stcorr_factors_img = nb.nifti1.Nifti1Image(
             calib_aslt1w_stcorr_factors, affine=calib_dc_aslt1w.affine
         )
