@@ -9,6 +9,7 @@ name of the MT correction scaling factors image.
 
 import os
 import logging
+from pprint import pformat
 
 from hcpasl import __version__, __timestamp__, __sha1__
 from hcpasl.distortion_correction import gradunwarp_and_topup
@@ -607,7 +608,6 @@ def main():
         required=True,
     )
     parser.add_argument(
-        "-c",
         "--cores",
         help="Number of cores to use when applying motion correction and "
         + "other potentially multi-core operations. Default is 1.",
@@ -633,7 +633,7 @@ def main():
     )
     parser.add_argument(
         "--wbdir",
-        help="Location of wb_command/bin_macosx64 (>= v1.5.0). Defaults to "
+        help="Location of wb_command executable (>= v1.5.0). Defaults to "
         + "the user's $CARET7DIR (this must be set).",
         default=os.environ["CARET7DIR"],
     )
@@ -674,9 +674,9 @@ def main():
     logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
 
     logger.info(
-        f"Welcome to HCPASL v{__version__} (commit {__sha1__} on {__timestamp__}."
+        f"HCP-ASL pipeline v{__version__} (commit {__sha1__} on {__timestamp__}."
     )
-    logger.info(args)
+    logger.info(pformat(vars(args)))
 
     # parse remaining arguments
     if args.mtname:

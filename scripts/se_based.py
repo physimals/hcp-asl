@@ -159,7 +159,6 @@ def se_based_bias_estimation():
 
     # apply thresholding
     lower, upper = [median - (std / 3), median + (std / 3)]
-    print(lower, upper)
     SEdivM0_brain_thr = np.where(
         np.logical_and(SEdivM0_brain >= lower, SEdivM0_brain <= upper), SEdivM0_brain, 0
     )

@@ -7,9 +7,13 @@ import regtricks as rt
 import os.path as op
 import nibabel as nb
 import sys
-
+import logging 
 
 def main():
+
+    logger_name = "HCPASL.results_to_mni"
+    logger = logging.getLogger(logger_name)
+
     path_warp = sys.argv[
         1
     ]  # {StudyDir}/{SubjectID}/MNINonLinear/xfms/acpc_dc2standard.nii.gz
@@ -27,7 +31,7 @@ def main():
 
     # Make the ASL-grid MNI space target image for registration (if needed)
     if not op.isfile(path_to_lowres_MNI):
-        print("Creating ASL-grid MNI-space MNI image")
+        logger.info("Creating ASL-grid MNI-space MNI image")
         perfusion_spc = rt.ImageSpace(path_to_T1_space_ASL_variable)
         mni_spc = rt.ImageSpace(path_MNI)
         mni_asl_grid = mni_spc.resize_voxels(perfusion_spc.vox_size / mni_spc.vox_size)
@@ -36,10 +40,10 @@ def main():
             path_to_lowres_MNI,
         )
     else:
-        print("ASL-grid MNI-space MNI image already exists")
+        logger.info("ASL-grid MNI-space MNI image already exists")
 
     # Warp ASL variable to newly prepared ASL-gridded MNI-space
-    print("Transforming ASL Variable to ASL-gridded MNI-space ASL")
+    logger.info("Transforming ASL Variable to ASL-gridded MNI-space ASL")
     the_warp = rt.NonLinearRegistration.from_fnirt(path_warp, path_T1, path_MNI)
     asl_mni_mniaslgrid = the_warp.apply_to_image(
         path_to_T1_space_ASL_variable, path_to_lowres_MNI

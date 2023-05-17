@@ -101,7 +101,6 @@ def estimate_mt(
         # iterate over subjects
         for n1, subject_dir in enumerate(subject_dirs):
             try:
-                print(subject_dir)
                 mask_dirs = [
                     subject_dir
                     / "ASL/Calib"

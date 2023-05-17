@@ -1000,7 +1000,7 @@ def single_step_resample_to_aslt1w(
     mask4d = fov_brainmask.get_fdata()[..., np.newaxis]
 
     # register fieldmap magnitude image to ASL-gridded T1w space
-    logger.info("Registering fmapmag to ASLT1s space.")
+    logger.info("Registering fmapmag to ASLT1w space.")
     fmapmag = (topup_dir / "fmapmag.nii.gz").resolve(strict=True)
     fmap2struct_name = (topup_dir / "fmap_struct_reg/asl2struct.mat").resolve(
         strict=True

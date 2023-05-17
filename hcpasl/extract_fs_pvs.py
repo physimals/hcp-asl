@@ -3,6 +3,7 @@
 
 import argparse
 import pathlib
+import warnings 
 
 import nibabel as nib
 import numpy as np
@@ -125,7 +126,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
             else:
                 to_stack[tissue] = mask.astype(np.float32)
         elif label not in IGNORE:
-            print("Did not assign tissue for aseg/aparc label:", label)
+            warnings.warn(f"Did not assign tissue for aseg/aparc label {label}", )
 
     # Super-resolution resampling for the vol_pvs, a la applywarp.
     # 0: GM, 1: WM, 2: CSF, always in the LAST dimension of an array
