@@ -1,11 +1,11 @@
-#  ASL Pipeline for the Human Connectome Project
+# ASL Pipeline for the Human Connectome Project
 This repository contains the ASL processing pipeline scripts for the Human Connectome Project.
 
-# #  Contents
+## Contents
 - [Prerequisites](# prerequisites)
 - [Installation](# installation)
 
-# #  Prerequisites
+## Prerequisites
 The HCP list some prerequisites for their pipelines: https://github.com/Washington-University/HCPpipelines/wiki/Installation-and-Usage-Instructions.
 
 The prerequisites specific to this pipeline, along with links to their installation pages, are listed below:
@@ -23,7 +23,7 @@ The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` se
 
 FreeSurfer must be installed to enable boundary-based registration (BBR). The environment variable `FREESURFER_HOME` must be set. 
 
-# #  Installation
+## Installation
 It is advised that the pipeline is installed in a conda environment, for example following the steps below. The pipeline cannot natively be installed on Mac arm64 processors due to dependency incompatibility, but Rosetta emulation can be used. 
 
 ```
@@ -32,7 +32,7 @@ conda activate hcpasl
 pip install git+https://github.com/physimals/hcp-asl.git 
 ```
 
-# #  Usage
+## Usage
 Once installed, the pipeline may be run as a command-line script as follows:
 
 ```
@@ -45,7 +45,7 @@ The filepaths passed to the script may be relative or absolute. A more detailed 
 hcp_asl --help
 ```
 
-# #  Extended pipeline outputs 
+## Extended pipeline outputs 
 
 Below is a directory tree within a subject's `{SUBJID}_V1_MR` folder showing the location of final and intermediate pipeline outputs. The default output directory has been used, so outputs are stored within the `{SUBJID}_V1_MR` folder. 
 
