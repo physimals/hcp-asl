@@ -3,74 +3,55 @@
 
 import argparse
 import pathlib
-import warnings 
 
 import nibabel as nib
 import numpy as np
 import regtricks as rt
 from toblerone.pvestimation import cortex as estimate_cortex
 
-# The following values in the aparc image will be mapped either to a
-# generic tissue, or a specific structure of interest
-SUBCORT_LUT = {
+# Map from FS aseg labels to tissue types
+# NB cortex is ignored
+FS_LUT = {
     # Left hemisphere
     2: "WM",
     3: "GM",
-    4: "CSF",
-    5: "CSF",
-    26: "L_Accu",
-    18: "L_Amyg",
-    11: "L_Caud",
-    17: "L_Hipp",
-    13: "L_Pall",
-    12: "L_Puta",
-    9: "L_Thal",
-    10: "L_Thal",
-    24: "CSF",
-    0: "CSF",
-    14: "CSF",
-    15: "CSF",
+    28: "WM",  # Left ventral DC
+    30: "WM",  # Left vessel
+    31: "GM",  # Left choroid plexus
+    26: "GM",  # L_Accu
+    18: "GM",  # L_Amyg
+    11: "GM",  # L_Caud
+    17: "GM",  # L_Hipp
+    13: "GM",  # L_Pall
+    12: "GM",  # L_Puta
+    9: "GM",  # L_Thal
+    10: "GM",  # L_Thal
     77: "WM",
     78: "WM",
     79: "WM",
     # Right hemisphere
     41: "WM",
     42: "GM",
-    43: "CSF",
-    44: "CSF",
-    58: "R_Accu",
-    54: "R_Amyg",
-    50: "R_Caud",
-    53: "R_Hipp",
-    52: "R_Pall",
-    51: "R_Puta",
-    48: "R_Thal",
-    49: "R_Thal",
+    60: "WM",  # Right ventral DC
+    62: "WM",  # Right vessel
+    63: "GM",  # Right choroid plexus
+    58: "GM",  # R_Accu
+    54: "GM",  # R_Amyg
+    50: "GM",  # R_Caud
+    53: "GM",  # R_Hipp
+    52: "GM",  # R_Pall
+    51: "GM",  # R_Puta
+    48: "GM",  # R_Thal
+    49: "GM",  # R_Thal
     # Left cerebellum
-    7: "L_CerWM",
-    8: "L_CerGM",
+    7: "WM",
+    8: "GM",
     # Right cerebellum
-    46: "R_CerWM",
-    47: "R_CerGM",
-    # Brainstem
-    16: "BrStem",
+    46: "WM",
+    47: "GM",
+    16: "WM",  # Brainstem
+    85: "WM",  # Optic chiasm
 }
-
-
-# Do not label the following tissues (left as CSF)
-IGNORE = [6, 45]  # cerebellum exterior
-
-
-# To handle cotex labels from the aparc
-def CTX_LUT(val):
-    if val >= 251 and val < 256:
-        return "WM"  # corpus callosum
-    elif val >= 1000 and val < 3000:
-        return "GM"
-    elif val >= 3000 and val < 5000:
-        return "WM"
-    else:
-        return None
 
 
 def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
@@ -89,178 +70,64 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
 
     ref_spc = rt.ImageSpace(ref_spc)
     aseg_spc = nib.load(aparcseg)
-    aseg = aseg_spc.dataobj
+    aseg = aseg_spc.get_fdata().astype(int)
     aseg_spc = rt.ImageSpace(aseg_spc)
 
-    # Estimate cortical PVs, loading a struct2ref registration if provided
     # If not provided, an identity transform is used
     if ref2struct:
         struct2ref_reg = rt.Registration.from_flirt(
             ref2struct, ref_spc, aseg_spc
         ).inverse()
-        cortex = estimate_cortex(
-            ref=ref_spc, struct2ref=struct2ref_reg.src2ref, cores=cores, **surf_dict
-        )
     else:
         struct2ref_reg = rt.Registration.identity()
-        cortex = estimate_cortex(ref=ref_spc, struct2ref="I", cores=cores, **surf_dict)
 
-    # Extract PVs from aparcseg segmentation. Subcortical structures go into
-    # a dict keyed according to their name, whereas general WM/GM are
-    # grouped into the vol_pvs array
-    to_stack = {}
-    vol_pvs = np.zeros((aseg_spc.size.prod(), 3), dtype=np.float32)
-    for label in np.unique(aseg):
-        tissue = SUBCORT_LUT.get(label)
-        if not tissue:
-            tissue = CTX_LUT(label)
-        if tissue:
-            # print(f"Label {label} assigned to {tissue}.")
-            mask = aseg == label
-            if tissue == "WM":
-                vol_pvs[mask.flatten(), 1] = 1
-            elif tissue == "GM":
-                vol_pvs[mask.flatten(), 0] = 1
-            elif tissue == "CSF":
-                pass
-            else:
-                to_stack[tissue] = mask.astype(np.float32)
-        elif label not in IGNORE:
-            warnings.warn(f"Did not assign tissue for aseg/aparc label {label}", )
+    # Extract PVs from aparcseg segmentation, ignoring cortex.
+    non_cortex_pvs = np.zeros((*aseg_spc.size, 2), dtype=np.float32)
+    for k, t in FS_LUT.items():
+        m = aseg == k
+        idx = ["GM", "WM"].index(t)
+        non_cortex_pvs[m, idx] = 1
 
     # Super-resolution resampling for the vol_pvs, a la applywarp.
-    # 0: GM, 1: WM, 2: CSF, always in the LAST dimension of an array
-    vol_pvs = struct2ref_reg.apply_to_array(
-        vol_pvs.reshape(*aseg.shape, 3), aseg_spc, ref_spc, order=1, cores=cores
+    # 0: GM, 1: WM, always in the LAST dimension of an array
+    non_cortex_pvs = struct2ref_reg.apply_to_array(
+        non_cortex_pvs, aseg_spc, ref_spc, order=1, superfactor=5, cores=cores
     )
-    vol_pvs = vol_pvs.reshape(-1, 3)
-    vol_pvs[:, 2] = np.maximum(0, 1 - vol_pvs[:, :2].sum(1))
-    vol_pvs[vol_pvs[:, 2] < 1e-2, 2] = 0
-    vol_pvs /= vol_pvs.sum(1)[:, None]
-    vol_pvs = vol_pvs.reshape(*ref_spc.size, 3)
 
-    # Stack the subcortical structures into a big 4D volume to resample them
-    # all at once, then put them back into a dict
-    keys, values = list(to_stack.keys()), list(to_stack.values())
-    del to_stack
-    subcorts = struct2ref_reg.apply_to_array(
-        np.stack(values, axis=-1), aseg_spc, ref_spc, order=1, cores=cores
+    ref_spc.save_image(non_cortex_pvs, "non_cortex.nii.gz")
+
+    # Estimate cortical PVs
+    cortex = estimate_cortex(
+        ref=ref_spc,
+        struct2ref=struct2ref_reg.src2ref,
+        cores=cores,
+        **surf_dict,
     )
-    subcorts = np.moveaxis(subcorts, 3, 0)
-    to_stack = dict(zip(keys, subcorts))
 
-    # Add the cortical and vol PV estimates into the dict, stack them in
-    # a sneaky way (see the stack_images function)
-    to_stack["cortex_GM"] = cortex[..., 0]
-    to_stack["cortex_WM"] = cortex[..., 1]
-    to_stack["cortex_nonbrain"] = cortex[..., 2]
-    to_stack["vol_GM"] = vol_pvs[..., 0]
-    to_stack["vol_WM"] = vol_pvs[..., 1]
-    to_stack["vol_CSF"] = vol_pvs[..., 2]
-    result = stack_images(to_stack)
+    out = non_cortex_pvs[..., :2].copy()
 
-    return ref_spc.make_nifti(result.reshape((*ref_spc.size, 3)))
+    # Voxels where toblerone has identified the cortex
+    ctx = cortex[..., 0] > 0.01
 
+    # total brain PV in these voxels (GM or WM)
+    ctx_brain_pv = np.maximum(cortex[ctx, :2].sum(-1), non_cortex_pvs[ctx, :2].sum(-1))
 
-def stack_images(images):
-    """
-    Combine the results of estimate_all() into overall PV maps
-    for each tissue. Note that the below logic is entirely specific
-    to the surfaces produced by FreeSurfer, FIRST and how they may be
-    combined with conventional voulmetric estimates (eg FAST).
-    If you're going off-piste anywhere else then you probably DON'T
-    want to re-use this logic.
+    # Layer in cortical GM (sum on top of existing GM)
+    out[ctx, 0] = np.minimum(cortex[ctx, 0] + out[ctx, 0], 1)
 
-    Args:
-        dictionary of PV maps, keyed as follows: all FIRST subcortical
-        structures named by their FIST convention (eg L_Caud); volumetric
-        PV estimates named as vol_CSF/WM/GM; cortex estimates as
-        cortex_GM/WM/non_brain
+    # In those voxels, the total brain PV be as predicted by Toblerone,
+    # so update the WM value based on this
+    out[ctx, 1] = np.maximum(ctx_brain_pv - out[ctx, 0], 0)
 
-    Returns:
-        single 4D array of PVs, arranged GM/WM/non-brain in the 4th dim
-    """
+    # Sanity checks
+    assert (out >= 0).all(), "Negative PV"
+    assert (out <= 1).all(), "PV > 1"
+    assert out.sum(-1).max() <= 1.001, "PV sum > 1"
 
-    # The logic is as follows:
-    # Start with all CSF
-    # Write in BrStem as WM
-    # Write in cortical PVs
-    # Add in CSF for ventricles and midbrain
-    # Then within the subcortex only:
-    # All subcortical volume set as WM
-    # Subcortical CSF fixed using vol_CSF
-    # Add in subcortical GM for each structure, reducing CSF if required
-    # Set the remainder 1 - (GM+CSF) as WM in voxels that were updated
+    ref_spc.save_image(out, "asl_pvs.nii.gz")
+    ref_spc.save_image(out.sum(-1), "gmwm.nii.gz")
 
-    # Pop out initial GM, WM and CSF estimates (not the cortex)
-    # We are only interested in keeping CSF (the other tissues
-    # are calculated indirectly)
-    csf = images.pop("vol_CSF").flatten()
-    _ = images.pop("vol_WM")
-    _ = images.pop("vol_GM")
-    shape = (*csf.shape[0:3], 3)
-
-    # Pop the cortex estimates and initialise output as all CSF
-    ctxgm = images.pop("cortex_GM").flatten()
-    ctxwm = images.pop("cortex_WM").flatten()
-    ctxnon = images.pop("cortex_nonbrain").flatten()
-    ctx = np.vstack((ctxgm, ctxwm, ctxnon)).T
-    out = np.zeros_like(ctx)
-
-    # For the brainstem only, we treat that as WM and decrease
-    # CSF by corresponding amount
-    wm_structures = [
-        images.pop(wm_key).flatten() for wm_key in ("BrStem", "L_CerWM", "R_CerWM")
-    ]
-    for wm_structure in wm_structures:
-        out[:, 1] = np.minimum(1, out[:, 1] + wm_structure)
-        csf[wm_structure > 0] = np.maximum(0, 1 - wm_structure)[wm_structure > 0]
-    out[:, 2] = np.maximum(0, 1 - out[:, 1])
-
-    # Then write in cortex estimates from all voxels
-    # that contain either WM or GM intersecting cortex
-    mask = np.logical_or(ctx[:, 0], ctx[:, 1])
-    out[mask, :] = ctx[mask, :]
-
-    # Layer in vol's CSF estimates (to get mid-brain and ventricular CSF).
-    # Where vol has suggested a higher CSF estimate than currently exists,
-    # and the voxel does not intersect the cortical ribbon, accept vol's
-    # estimate. Then update the WM estimates, reducing where necessary to allow
-    # for the greater CSF volume
-    GM_threshold = 0.01
-    ctxmask = ctx[:, 0] > GM_threshold
-    to_update = np.logical_and(csf > out[:, 2], ~ctxmask)
-    tmpwm = out[to_update, 1]
-    out[to_update, 2] = csf[to_update]
-    out[to_update, 0] = np.minimum(out[to_update, 0], 1 - out[to_update, 2])
-    out[to_update, 1] = np.minimum(tmpwm, 1 - (out[to_update, 2] + out[to_update, 0]))
-
-    # Sanity checks: total tissue PV in each vox should sum to 1
-    # assert np.all(out[to_update,0] <= GM_threshold), 'Some update voxels have GM'
-    assert (np.abs(out.sum(1) - 1) < 1e-6).all(), "Voxel PVs do not sum to 1"
-    assert (out > -1e-6).all(), "Negative PV found"
-    assert (out < 1 + 1e-6).all(), "Large PV found"
-
-    # For each subcortical structure, create a mask of the voxels which it
-    # relates to. The following operations then apply only to those voxels
-    # All subcortical structures interpreted as pure GM
-    # Update CSF to ensure that GM + CSF in those voxels < 1
-    # Finally, set WM as the remainder in those voxels.
-    for s in images.values():
-        smask = s.flatten() > 0
-        out[smask, 0] = np.minimum(1, out[smask, 0] + s.flatten()[smask])
-        out[smask, 2] = np.minimum(out[smask, 2], 1 - out[smask, 0])
-        out[smask, 1] = np.maximum(1 - (out[smask, 0] + out[smask, 2]), 0)
-
-    # Final sanity check, then rescaling so all voxels sum to unity.
-    out[out < 0] = 0
-    sums = out.sum(1)
-    assert (np.abs(out.sum(1) - 1) < 1e-6).all(), "Voxel PVs do not sum to 1"
-    assert (out > -1e-6).all(), "Negative PV found"
-    assert (out < 1 + 1e-6).all(), "Large PV found"
-    out = out / sums[:, None]
-
-    return out.reshape(shape)
+    return ref_spc.make_nifti(out)
 
 
 def main():
