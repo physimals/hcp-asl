@@ -3,6 +3,8 @@ Set of functions for estimating the MT effect
 """
 from pathlib import Path
 
+from .. import utils 
+
 import matplotlib.pyplot as plt
 import numpy as np
 from fsl.data.image import Image
@@ -233,7 +235,9 @@ def estimate_mt(
         sfs_savename = outdir / f"{method}_{tissue}_scaling_factors_sebased.txt"
         np.savetxt(sfs_savename, scaling_factors, fmt="%.5f")
         # create array from scaling_factors
-        scaling_factors = np.tile(scaling_factors, (86, 86, 1))
+        scaling_factors = np.tile(
+            scaling_factors, (utils.ASL_SHAPE[0], utils.ASL_SHAPE[1], 1)
+        )
         for subject_dir in subject_dirs:
             # load bias (and possibly distortion) corrected calibration image
             method_dir = (

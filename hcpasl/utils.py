@@ -14,6 +14,8 @@ from fsl.wrappers.misc import fslroi
 
 from . import resources
 
+ASL_SHAPE = (86, 86, 60, 86)
+
 
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """

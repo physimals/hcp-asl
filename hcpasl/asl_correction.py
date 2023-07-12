@@ -570,7 +570,13 @@ def single_step_resample_to_asl0(
         logger.info("MT-correcting the ASL series.")
         mtcorr_name = mtcorr_dir / "tis_mtcorr.nii.gz"
         mt_sfs = np.loadtxt(mt_factors)
-        mt_arr = np.repeat(np.tile(mt_sfs, (86, 86, 1))[..., np.newaxis], 86, axis=-1)
+        mt_arr = np.repeat(
+            np.tile(mt_sfs, (utils.ASL_SHAPE[0], utils.ASL_SHAPE[1], 1))[
+                ..., np.newaxis
+            ],
+            utils.ASL_SHAPE[3],
+            axis=-1,
+        )
         mt_img = nb.nifti1.Nifti1Image(mt_arr, affine=asl_corr.affine)
         biascorr_img = nb.load(bcorr_img)
         assert len(mt_sfs) == biascorr_img.shape[2]
@@ -1191,7 +1197,7 @@ def single_step_resample_to_aslt1w(
             "Registering calibration image's MT scaling factors to ASLT1w space."
         )
         mt_sfs = np.loadtxt(mt_factors)
-        mt_arr = np.tile(mt_sfs, (86, 86, 1))
+        mt_arr = np.tile(mt_sfs, (utils.ASL_SHAPE[0], utils.ASL_SHAPE[1], 1))
         calib_mt_sfs_aslt1w = m02struct.apply_to_array(
             data=mt_arr,
             src=calib_name,
