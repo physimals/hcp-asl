@@ -222,7 +222,7 @@ def correct_M0(
     # register fieldmapmag to structural image for use in SE-based later
     logger.info("Getting registration from fmapmag image to structural image.")
     fmap_struct_dir = topup_dir / "fmap_struct_reg"
-    Path(fmap_struct_dir).mkdir(exist_ok=True)
+    Path(fmap_struct_dir).mkdir(exist_ok=True, parents=True)
     fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     logger.info("Loading registration from fieldmap to struct.")
@@ -238,7 +238,7 @@ def correct_M0(
         calib_name_stem = calib_name.stem.split(".")[0]
         logger.info(f"Processing {calib_name_stem}.")
         distcorr_dir = calib_dir / "DistCorr"
-        distcorr_dir.mkdir(exist_ok=True)
+        distcorr_dir.mkdir(exist_ok=True, parents=True)
 
         # apply gdc to the calibration image
         if gd_corr:
@@ -264,7 +264,7 @@ def correct_M0(
                 calib_img.get_fdata() * mt_sfs, calib_img.affine
             )
             mtcorr_dir = calib_dir / "MTCorr"
-            mtcorr_dir.mkdir(exist_ok=True)
+            mtcorr_dir.mkdir(exist_ok=True, parents=True)
             calib_name_stem = "mtcorr_" + calib_name_stem
             calib_corr_name = mtcorr_dir / f"{calib_name_stem}.nii.gz"
             nb.save(mt_gdc_calib_img, calib_corr_name)

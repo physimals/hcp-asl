@@ -128,7 +128,7 @@ def se_based_bias_estimation():
     tissue_mask = args.tissue_mask
 
     # create output directory
-    outdir.mkdir(exist_ok=True)
+    outdir.mkdir(exist_ok=True, parents=True)
 
     # load images
     m0_img, sem_img, mask_img = [Image(name) for name in (m0_name, sem_name, mask_name)]

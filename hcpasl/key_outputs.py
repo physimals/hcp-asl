@@ -24,7 +24,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     destination_path_MNI_voxel = path + "/MNINonLinear/ASL/OxfordASL/std_space/"
 
     t1_out_dir = Path(destination_path_T1)
-    t1_out_dir.mkdir(exist_ok=True)
+    t1_out_dir.mkdir(exist_ok=True, parents=True)
     out_MNI_dir = Path(destination_path_MNI)
     out_MNI_dir.mkdir(exist_ok=True, parents=True)
     out_MNI_dir_voxel_pvcorr = Path(destination_path_MNI_voxel) / pv_prefix

@@ -42,7 +42,7 @@ def roi_stats(
     territories_labels,
 ):
     # create directory for results
-    roi_stats_dir.mkdir(exist_ok=True)
+    roi_stats_dir.mkdir(exist_ok=True, parents=True)
 
     # set up logger
     logger_name = "HCPASL.roi_stats"

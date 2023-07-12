@@ -932,7 +932,7 @@ def single_step_resample_to_aslt1w(
     # set up logger
     logger_name = "HCPASL.single_step_resample_to_aslt1w"
     tis_aslt1w_dir = aslt1w_dir / "TIs"
-    tis_aslt1w_dir.mkdir(exist_ok=True)
+    tis_aslt1w_dir.mkdir(exist_ok=True, parents=True)
     log_out = tis_aslt1w_dir / "single_step_resample_to_aslt1w.log"
     logger = setup_logger(logger_name, log_out, "INFO")
 
@@ -1045,7 +1045,6 @@ def single_step_resample_to_aslt1w(
 
     # register calibration image to structural and obtain new
     # SE-based bias estimates
-
     # register original calibration image to ASL-gridded T1w space
     logger.info("Registering calibration image to ASLT1w space.")
     calib_distcorr_dir = aslt1w_dir / "Calib/Calib0/DistCorr"
@@ -1085,7 +1084,7 @@ def single_step_resample_to_aslt1w(
     # get ASLT1w space SE-based bias estimate
     logger.info("Performing SE-based bias estimation in ASLT1w space.")
     sebased_dir = aslt1w_dir / "Calib/Calib0/SEbased"
-    sebased_dir.mkdir(exist_ok=True)
+    sebased_dir.mkdir(exist_ok=True, parents=True)
     sebased_cmd = [
         "get_sebased_bias_asl",
         "-i",

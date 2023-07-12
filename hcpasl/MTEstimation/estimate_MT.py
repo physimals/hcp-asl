@@ -244,7 +244,7 @@ def estimate_mt(
             # create and save scaling factors image
             scaling_img = Image(scaling_factors, header=calib_img.header)
             mtcorr_dir = method_dir / "MTCorr"
-            mtcorr_dir.mkdir(exist_ok=True)
+            mtcorr_dir.mkdir(exist_ok=True, parents=True)
             scaling_name = mtcorr_dir / f"MTcorr_SFs_{method}_{tissue}_sebased.nii.gz"
             scaling_img.save(scaling_name)
 

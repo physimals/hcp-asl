@@ -241,7 +241,7 @@ def generate_fmaps(
 def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
     # create output directory
     out_dir = Path(out_dir)
-    out_dir.mkdir(exist_ok=True)
+    out_dir.mkdir(exist_ok=True, parents=True)
 
     # get schedule
     fsldir = os.environ.get("FSLDIR")
@@ -338,7 +338,7 @@ def gradunwarp_and_topup(
 
     # run gradient_unwarp
     if gd_corr:
-        gradunwarp_dir.mkdir(exist_ok=True)
+        gradunwarp_dir.mkdir(exist_ok=True, parents=True)
         gdc_warp_name = gradunwarp_dir / "fullWarp_abs.nii.gz"
         logger.info("Running generate_gdc_warp().")
         if not gdc_warp_name.exists() or force_refresh:
@@ -347,7 +347,7 @@ def gradunwarp_and_topup(
         gdc_warp_name = None
 
     # create topup results directory
-    topup_dir.mkdir(exist_ok=True)
+    topup_dir.mkdir(exist_ok=True, parents=True)
 
     # stack raw fieldmap images for use in topup
     pa_ap_sefms = topup_dir / "merged_sefms.nii.gz"

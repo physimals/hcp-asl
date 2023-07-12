@@ -221,6 +221,8 @@ def process_subject(
     if 4 in stages:
 
     # estimate perfusion in ASL0 space using oxford_asl
+    oxford_asl_dir.mkdir(exist_ok=True, parents=True)
+    if 5 in stages:
         copy_oxford_asl_inputs(oxasl_inputs, oxford_asl_dir / "oxford_asl_inputs")
         oxford_asl_call = [
             "oxford_asl",
@@ -320,6 +322,8 @@ def process_subject(
     logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir / "PVEs"
     gm_pve, wm_pve = [pve_dir / f"pve_{tiss}.nii.gz" for tiss in ("GM", "WM")]
+    oxford_aslt1w_dir.mkdir(parents=True, exist_ok=True)
+    if 9 in stages:
             "-m": aslt1w_dir / "TIs/reg/brain_fov_mask.nii.gz",
             "--tiimg": aslt1w_dir / "TIs/timing_img_aslt1w.nii.gz",
         subprocess_popen(oxford_aslt1w_call, logger_oxaslt1w)
@@ -575,8 +579,7 @@ def main():
 
     # set up logging
     # create file handler
-    base_dir = Path(studydir / subid / args.outdir)
-    base_dir.mkdir(exist_ok=True)
+    base_dir.mkdir(exist_ok=True, parents=True)
     fh_name = base_dir / f"{subid}_hcp_asl.log"
     logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
 

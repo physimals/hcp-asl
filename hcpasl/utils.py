@@ -137,7 +137,7 @@ def setup(subject_dir):
     calib_dirs = [subject_dir / f"ASL/Calib/{c}" for c in ("Calib0", "Calib1")]
     create_dirs(calib_dirs)
     aslt1_dir = subject_dir / "T1wASL"
-    aslt1_dir.mkdir(exist_ok=True)
+    aslt1_dir.mkdir(exist_ok=True, parents=True)
 
     # find mbpcasl sequence and sefms
     mbpcasl = (mbpcasl_dir / f"{subid}_V1_MR_mbPCASLhr_PA.nii.gz").resolve(strict=True)
@@ -322,7 +322,7 @@ def copy_oxford_asl_inputs(input_dict, output_dir):
     Take a dictionary of inputs to oxford_asl and copy them into one directory.
     """
     # create new output directory
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(exist_ok=True, parents=True)
 
     # create dict of new filenames
     new_dict = {key: output_dir / val.name for key, val in input_dict.items()}

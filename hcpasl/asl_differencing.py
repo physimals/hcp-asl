@@ -42,7 +42,7 @@ def tag_control_differencing(
        1553-1565.
     """
     # create output directory
-    betas_dir.mkdir(exist_ok=True)
+    betas_dir.mkdir(exist_ok=True, parents=True)
 
     # load motion- and distortion- corrected data, Y_moco
     Y_moco = nb.load(series)

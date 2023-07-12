@@ -103,7 +103,7 @@ def setup_mtestimation(
 
             # estimate initial registration via asl_reg
             asl_lin_reg = results_dir / "asl_reg_linear"
-            asl_lin_reg.mkdir(exist_ok=True)
+            asl_lin_reg.mkdir(exist_ok=True, parents=True)
             asl2struct_lin = asl_lin_reg / "asl2struct.mat"
             if not asl2struct_lin.exists() or force_refresh:
                 linear_asl_reg(
@@ -123,7 +123,7 @@ def setup_mtestimation(
 
             # get epi distortion correction warps
             asl_nonlin_reg = results_dir / "asl_reg_nonlinear"
-            asl_nonlin_reg.mkdir(exist_ok=True)
+            asl_nonlin_reg.mkdir(exist_ok=True, parents=True)
             struct2asl, asl2struct_warp = [
                 asl_nonlin_reg / n for n in ("struct2asl.mat", "asl2struct_warp.nii.gz")
             ]
@@ -166,7 +166,7 @@ def setup_mtestimation(
             bias_name = results_dir / f"{calib_name_stem}_bias.nii.gz"
             sebased_dir = results_dir / "sebased"
             if not bias_name.exists() or force_refresh:
-                sebased_dir.mkdir(exist_ok=True)
+                sebased_dir.mkdir(exist_ok=True, parents=True)
                 bias_field = bias_estimation(
                     dc_calib_name,
                     "sebased",

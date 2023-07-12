@@ -111,7 +111,7 @@ def bias_estimation_sebased(
     """
     # register fieldmap to t1 image
     fmap_reg_dir = results_dir / "fmap_registration"
-    fmap_reg_dir.mkdir(exist_ok=True)
+    fmap_reg_dir.mkdir(exist_ok=True, parents=True)
     fmapmag_calib_name = fmap_reg_dir / "fmapmag_calibspc.nii.gz"
     struct2asl_reg = rt.Registration.from_flirt(struct2asl, src=t1_name, ref=calib_name)
     if not fmapmag_calib_name.exists() or force_refresh:
