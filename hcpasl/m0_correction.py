@@ -63,15 +63,7 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     logger.info(f"Running bbregister: {cmd}")
     fslog_name = op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.log")
     logger.info(f"FreeSurfer's bbregister log: {fslog_name}")
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    subprocess_popen(cmd, logger, shell=True)
 
     # log final .dat transform
     with open(omat_path, "r") as f:
@@ -363,16 +355,7 @@ def correct_M0(
         ]
         logger.info(f"Running SE-based bias estimation on {calib_name_stem}.")
         logger.info(sebased_cmd)
-        process = subprocess.Popen(sebased_cmd, stdout=subprocess.PIPE)
-        while 1:
-            retcode = process.poll()
-            line = process.stdout.readline().decode("utf-8")
-            logger.info(line)
-            if line == "" and retcode is not None:
-                break
-        if retcode != 0:
-            logger.info(f"retcode={retcode}")
-            logger.exception("Process failed.")
+        subprocess_popen(sebased_cmd, logger)
 
         # apply dilall to bias estimate
         bias_name = sebased_dir / "sebased_bias_dil.nii.gz"

@@ -47,17 +47,7 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
     )
     logger.info(f"gradient_unwarp.py command:")
     logger.info(cmd)
-
-    process = sp.Popen(cmd, shell=True, stdout=sp.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    subprocess_popen(cmd, logger, shell=True)
     logger.info("gradient_unwarp.py run is complete.")
     os.chdir(pwd)
     logger.info(f"Changed directory back to {pwd}")
@@ -208,17 +198,7 @@ def generate_fmaps(
         "--verbose",
     ]
     logger.info(f"Topup command: {' '.join(topup_cmd)}")
-    process = sp.Popen(topup_cmd, stdout=sp.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
-
+    subprocess_popen(topup_cmd, logger)
     fmap, fmapmag, fmapmagbrain = [
         op.join(distcorr_dir, "{}.nii.gz".format(s))
         for s in ["fmap", "fmapmag", "fmapmagbrain"]

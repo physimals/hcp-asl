@@ -211,16 +211,7 @@ def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
         f"--rpts={rpts[0]},{rpts[1]},{rpts[2]},{rpts[3]},{rpts[4]}",
         f"--out={asl_base}",
     ]
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    utils.subprocess_popen(cmd, logger)
     even_name = asl_name.parent / f"{asl_base}_even.nii.gz"
     odd_name = asl_name.parent / f"{asl_base}_odd.nii.gz"
     return even_name, odd_name
@@ -1106,16 +1097,7 @@ def single_step_resample_to_aslt1w(
         subcorticallut,
         "--debug",
     ]
-    process = subprocess.Popen(sebased_cmd, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    utils.subprocess_popen(sebased_cmd, logger)
     bias_name = sebased_dir / "sebased_bias_dil.nii.gz"
     dilall_name = sebased_dir / "sebased_bias_dilall.nii.gz"
     dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]

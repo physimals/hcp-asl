@@ -330,3 +330,18 @@ def copy_oxford_asl_inputs(input_dict, output_dir):
     # copy files from original locations in input_dict to new location in new_dict
     for old_loc, new_loc in zip(input_dict.values(), new_dict.values()):
         shutil.copy2(old_loc, new_loc)
+
+def subprocess_popen(cmd, logger, **kwargs):
+    process = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
+    )
+    while 1:
+        retcode = process.poll()
+        line = process.stdout.readline().decode("utf-8")
+        logger.info(line)
+        if line == "" and retcode is not None:
+            break
+    if retcode != 0:
+        msg = f"Subprocess {cmd} failed with exit code {retcode}."
+        logger.exception(msg)
+        raise RuntimeError(msg)

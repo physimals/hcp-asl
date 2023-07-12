@@ -87,13 +87,4 @@ def roi_stats(
     ]
     logger.info("Running oxford_asl_roi_stats.py with command:")
     logger.info(" ".join(cmd))
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    subprocess_popen(cmd, logger)

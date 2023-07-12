@@ -224,46 +224,29 @@ def process_subject(
     )
 
     # estimate perfusion in ASL0 space using oxford_asl
-    logger.info("Running oxford_asl in ASL0 space.")
-
-    beta_perf = betas_dir / "beta_perf.nii.gz"
-    oxford_asl_dir = tis_dir / "OxfordASL"
-    oxford_asl_dir.mkdir(exist_ok=True)
-    logger_oxasl = setup_logger(
-        "HCPASL.oxford_asl", oxford_asl_dir / "oxford_asl.log", "INFO"
-    )
-    oxford_asl_call = [
-        "oxford_asl",
-        f"-i {str(betas_dir/'beta_perf.nii.gz')}",
-        f"-o {str(oxford_asl_dir)}",
-        f"-m {str(asl0_brainmask)}",
-        "--tis=1.7,2.2,2.7,3.2,3.7",
-        "--slicedt=0.059",
-        "--sliceband=10",
-        "--casl",
-        "--ibf=tis",
-        "--iaf=diff",
-        "--rpts=6,6,6,10,15",
-        "--fixbolus",
-        "--bolus=1.5",
-        "--te=19",
-        "--spatial=off",
-    ]
-    if use_t1:
-        est_t1 = tis_dir / "SatRecov2/spatial/mean_T1t_filt.nii.gz"
-        oxford_asl_call.append(f"--t1im={str(est_t1)}")
-    oxford_asl_call = " ".join(oxford_asl_call)
-    logger_oxasl.info(oxford_asl_call)
-    process = subprocess.Popen(oxford_asl_call, shell=True, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+        copy_oxford_asl_inputs(oxasl_inputs, oxford_asl_dir / "oxford_asl_inputs")
+        oxford_asl_call = [
+            "oxford_asl",
+            f"-i={str(betas_dir/'beta_perf.nii.gz')}",
+            f"-o={str(oxford_asl_dir)}",
+            f"-m={str(asl0_brainmask)}",
+            "--tis=1.7,2.2,2.7,3.2,3.7",
+            "--slicedt=0.059",
+            "--sliceband=10",
+            "--casl",
+            "--ibf=tis",
+            "--iaf=diff",
+            "--rpts=6,6,6,10,15",
+            "--fixbolus",
+            "--bolus=1.5",
+            "--te=19",
+            "--spatial=off",
+        ]
+        if use_t1:
+            est_t1 = tis_dir / "SatRecov2/spatial/mean_T1t_filt.nii.gz"
+            oxford_asl_call.append(f"--t1im={str(est_t1)}")
+        logger_oxasl.info(oxford_asl_call)
+        subprocess_popen(oxford_asl_call, logger_oxasl)
 
     # get data in ASLT1w space
     logger.info("Get data into ASLT1w space and re-estimate bias field.")
@@ -340,65 +323,8 @@ def process_subject(
     logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir / "PVEs"
     gm_pve, wm_pve = [pve_dir / f"pve_{tiss}.nii.gz" for tiss in ("GM", "WM")]
-    oxford_aslt1w_dir = aslt1w_dir / "TIs/OxfordASL"
-    oxford_aslt1w_dir.mkdir(exist_ok=True)
-    logger_oxaslt1w = setup_logger(
-        "HCPASL.oxford_aslt1w", oxford_aslt1w_dir / "oxford_aslt1w.log", "INFO"
-    )
-    oxford_aslt1w_call = [
-        "oxford_asl",
-        f"-i {str(betas_dir/'beta_perf.nii.gz')}",
-        f"-o {str(oxford_aslt1w_dir)}",
-        f"--pvgm={str(gm_pve)}",
-        f"--pvwm={str(wm_pve)}",
-        f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
-        f"-c {str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
-        f"-m {str(brainmask)}",
-        f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
-        "--casl",
-        "--ibf=tis",
-        "--iaf=diff",
-        "--rpts=6,6,6,10,15",
-        "--fixbolus",
-        "--bolus=1.5",
-        "--te=19",
-        "--spatial=off",
-        "--tr=8",
-        "--pvcorr",
-    ]
-    if use_t1:
-        est_t1 = aslt1w_dir / "TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
-        oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
-    oxford_aslt1w_call = " ".join(oxford_aslt1w_call)
-    logger_oxaslt1w.info(oxford_aslt1w_call)
-    process = subprocess.Popen(oxford_aslt1w_call, shell=True, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+        subprocess_popen(oxford_aslt1w_call, logger_oxaslt1w)
 
-    logger.info(
-        f"Copying oxford_asl inputs to one location ({str(oxford_aslt1w_dir/'oxford_asl_inputs')})."
-    )
-    oxasl_inputs = {
-        "-i": betas_dir / "beta_perf.nii.gz",
-        "--pvgm": gm_pve,
-        "--pvwm": wm_pve,
-        "--csf": pve_dir / "vent_csf_mask.nii.gz",
-        "-c": aslt1w_dir / "Calib/Calib0/calib0_corr_aslt1w.nii.gz",
-        "-m": aslt1w_dir / "TIs/reg/ASL_FoV_brain_mask.nii.gz",
-        "--tiimg": aslt1w_dir / "TIs/timing_img_aslt1w.nii.gz",
-    }
-    if use_t1:
-        oxasl_inputs["--t1im"] = aslt1w_dir / "TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
-    copy_oxford_asl_inputs(oxasl_inputs, oxford_aslt1w_dir / "oxford_asl_inputs")
-
-    logger.info("Producing summary stats in ASLT1w ROIs.")
     mninonlinear_name = subject_dir / "MNINonLinear"
     roi_stats(
         struct_name=structural["struct"],
@@ -495,26 +421,8 @@ def project_to_surface(
             outdir,
         ]
 
-        process = subprocess.Popen(non_pvcorr_cmd, stdout=subprocess.PIPE)
-        while 1:
-            retcode = process.poll()
-            line = process.stdout.readline().decode("utf-8")
-            logger.info(line)
-            if line == "" and retcode is not None:
-                break
-        if retcode != 0:
-            logger.info(f"retcode={retcode}")
-            logger.exception("Process failed.")
-        process = subprocess.Popen(pvcorr_cmd, stdout=subprocess.PIPE)
-        while 1:
-            retcode = process.poll()
-            line = process.stdout.readline().decode("utf-8")
-            logger.info(line)
-            if line == "" and retcode is not None:
-                break
-        if retcode != 0:
-            logger.info(f"retcode={retcode}")
-            logger.exception("Process failed.")
+        subprocess_popen(non_pvcorr_cmd, logger)
+        subprocess_popen(pvcorr_cmd, logger)
 
 
 def copy_outputs(studydir, subid, outdir):
