@@ -85,17 +85,13 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
 
     # convert .dat to .mat
     try:
-        asl2orig_fsl = rt.Registration.from_flirt(
-            str(omat_path), str(asl_vol0), str(orig_mgz)
-        )
+        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
     except RuntimeError as e:
         # final row != [0 0 0 1], round to 5 d.p. and try again
         logger.warning("FSL .mat file has an invalid format. Rounding to 5 d.p.")
         arr = np.loadtxt(omat_path)
         np.savetxt(omat_path, arr, fmt="%.5f")
-        asl2orig_fsl = rt.Registration.from_flirt(
-            str(omat_path), str(asl_vol0), str(orig_mgz)
-        )
+        asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
 
     # Return to original working directory, and flip the FSL matrix to target
     # asl -> T1, not orig.mgz. Save output.
@@ -104,7 +100,7 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
         logger.info(f"Changing $SUBJECTS_DIR back to {old_sd}")
         os.environ["SUBJECTS_DIR"] = old_sd
     logger.info("Converting .mat to target T1w.nii.gz rather than orig.mgz.")
-    asl2struct_fsl = asl2orig_fsl.to_flirt(str(asl_vol0), str(struct))
+    asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, "asl2struct.mat"), asl2struct_fsl)
 
 
@@ -212,9 +208,9 @@ def correct_M0(
     if gd_corr:
         logger.info(f"gradient_unwarp.py was run, loading {gdc_name}")
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_name),
-            src=str(calib0),
-            ref=str(calib0),
+            coefficients=gdc_name,
+            src=calib0,
+            ref=calib0,
             intensity_correct=True,
         )
     else:
@@ -225,9 +221,9 @@ def correct_M0(
         topup_dir / f"fmap{ext}.nii.gz" for ext in ("", "mag", "magbrain")
     ]
     epi_dc_warp = rt.NonLinearRegistration.from_fnirt(
-        coefficients=str(topup_dir / "WarpField_01.nii.gz"),
-        src=str(fmap),
-        ref=str(fmap),
+        coefficients=topup_dir / "WarpField_01.nii.gz",
+        src=fmap,
+        ref=fmap,
         intensity_correct=True,
     )
 
@@ -239,7 +235,7 @@ def correct_M0(
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     logger.info("Loading registration from fieldmap to struct.")
     bbr_fmap2struct = rt.Registration.from_flirt(
-        str(fmap_struct_dir / "asl2struct.mat"), src=str(fmapmag), ref=str(struct_name)
+        fmap_struct_dir / "asl2struct.mat", src=fmapmag, ref=struct_name
     )
 
     # iterate over the two calibration images, applying the corrections to both
@@ -258,7 +254,7 @@ def correct_M0(
                 f"Applying gradient distortion correction to {calib_name_stem}."
             )
             calib_img = gdc_warp.apply_to_image(
-                str(calib_name), str(calib_name), order=interpolation
+                calib_name, calib_name, order=interpolation
             )
             calib_name_stem = "gdc_" + calib_name_stem
             calib_corr_name = distcorr_dir / f"{calib_name_stem}.nii.gz"
@@ -284,18 +280,17 @@ def correct_M0(
         # get registration to structural
         logger.info("Generate registration to structural.")
         generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
-        asl2struct_name = distcorr_dir / "asl2struct.mat"
         asl2struct_reg = rt.Registration.from_flirt(
-            src2ref=str(distcorr_dir / "asl2struct.mat"),
-            src=str(calib_corr_name),
-            ref=str(struct_name),
+            src2ref=distcorr_dir / "asl2struct.mat",
+            src=calib_corr_name,
+            ref=struct_name,
         )
         # invert for struct2calib registration
         struct2calib_reg = asl2struct_reg.inverse()
         struct2calib_name = distcorr_dir / "struct2asl.mat"
         np.savetxt(
             struct2calib_name,
-            struct2calib_reg.to_flirt(str(struct_name), str(calib_corr_name)),
+            struct2calib_reg.to_flirt(struct_name, calib_corr_name),
         )
 
         # now that we have registrations from calib2str and fmap2str, use
@@ -314,14 +309,14 @@ def correct_M0(
             calib_name_stem = "dc_" + calib_name_stem
         dc_calib_name = distcorr_dir / f"{calib_name_stem}.nii.gz"
         dc_calib = dc_calibspc_warp.apply_to_image(
-            src=str(calib_name), ref=str(calib_name), order=interpolation
+            src=calib_name, ref=calib_name, order=interpolation
         )
         nb.save(dc_calib, dc_calib_name)
 
         # register fmapmag to calibration image space to perform SE-based bias estimation
         logger.info(f"Registering {fmapmag.stem} to {calib_name_stem}")
         fmapmag_calibspc = fmap2calib_reg.apply_to_image(
-            str(fmapmag), str(calib_name), order=interpolation
+            fmapmag, calib_name, order=interpolation
         )
         biascorr_dir = calib_dir / "BiasCorr"
         sebased_dir = biascorr_dir / "SEbased"
@@ -334,10 +329,10 @@ def correct_M0(
         fs_brainmask = (t1w_dir / "brainmask_fs.nii.gz").resolve(strict=True)
         aslfs_mask_name = calib_dir / "aslfs_mask.nii.gz"
         aslfs_mask = struct2calib_reg.apply_to_image(
-            src=str(fs_brainmask), ref=str(calib_name), order=0
+            src=fs_brainmask, ref=calib_name, order=1
         )
         aslfs_mask = nb.nifti1.Nifti1Image(
-            np.where(aslfs_mask.get_fdata() > 0.0, 1.0, 0.0), affine=dc_calib.affine
+            (aslfs_mask.get_fdata() > 0.5).astype(np.float32), affine=dc_calib.affine
         )
         nb.save(aslfs_mask, aslfs_mask_name)
 

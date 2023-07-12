@@ -528,24 +528,24 @@ def single_step_resample_to_asl0(
         create_dirs([mtcorr_dir, stcorr_dir])
 
     # apply gradient distortion correction to the ASL series
-
     # load gdc warp
     gdc_name = (gradunwarp_dir / "fullWarp_abs.nii.gz").resolve()
+    asl_spc = rt.ImageSpace(str(asl_name))
     if gd_corr:
         logger.info("Applying gradient distortion correction to original ASL series.")
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_name),
-            src=str(asl_name),
-            ref=str(asl_name),
+            coefficients=gdc_name,
+            src=asl_spc,
+            ref=asl_spc,
             intensity_correct=True,
         )
     # load topup's epi dc warp and fmap2struct registration
     dc_name = (topup_dir / "WarpField_01.nii.gz").resolve(strict=True)
     fmapmag_name = (topup_dir / "fmapmag.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(
-        coefficients=str(dc_name),
-        src=str(fmapmag_name),
-        ref=str(fmapmag_name),
+        coefficients=dc_name,
+        src=fmapmag_name,
+        ref=fmapmag_name,
         intensity_correct=True,
     )
     fmap2struct_reg = (topup_dir / "fmap_struct_reg/asl2struct.mat").resolve(
@@ -553,12 +553,12 @@ def single_step_resample_to_asl0(
     )
     t1w_name = (t1w_dir / "T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fmap2struct_reg = rt.Registration.from_flirt(
-        src2ref=str(fmap2struct_reg), src=str(fmapmag_name), ref=str(t1w_name)
+        src2ref=fmap2struct_reg, src=fmapmag_name, ref=t1w_name
     )
     # apply gdc to ASL series
     if gd_corr:
         asl_corr = gdc_warp.apply_to_image(
-            src=str(asl_name), ref=str(asl_name), order=interpolation, cores=cores
+            src=asl_name, ref=asl_spc, order=interpolation, cores=cores
         )
         asl_corr = nb.nifti1.Nifti1Image(
             asl_corr.get_fdata().astype(np.float32), affine=asl_corr.affine
@@ -625,10 +625,13 @@ def single_step_resample_to_asl0(
         shutil.rmtree(asln2m0_name)
     orig_mcflirt.rename(asln2m0_name)
 
-    # get brain mask in ASL0 space
-    logger.info("Create brain mask in ASL0 space")
+    # Generate motion-FoV mask in ASL0 space
+    asl_spc = rt.ImageSpace(asl_corr)
+    calib_spc = rt.ImageSpace(calib_name)
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(
-        mats=str(asln2m0_name), src=str(asl_name), ref=str(calib_name)
+        mats=asln2m0_name,
+        src=asl_spc,
+        ref=calib_spc,
     )
     fs_brainmask = (t1w_dir / "brainmask_fs.nii.gz").resolve(strict=True)
     calib2struct_reg = rt.Registration.from_flirt(
@@ -659,7 +662,7 @@ def single_step_resample_to_asl0(
     if gd_corr:
         dc_asln2asl0 = rt.chain(gdc_warp, dc_asln2asl0)
     reg_dc = dc_asln2asl0.apply_to_image(
-        str(asl_name), str(calib_name), cores=cores, order=interpolation
+        asl_name, calib_name, cores=cores, order=interpolation
     )
     reg_dc = nb.nifti1.Nifti1Image(
         (reg_dc.get_fdata() * mask4d).astype(np.float32), affine=reg_dc.affine
@@ -722,7 +725,7 @@ def single_step_resample_to_asl0(
         "Registering the final T1t estimates back to the original space of each ASL volume."
     )
     t1_filt_asln = asln2asl0.inverse().apply_to_image(
-        src=str(t1_filt_name), ref=str(asl_name), order=interpolation, cores=cores
+        src=t1_filt_name, ref=asl_spc, order=interpolation, cores=cores
     )
     t1_filt_asln = nb.nifti1.Nifti1Image(
         t1_filt_asln.get_fdata().astype(np.float32), affine=t1_filt_asln.affine
@@ -737,7 +740,7 @@ def single_step_resample_to_asl0(
     )
     dc_asln2asln = rt.chain(dc_asln2asl0, asln2asl0.inverse())
     dc_asl = dc_asln2asln.apply_to_image(
-        src=str(asl_name), ref=str(asl_name), order=interpolation, cores=cores
+        src=asl_name, ref=asl_spc, order=interpolation, cores=cores
     )
     dc_asl = nb.nifti1.Nifti1Image(
         dc_asl.get_fdata().astype(np.float32), affine=dc_asl.affine
@@ -827,7 +830,7 @@ def single_step_resample_to_asl0(
         "Applying distortion correction and improved motion estimates to the ASL series."
     )
     asln2m0_final = rt.MotionCorrection.from_mcflirt(
-        mats=str(asln2m0_final_name), src=str(asl_name), ref=str(calib_name)
+        mats=asln2m0_final_name, src=asl_spc, ref=calib_name
     )
     asl02m0_final = asln2m0_final.transforms[0]
     asln2asl0_final = rt.chain(asln2m0_final, asl02m0_final.inverse())
@@ -840,7 +843,7 @@ def single_step_resample_to_asl0(
     if gd_corr:
         dc_asln2asl0_final = rt.chain(gdc_warp, dc_asln2asl0_final)
     dc_moco_asl_final = dc_asln2asl0_final.apply_to_image(
-        src=str(asl_name), ref=str(asl_name), order=interpolation, cores=cores
+        src=asl_name, ref=asl_spc, order=interpolation, cores=cores
     )
     dc_moco_asl_final = nb.nifti1.Nifti1Image(
         dc_moco_asl_final.get_fdata().astype(np.float32),
@@ -865,8 +868,8 @@ def single_step_resample_to_asl0(
     # apply final motion estimates to scaling factors
     logger.info("Applying motion estimates to the scaling factors.")
     combined_factors_moco = asln2asl0_final.apply_to_image(
-        src=str(combined_factors_name),
-        ref=str(asl_name),
+        src=combined_factors_name,
+        ref=asl_spc,
         order=interpolation,
         cores=cores,
     )
@@ -951,22 +954,20 @@ def single_step_resample_to_aslt1w(
     fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
     generate_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
     asl2struct_reg = rt.Registration.from_flirt(
-        src2ref=str(reg_dir / "asl2struct.mat"),
-        src=str(perfusion_name),
-        ref=str(struct_name),
+        src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name
     )
 
     # get brain mask in ASL-gridded T1w space
     logger.info("Obtaining brain mask in ASLT1w space.")
     struct_brain_mask = t1w_dir / "brainmask_fs.nii.gz"
-    asl_spc = rt.ImageSpace(str(asl_name))
-    t1w_spc = rt.ImageSpace(str(struct_brain_mask))
+    asl_spc = rt.ImageSpace(asl_name)
+    t1w_spc = rt.ImageSpace(struct_brain_mask)
     asl_gridded_t1w_spc = t1w_spc.resize_voxels(asl_spc.vox_size / t1w_spc.vox_size)
     aslt1_brain_mask = rt.Registration.identity().apply_to_image(
-        src=str(struct_brain_mask), ref=asl_gridded_t1w_spc, order=0
+        src=struct_brain_mask, ref=asl_gridded_t1w_spc, order=1
     )
     aslt1_brain_mask = nb.nifti1.Nifti1Image(
-        np.where(aslt1_brain_mask.get_fdata() > 0.0, 1.0, 0.0),
+        (aslt1_brain_mask.get_fdata() > 0).astype(np.float32),
         affine=aslt1_brain_mask.affine,
     )
     aslt1_brain_mask_name = reg_dir / "ASL_grid_T1w_brain_mask.nii.gz"
@@ -1006,10 +1007,10 @@ def single_step_resample_to_aslt1w(
         strict=True
     )
     fmap2struct_reg = rt.Registration.from_flirt(
-        src2ref=str(fmap2struct_name), src=str(fmapmag), ref=str(struct_name)
+        src2ref=fmap2struct_name, src=fmapmag, ref=struct_name
     )
     fmap_aslt1w = fmap2struct_reg.apply_to_image(
-        src=str(fmapmag), ref=str(aslt1_brain_mask_name), order=interpolation
+        src=fmapmag, ref=asl_gridded_t1w_spc, order=interpolation
     )
     fmap_aslt1w_name = reg_dir / "fmapmag_aslt1w.nii.gz"
     nb.save(fmap_aslt1w, fmap_aslt1w_name)
@@ -1022,25 +1023,25 @@ def single_step_resample_to_aslt1w(
             "gradient_unwarp.py was run. Gradient distortion correction will be applied."
         )
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_name),
-            src=str(asl_name),
-            ref=str(asl_name),
+            coefficients=gdc_name,
+            src=asl_spc,
+            ref=asl_spc,
             intensity_correct=True,
         )
 
     # load topup EPI distortion correction warp
     dc_name = (topup_dir / "WarpField_01.nii.gz").resolve(strict=True)
     dc_warp = rt.NonLinearRegistration.from_fnirt(
-        coefficients=str(dc_name),
-        src=str(fmapmag),
-        ref=str(fmapmag),
+        coefficients=dc_name,
+        src=fmapmag,
+        ref=fmapmag,
         intensity_correct=True,
     )
 
     # load asl motion correction
     logger.info("Loading motion correction.")
     asln2m0_moco = rt.MotionCorrection.from_mcflirt(
-        mats=str(moco_dir), src=str(asl_name), ref=str(calib_name)
+        mats=moco_dir, src=asl_spc, ref=calib_name
     )
     m02asl0 = asln2m0_moco.transforms[0].inverse()
     asln2asl0 = rt.chain(asln2m0_moco, m02asl0)
@@ -1064,7 +1065,7 @@ def single_step_resample_to_aslt1w(
     calib_distcorr_dir = aslt1w_dir / "Calib/Calib0/DistCorr"
     calib_distcorr_dir.mkdir(exist_ok=True, parents=True)
     calib_dc_aslt1w = m0_dc2struct_warp.apply_to_image(
-        src=str(calib_name), ref=str(aslt1_brain_mask_name), order=interpolation
+        src=calib_name, ref=asl_gridded_t1w_spc, order=interpolation
     )
     calib_dc_aslt1w_name = calib_distcorr_dir / "calib0_dc.nii.gz"
     nb.save(calib_dc_aslt1w, calib_dc_aslt1w_name)
@@ -1076,7 +1077,7 @@ def single_step_resample_to_aslt1w(
     # register calibration timing image to ASLT1w space
     m02struct = rt.chain(m02asl0, asl2struct_reg)
     calib_aslt1w_timing = m02struct.apply_to_image(
-        src=str(calib_timing_name), ref=str(aslt1_brain_mask_name), order=0
+        src=calib_timing_name, ref=asl_gridded_t1w_spc, order=1
     )
     calib_aslt1w_timing_name = aslt1w_dir / "Calib/Calib0/calib_aslt1w_timing.nii.gz"
     nb.save(calib_aslt1w_timing, calib_aslt1w_timing_name)
@@ -1128,9 +1129,11 @@ def single_step_resample_to_aslt1w(
     logger.info("Registering ASL series to ASLT1w space.")
     distcorr_dir = tis_aslt1w_dir / "DistCorr"
     distcorr_dir.mkdir(exist_ok=True, parents=True)
+    asl_spc = rt.ImageSpace(asl_name)
+    aslt1_spc = rt.ImageSpace(aslt1_brain_mask_name)
     asl_dc_moco = asl_moco_dc2struct_warp.apply_to_image(
-        src=str(asl_name),
-        ref=str(aslt1_brain_mask_name),
+        src=asl_name,
+        ref=aslt1_spc,
         cores=cores,
         order=interpolation,
     )
@@ -1144,8 +1147,8 @@ def single_step_resample_to_aslt1w(
     if asl_scaling_factors:
         logger.info("Registering ASL scaling factors to ASLT1w space.")
         aslt1w_sfs = asl_moco2struct.apply_to_image(
-            src=str(asl_scaling_factors),
-            ref=str(aslt1_brain_mask_name),
+            src=asl_scaling_factors,
+            ref=aslt1_spc,
             cores=cores,
             order=interpolation,
         )
@@ -1179,14 +1182,14 @@ def single_step_resample_to_aslt1w(
     ti_aslt1w_name = tis_aslt1w_dir / "timing_img_aslt1w.nii.gz"
     create_ti_image(str(asl_name), TIS, SLICEBAND, SLICEDT, str(ti_aslt1w_name))
     ti_aslt1w = asl2struct_reg.apply_to_image(
-        src=str(ti_aslt1w_name), ref=str(aslt1_brain_mask_name), order=0
+        src=ti_aslt1w_name, ref=aslt1_spc, order=1
     )
     nb.save(ti_aslt1w, ti_aslt1w_name)
 
     # register T1 image, estimated by the satrecov model, to ASL-gridded T1w space
     logger.info("Registering estimated T1t image to ASLT1w space.")
     t1_est_aslt1w = asl2struct_reg.apply_to_image(
-        src=str(t1_est), ref=str(aslt1_brain_mask_name), order=interpolation
+        src=t1_est, ref=aslt1_spc, order=interpolation
     )
     t1_est_aslt1w_name = reg_dir / "mean_T1t_filt_aslt1w.nii.gz"
     nb.save(t1_est_aslt1w, t1_est_aslt1w_name)
@@ -1200,8 +1203,8 @@ def single_step_resample_to_aslt1w(
         mt_arr = np.tile(mt_sfs, (86, 86, 1))
         calib_mt_sfs_aslt1w = m02struct.apply_to_array(
             data=mt_arr,
-            src=str(calib_name),
-            ref=str(aslt1_brain_mask_name),
+            src=calib_name,
+            ref=aslt1_spc,
             order=interpolation,
         )
         calib_mt_sfs_aslt1w = nb.nifti1.Nifti1Image(

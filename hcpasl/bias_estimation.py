@@ -59,13 +59,9 @@ def bias_estimation_t1(calib_name, fslanatdir, struct2asl, interpolation=3):
     t1_name = fslanatdir / "T1_biascorr.nii.gz"
     t1_bias = fslanatdir / "T1_fast_bias.nii.gz"
     # load struct2asl registration
-    struct2asl_reg = rt.Registration.from_flirt(
-        str(struct2asl), src=str(t1_name), ref=str(calib_name)
-    )
+    struct2asl_reg = rt.Registration.from_flirt(struct2asl, src=t1_name, ref=calib_name)
     # apply registration to bias field to get it in calib space
-    bias_field = struct2asl_reg.apply_to_image(
-        str(t1_bias), str(calib_name), order=interpolation
-    )
+    bias_field = struct2asl_reg.apply_to_image(t1_bias, calib_name, order=interpolation)
     return bias_field
 
 
@@ -117,21 +113,19 @@ def bias_estimation_sebased(
     fmap_reg_dir = results_dir / "fmap_registration"
     fmap_reg_dir.mkdir(exist_ok=True)
     fmapmag_calib_name = fmap_reg_dir / "fmapmag_calibspc.nii.gz"
-    struct2asl_reg = rt.Registration.from_flirt(
-        str(struct2asl), src=str(t1_name), ref=str(calib_name)
-    )
+    struct2asl_reg = rt.Registration.from_flirt(struct2asl, src=t1_name, ref=calib_name)
     if not fmapmag_calib_name.exists() or force_refresh:
         register_fmap(
             fmapmag, fmapmagbrain, t1_name, t1_brain_name, fmap_reg_dir, wmseg_name
         )
         fmap_bbr = rt.Registration.from_flirt(
-            str(fmap_reg_dir / "fmapmag2struct_bbr.mat"),
-            src=str(fmapmag),
-            ref=str(t1_name),
+            fmap_reg_dir / "fmapmag2struct_bbr.mat",
+            src=fmapmag,
+            ref=t1_name,
         )
         fmap2calib = rt.chain(fmap_bbr, struct2asl_reg)
         fmap_calib = fmap2calib.apply_to_image(
-            src=str(fmapmag), ref=str(calib_name), order=interpolation
+            src=fmapmag, ref=calib_name, order=interpolation
         )
         nb.save(fmap_calib, fmapmag_calib_name)
     # get gray matter mask for sebased
@@ -148,7 +142,7 @@ def bias_estimation_sebased(
         t1_mask = nb.nifti1.Nifti1Image(
             np.where(t1_brain_img.get_fdata() > 0, 1.0, 0.0), affine=t1_brain_img.affine
         )
-        aslt1_mask = struct2asl_reg.apply_to_image(t1_mask, str(calib_name), order=0)
+        aslt1_mask = struct2asl_reg.apply_to_image(t1_mask, calib_name, order=0)
         aslt1_mask = nb.nifti1.Nifti1Image(
             np.where(aslt1_mask.get_fdata() > 0.5, 1.0, 0.0), affine=aslt1_mask.affine
         )

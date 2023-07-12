@@ -8,7 +8,7 @@ regtricks
 toblerone>=0.8.2
 gradunwarp
 requests
-regtricks
+regtricks>=0.3.5
 scikit-learn
 nilearn
 pandas

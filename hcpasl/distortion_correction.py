@@ -76,11 +76,11 @@ def generate_topup_params(pars_filepath):
 
 def stack_fmaps(pa_sefm, ap_sefm, savename):
     rt.ImageSpace.save_like(
-        ref=str(pa_sefm),
+        ref=pa_sefm,
         data=np.stack(
             (nb.load(pa_sefm).get_fdata(), nb.load(ap_sefm).get_fdata()), axis=-1
         ),
-        path=str(savename),
+        path=savename,
     )
 
 
@@ -90,9 +90,9 @@ def apply_gdc_and_topup(
     # load topup EPI distortion correction warps and motion correction
     topup_warps = [
         rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(warp_name),
-            src=str(pa_ap_sefms),
-            ref=str(pa_ap_sefms),
+            coefficients=warp_name,
+            src=pa_ap_sefms,
+            ref=pa_ap_sefms,
             intensity_correct=True,
         )
         for warp_name in [
@@ -101,17 +101,17 @@ def apply_gdc_and_topup(
     ]
     topup_moco = rt.MotionCorrection.from_mcflirt(
         mats=[op.join(topup_dir, f"MotionMatrix_{n}.mat") for n in ("01", "02")],
-        src=str(pa_ap_sefms),
-        ref=str(pa_ap_sefms),
+        src=pa_ap_sefms,
+        ref=pa_ap_sefms,
     )
 
     # load gradient_unwarp's gdc warp
     # use an affine identity registration if gd_corr==False
     if gd_corr:
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_warp),
-            src=str(pa_ap_sefms),
-            ref=str(pa_ap_sefms),
+            coefficients=gdc_warp,
+            src=pa_ap_sefms,
+            ref=pa_ap_sefms,
             intensity_correct=True,
         )
     else:
@@ -179,13 +179,13 @@ def generate_fmaps(
     # apply gradient distortion correction to stacked SEFMs
     if gd_corr:
         gdc = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_warp),
-            src=str(pa_ap_sefms),
-            ref=str(pa_ap_sefms),
+            coefficients=gdc_warp,
+            src=pa_ap_sefms,
+            ref=pa_ap_sefms,
             intensity_correct=True,
         )
         topup_input_pa_ap_sefms = gdc.apply_to_image(
-            src=str(pa_ap_sefms), ref=str(pa_ap_sefms), order=interpolation, cores=1
+            src=pa_ap_sefms, ref=pa_ap_sefms, order=interpolation, cores=1
         )
     else:
         topup_input_pa_ap_sefms = nb.load(pa_ap_sefms)
@@ -441,7 +441,7 @@ def generate_epidc_warp(
 
     # apply linear registration to fmap, fmapmag and fmapmagbrain
     bbr_fmap2struct = rt.Registration.from_flirt(
-        bbr_fmap2struct, src=str(fmapmag), ref=str(struct)
+        bbr_fmap2struct, src=fmapmag, ref=struct
     )
     fmap_struct, fmapmag_struct, fmapmagbrain_struct = [
         op.join(fmap_struct_dir, f"fmap{ext}_struct.nii.gz")
@@ -452,7 +452,7 @@ def generate_epidc_warp(
         (fmap_struct, fmapmag_struct, fmapmagbrain_struct),
     ):
         fmapstruct_img = bbr_fmap2struct.apply_to_image(
-            str(fmap_name), str(struct), order=interpolation
+            fmap_name, struct, order=interpolation
         )
         nb.save(fmapstruct_img, fmapstruct_name)
 
@@ -482,6 +482,8 @@ def generate_asl_mask(struct_brain, asl, asl2struct):
     """
 
     brain_mask = (nb.load(struct_brain).get_fdata() > 0).astype(np.float32)
-    asl_mask = asl2struct.inverse().apply_to_array(brain_mask, struct_brain, asl)
+    asl_mask = asl2struct.inverse().apply_to_array(
+        brain_mask, src=struct_brain, ref=asl, order=1
+    )
     asl_mask = binary_fill_holes(asl_mask > 0.25)
     return asl_mask

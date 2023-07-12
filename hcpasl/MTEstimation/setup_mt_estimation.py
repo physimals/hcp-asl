@@ -83,9 +83,9 @@ def setup_mtestimation(
 
         # load gdc warp
         gdc_warp_reg = rt.NonLinearRegistration.from_fnirt(
-            coefficients=str(gdc_warp),
-            src=str(calib0_name),
-            ref=str(calib0_name),
+            coefficients=gdc_warp,
+            src=calib0_name,
+            ref=calib0_name,
             intensity_correct=True,
         )
         # apply gdc and epidc to both calibration images
@@ -97,7 +97,7 @@ def setup_mtestimation(
             gdc_calib_name = results_dir / f"{calib_name_stem}_gdc.nii.gz"
             if not gdc_calib_name.exists() or force_refresh:
                 gdc_calib = gdc_warp_reg.apply_to_image(
-                    str(calib_name), str(calib_name), order=interpolation
+                    calib_name, calib_name, order=interpolation
                 )
                 nb.save(gdc_calib, gdc_calib_name)
 
@@ -110,7 +110,7 @@ def setup_mtestimation(
                     gdc_calib_name, asl_lin_reg, t1_name, t1_brain_name, wm_mask
                 )
             init_linear = rt.Registration.from_flirt(
-                str(asl2struct_lin), src=str(calib_name), ref=str(t1_name)
+                asl2struct_lin, src=calib_name, ref=t1_name
             )
 
             # run bet - should I instead get mask from T1 here?
@@ -146,19 +146,19 @@ def setup_mtestimation(
 
             # chain gradient and epi distortion correction warps together
             asl2struct_warp_reg = rt.NonLinearRegistration.from_fnirt(
-                coefficients=str(asl2struct_warp),
-                src=str(calib_name),
-                ref=str(t1_name),
+                coefficients=asl2struct_warp,
+                src=calib_name,
+                ref=t1_name,
                 intensity_correct=True,
             )
             struct2asl_reg = rt.Registration.from_flirt(
-                str(struct2asl), src=str(t1_name), ref=str(calib_name)
+                struct2asl, src=t1_name, ref=calib_name
             )
             dc_warp = rt.chain(gdc_warp_reg, asl2struct_warp_reg, struct2asl_reg)
             dc_calib_name = results_dir / f"{calib_name_stem}_dc.nii.gz"
             if not dc_calib_name.exists() or force_refresh:
                 dc_calib = dc_warp.apply_to_image(
-                    str(calib_name), str(calib_name), order=interpolation
+                    calib_name, calib_name, order=interpolation
                 )
                 nb.save(dc_calib, dc_calib_name)
 

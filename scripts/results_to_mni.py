@@ -10,7 +10,6 @@ import sys
 import logging 
 
 def main():
-
     logger_name = "HCPASL.results_to_mni"
     logger = logging.getLogger(logger_name)
 
@@ -36,7 +35,7 @@ def main():
         mni_spc = rt.ImageSpace(path_MNI)
         mni_asl_grid = mni_spc.resize_voxels(perfusion_spc.vox_size / mni_spc.vox_size)
         nb.save(
-            rt.Registration.identity().apply_to_image(path_MNI, mni_asl_grid),
+            rt.Registration.identity().apply_to_image(path_MNI, ref=mni_asl_grid),
             path_to_lowres_MNI,
         )
     else:
@@ -46,7 +45,7 @@ def main():
     logger.info("Transforming ASL Variable to ASL-gridded MNI-space ASL")
     the_warp = rt.NonLinearRegistration.from_fnirt(path_warp, path_T1, path_MNI)
     asl_mni_mniaslgrid = the_warp.apply_to_image(
-        path_to_T1_space_ASL_variable, path_to_lowres_MNI
+        path_to_T1_space_ASL_variable, ref=path_to_lowres_MNI
     )
     nb.save(asl_mni_mniaslgrid, path_to_MNI_space_ASL_variable)
 

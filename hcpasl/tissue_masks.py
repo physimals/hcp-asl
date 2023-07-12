@@ -63,7 +63,7 @@ def generate_tissue_mask_in_ref_space(
     tissue,
     struct2ref=None,
     superfactor=True,
-    order=3,
+    order=1,
     threshold=0.8,
     erode=False,
 ):
@@ -82,7 +82,7 @@ def generate_tissue_mask_in_ref_space(
                 the reference image is already in the desired
                 space).
     order: Order of interpolation to be used when applying
-           registration, default is 3.
+           registration, default is 1.
     threshold: Threshold to use to re-binarise the tissue
                segmentation after registration, default is 0.8.
     erode: bool, whether to erode the initial mask (in original
@@ -98,13 +98,11 @@ def generate_tissue_mask_in_ref_space(
 
     # resample to reference image
     if struct2ref:
-        reg = rt.Registration.from_flirt(
-            str(struct2ref), src=str(aparc_aseg), ref=str(ref_img)
-        )
+        reg = rt.Registration.from_flirt(struct2ref, src=aparc_aseg, ref=ref_img)
     else:
         reg = rt.Registration.identity()
     mask = reg.apply_to_image(
-        src=mask, ref=str(ref_img), superfactor=superfactor, order=order
+        src=mask, ref=ref_img, superfactor=superfactor, order=order
     )
 
     # re-binarise
