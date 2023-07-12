@@ -48,7 +48,9 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             gm_mask,
             source_path_T1 + pv_prefix + "/" + gm_pvcorr_var_out,
         ]
-        process = subprocess.Popen(mask_cmd, stdout=subprocess.PIPE)
+        subprocess.run(
+            mask_cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+        )
 
     wm_mask = source_path_T1 + "wm_mask.nii.gz"
     wm_pvcorr_vars = ["perfusion_wm_var_calib.nii.gz", "arrival_wm_var.nii.gz"]
@@ -67,7 +69,9 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             wm_mask,
             source_path_T1 + pv_prefix + "/" + wm_pvcorr_var_out,
         ]
-        process = subprocess.Popen(mask_cmd, stdout=subprocess.PIPE)
+        subprocess.run(
+            mask_cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
+        )
 
     nonpv_img_files = [
         "perfusion_calib.nii.gz",

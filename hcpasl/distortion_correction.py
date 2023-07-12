@@ -10,7 +10,7 @@ import regtricks as rt
 from fsl.wrappers import bet
 from scipy.ndimage import binary_fill_holes
 
-from hcpasl.utils import setup_logger
+from hcpasl.utils import setup_logger, subprocess_popen
 
 
 def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):

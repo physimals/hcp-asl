@@ -12,7 +12,7 @@ import numpy as np
 import regtricks as rt
 
 from .tissue_masks import generate_tissue_mask
-from .utils import setup_logger
+from .utils import setup_logger, subprocess_popen
 
 
 def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
