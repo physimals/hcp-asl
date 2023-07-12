@@ -1177,6 +1177,11 @@ def single_step_resample_to_aslt1w(
     asl_corr_name = tis_aslt1w_dir / "asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
 
+    # transform raw ASL to ASLT1w space for QC purposes
+    asl_noncorr_name = tis_aslt1w_dir / "asl_noncorr.nii.gz"
+    asl_noncorr = asl2struct_reg.apply_to_image(asl_name, aslt1_spc)
+    nb.save(asl_noncorr, asl_noncorr_name)
+
     # create TI timing image in ASL space and register to ASL-gridded T1w space
     logger.info("Creating TI image in ASLT1w space for use in oxford_asl.")
     ti_aslt1w_name = tis_aslt1w_dir / "timing_img_aslt1w.nii.gz"
