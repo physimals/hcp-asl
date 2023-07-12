@@ -217,11 +217,8 @@ def process_subject(
     else:
         series = tis_dir / "tis_dc_moco_restore.nii.gz"
     scaling_factors = tis_dir / "combined_scaling_factors.nii.gz"
-    betas_dir = tis_dir / "Betas"
-    asl0_brainmask = tis_dir / "aslfs_mask.nii.gz"
-    tag_control_differencing(
-        series, scaling_factors, betas_dir, subject_dir, outdir, mask=asl0_brainmask
-    )
+    asl0_brainmask = tis_dir / "brain_fov_mask.nii.gz"
+    if 4 in stages:
 
     # estimate perfusion in ASL0 space using oxford_asl
         copy_oxford_asl_inputs(oxasl_inputs, oxford_asl_dir / "oxford_asl_inputs")
@@ -314,8 +311,8 @@ def process_subject(
     series = aslt1w_dir / "TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir / "TIs/combined_scaling_factors.nii.gz"
     betas_dir = aslt1w_dir / "TIs/Betas"
-    brainmask = aslt1w_dir / "TIs/reg/ASL_FoV_brain_mask.nii.gz"
-    tag_control_differencing(
+    brainmask = aslt1w_dir / "TIs/reg/brain_fov_mask.nii.gz"
+    if 8 in stages:
         series, scaling_factors, betas_dir, subject_dir, outdir, mask=brainmask
     )
 
@@ -323,6 +320,8 @@ def process_subject(
     logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir / "PVEs"
     gm_pve, wm_pve = [pve_dir / f"pve_{tiss}.nii.gz" for tiss in ("GM", "WM")]
+            "-m": aslt1w_dir / "TIs/reg/brain_fov_mask.nii.gz",
+            "--tiimg": aslt1w_dir / "TIs/timing_img_aslt1w.nii.gz",
         subprocess_popen(oxford_aslt1w_call, logger_oxaslt1w)
 
     mninonlinear_name = subject_dir / "MNINonLinear"

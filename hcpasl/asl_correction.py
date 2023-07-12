@@ -624,25 +624,32 @@ def single_step_resample_to_asl0(
         src=asl_spc,
         ref=calib_spc,
     )
+    fov_mask_asl = utils.make_motion_fov_mask(asln2m0_moco, asl_spc, calib_spc)
+    fov_mask_asl_path = moco_dir / "fov_mask_initial.nii.gz"
+    nb.save(fov_mask_asl, fov_mask_asl_path)
+
+    # get brain mask in ASL0 space
+    # dilate so not too strict
+    logger.info("Create brain mask in ASL0 space")
     fs_brainmask = (t1w_dir / "brainmask_fs.nii.gz").resolve(strict=True)
     calib2struct_reg = rt.Registration.from_flirt(
-        src2ref=str(calib2struct), src=str(calib_name), ref=str(fs_brainmask)
+        src2ref=calib2struct, src=calib_name, ref=fs_brainmask
     )
     struct2asl0_reg = rt.chain(
         calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse()
     )
-    aslfs_mask = struct2asl0_reg.apply_to_image(
-        src=str(fs_brainmask), ref=str(asl_name), order=0
+    aslfs_mask = struct2asl0_reg.apply_to_image(src=fs_brainmask, ref=asl_spc, order=1)
+    aslfs_mask = binary_dilation(aslfs_mask.get_fdata(), iterations=1).astype(
+        np.float32
     )
-    aslfs_mask = nb.nifti1.Nifti1Image(
-        np.where(aslfs_mask.get_fdata() > 0.0, 1.0, 0.0), affine=aslfs_mask.affine
-    )
-    aslfs_mask_name = tis_dir / "aslfs_mask.nii.gz"
-    nb.save(aslfs_mask, aslfs_mask_name)
-    # dilate mask so it isn't so strict and make 4d for application to ASL time series
-    mask4d = binary_dilation(
-        aslfs_mask.get_fdata()[..., np.newaxis], iterations=2
-    ).astype(np.float32)
+
+    # Combine the FS and FoV masks
+    # make 4d for application to ASL time series
+    asl_mask = (aslfs_mask > 0) & (fov_mask_asl.get_fdata() > 0)
+    asl_mask = asl_spc.make_nifti(asl_mask)
+    asl_mask_name = tis_dir / "brain_fov_mask_initial.nii.gz"
+    nb.save(asl_mask, asl_mask_name)
+    mask4d = asl_mask.get_fdata()[..., None]
 
     # register pre-ST-correction ASLn to ASL0
     logger.info("Apply distortion and motion correction to original ASL series.")
@@ -816,6 +823,21 @@ def single_step_resample_to_asl0(
         shutil.rmtree(asln2m0_final_name)
     final_mcflirt.rename(asln2m0_final_name)
 
+    # Update the motion FoV mask
+    asl_spc = rt.ImageSpace(asl_corr)
+    calib_spc = rt.ImageSpace(calib_name)
+    final_mc = rt.MotionCorrection.from_mcflirt(asln2m0_final_name, asl_spc, calib_spc)
+    fov_mask_asl = utils.make_motion_fov_mask(final_mc, asl_spc, calib_spc)
+    fov_mask_asl_path = moco_dir / "fov_mask.nii.gz"
+    nb.save(fov_mask_asl, fov_mask_asl_path)
+
+    # Combine again with the FS brain mask
+    asl_mask = (aslfs_mask > 0) & (fov_mask_asl.get_fdata() > 0)
+    asl_mask = asl_spc.make_nifti(asl_mask)
+    asl_mask_name = tis_dir / "brain_fov_mask.nii.gz"
+    nb.save(asl_mask, asl_mask_name)
+    mask4d = asl_mask.get_fdata()[..., None]
+
     # apply gdc, refined moco and epidc to the original ASL series
     logger.info(
         "Applying distortion correction and improved motion estimates to the ASL series."
@@ -964,33 +986,6 @@ def single_step_resample_to_aslt1w(
     aslt1_brain_mask_name = reg_dir / "ASL_grid_T1w_brain_mask.nii.gz"
     nb.save(aslt1_brain_mask, aslt1_brain_mask_name)
 
-    # register a field of view image from ASL0 to ASLT1w space
-    perfusion_img = nb.load(perfusion_name)
-    fov_asl0 = np.ones_like(perfusion_img.get_fdata())
-    fov_aslt1w = asl2struct_reg.apply_to_array(
-        data=fov_asl0, src=str(perfusion_name), ref=asl_gridded_t1w_spc, order=0
-    )
-    fov_aslt1w = nb.nifti1.Nifti1Image(
-        np.where(fov_aslt1w > 0.1, 1.0, 0.0), affine=aslt1_brain_mask.affine
-    )
-    fov_aslt1w_name = reg_dir / "ASL_FoV_mask.nii.gz"
-    nb.save(fov_aslt1w, fov_aslt1w_name)
-
-    # use logical_and of the brain mask and FoV mask
-    fov_brainmask = nb.nifti1.Nifti1Image(
-        np.where(
-            np.logical_and(
-                fov_aslt1w.get_fdata() > 0, aslt1_brain_mask.get_fdata() > 0
-            ),
-            1.0,
-            0.0,
-        ),
-        affine=fov_aslt1w.affine,
-    )
-    fov_brainmask_name = reg_dir / "ASL_FoV_brain_mask.nii.gz"
-    nb.save(fov_brainmask, fov_brainmask_name)
-    mask4d = fov_brainmask.get_fdata()[..., np.newaxis]
-
     # register fieldmap magnitude image to ASL-gridded T1w space
     logger.info("Registering fmapmag to ASLT1w space.")
     fmapmag = (topup_dir / "fmapmag.nii.gz").resolve(strict=True)
@@ -1073,6 +1068,20 @@ def single_step_resample_to_aslt1w(
     calib_aslt1w_timing_name = aslt1w_dir / "Calib/Calib0/calib_aslt1w_timing.nii.gz"
     nb.save(calib_aslt1w_timing, calib_aslt1w_timing_name)
 
+    # Load motion-FoV mask prepared earlier and combine with brain mask
+    fov_valid_asl = moco_dir.parent / "fov_mask.nii.gz"
+    fov_valid_aslt1w = asl2struct_reg.apply_to_image(
+        fov_valid_asl, asl_gridded_t1w_spc, order=1
+    )
+    fov_valid_aslt1w_path = reg_dir / "fov_mask.nii.gz"
+    nb.save(fov_valid_aslt1w, fov_valid_aslt1w_path)
+    fov_brain_mask = (fov_valid_aslt1w.get_fdata() > 0) & (
+        aslt1_brain_mask.get_fdata() > 0
+    )
+    fov_brainmask_name = reg_dir / "brain_fov_mask.nii.gz"
+    asl_gridded_t1w_spc.save_image(fov_brain_mask, fov_brainmask_name)
+    fov_brain_mask4d = fov_brain_mask.astype(float)[..., None]
+
     # get ASLT1w space SE-based bias estimate
     logger.info("Performing SE-based bias estimation in ASLT1w space.")
     sebased_dir = aslt1w_dir / "Calib/Calib0/SEbased"
@@ -1120,7 +1129,8 @@ def single_step_resample_to_aslt1w(
         order=interpolation,
     )
     asl_dc_moco = nb.nifti1.Nifti1Image(
-        (asl_dc_moco.get_fdata() * mask4d).astype(np.float32), affine=asl_dc_moco.affine
+        (asl_dc_moco.get_fdata() * fov_brain_mask4d).astype(np.float32),
+        affine=asl_dc_moco.affine,
     )
     asl_dc_moco_name = distcorr_dir / "tis_dc_moco.nii.gz"
     nb.save(asl_dc_moco, asl_dc_moco_name)
@@ -1135,7 +1145,7 @@ def single_step_resample_to_aslt1w(
             order=interpolation,
         )
         aslt1w_sfs = nb.nifti1.Nifti1Image(
-            (aslt1w_sfs.get_fdata() * mask4d).astype(np.float32),
+            (aslt1w_sfs.get_fdata() * fov_brain_mask4d).astype(np.float32),
             affine=aslt1w_sfs.affine,
         )
     else:
