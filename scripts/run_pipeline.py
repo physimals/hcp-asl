@@ -452,20 +452,13 @@ def main():
     """
     # argument handling
     parser = argparse.ArgumentParser(
-        description="This script performs the minimal processing for the "
-        + "HCP-Aging ASL data."
+        description="Minimal processing pipeline for HCP Lifespan ASL data."
     )
     parser.add_argument(
         "--studydir", help="Path to the study's base directory.", required=True
     )
     parser.add_argument(
-        "--subid", help="Subject id for the subject of interest.", required=True
-    )
-    parser.add_argument(
-        "--mtname",
-        help="Filename of the empirically estimated MT-correction"
-        + "scaling factors. If not provided, the pipeline will "
-        + "use the scaling factors included with the distribution.",
+        "--subid", help="Subject ID to process within the studydir.", required=True
     )
     parser.add_argument(
         "-g",
@@ -477,27 +470,37 @@ def main():
     parser.add_argument(
         "-s",
         "--struct",
-        help="Filename for the acpc-aligned, dc-restored structural image.",
-        required=True,
+        help="Filename for the acpc-aligned, dc-restored structural image,"
+        + "default is within subject's directory",
     )
     parser.add_argument(
         "--sbrain",
         help="Filename for the brain-extracted acpc-aligned, "
-        + "dc-restored structural image.",
-        required=True,
+        + "dc-restored structural image, default is within subject's directory",
     )
     parser.add_argument(
-        "--mbpcasl", help="Filename for the mbPCASLhr acquisition.", required=True
+        "--mbpcasl",
+        help="Filename for the mbPCASLhr acquisition, default is within subject's directory",
+        required=True
     )
     parser.add_argument(
         "--fmap_ap",
         help="Filename for the AP fieldmap for use in distortion correction",
-        required=True,
+        required=True
     )
     parser.add_argument(
         "--fmap_pa",
         help="Filename for the PA fieldmap for use in distortion correction",
-        required=True,
+        required=True
+    )
+    parser.add_argument(
+        "--wmparc",
+        help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction",
+    )
+    parser.add_argument(
+        "--ribbon",
+        help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction,"
+        + " default is within subject's directory",
     )
     parser.add_argument(
         "--use_t1",
@@ -507,10 +510,10 @@ def main():
         action="store_true",
     )
     parser.add_argument(
-        "--wmparc",
-        help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction.",
-        default=None,
-        required=True,
+        "--mtname",
+        help="Filename of the empirically estimated MT-correction"
+        + "scaling factors. If not provided, the pipeline will "
+        + "use the scaling factors included with the distribution.",
     )
     parser.add_argument(
         "--ribbon",
@@ -579,14 +582,40 @@ def main():
 
     # set up logging
     # create file handler
+    subdir = studydir / subid
+    base_dir = subdir / args.outdir
     base_dir.mkdir(exist_ok=True, parents=True)
     fh_name = base_dir / f"{subid}_hcp_asl.log"
     logger = setup_logger("HCPASL", fh_name, "INFO", args.verbose)
 
     logger.info(
-        f"HCP-ASL pipeline v{__version__} (commit {__sha1__} on {__timestamp__}."
+        f"HCP-ASL pipeline v{__version__} (commit {__sha1__} on {__timestamp__})."
     )
-    logger.info(pformat(vars(args)))
+
+    # Look for required files in default paths if not provided. 
+    if args.struct is None:
+        args.struct = subdir / "T1w/T1w_acpc_dc_restore.nii.gz"
+        logger.info(f"Using default for struct: {args.struct}")
+    if not os.path.exists(args.struct): 
+        raise ValueError(f"Path to struct does not exist: {args.struct}")
+
+    if args.sbrain is None:
+        args.sbrain = subdir / "T1w/T1w_acpc_dc_restore_brain.nii.gz"
+        logger.info(f"Using default for sbrain: {args.sbrain}")
+    if not os.path.exists(args.sbrain): 
+        raise ValueError(f"Path to sbrain does not exist: {args.sbrain}")
+
+    if args.wmparc is None:
+        args.wmparc = subdir / "T1w/wmparc.nii.gz"
+        logger.info(f"Using default for wmparc: {args.wmparc}")
+    if not os.path.exists(args.wmparc): 
+        raise ValueError(f"Path to wmparc does not exist: {args.wmparc}")
+
+    if args.ribbon is None:
+        args.ribbon = subdir / "T1w/ribbon.nii.gz"
+        logger.info(f"Using default for ribbon: {args.ribbon}")
+    if not os.path.exists(args.ribbon): 
+        raise ValueError(f"Path to ribbon does not exist: {args.ribbon}")
 
     # parse remaining arguments
     if args.mtname:
