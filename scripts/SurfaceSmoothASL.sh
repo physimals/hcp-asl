@@ -2,7 +2,7 @@
 set -e
 echo -e "\n START: SurfaceSmoothing"
 
-ASLVariable="$2" #$StudyFolder/$SubjectID/T1w/ASL/Results/OutputtoCIFTI/<perfusion_calib or arrival>
+ASLVariable="$2" #$StudyFolder/$SubjectID/T1w/ASL/CIFTIPrepare/<perfusion_calib or arrival>
 Subject="$1"
 T1DownSampleFolder="$3" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k"
 AtlasDownSampleFolder="$4" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k" #

@@ -5,11 +5,11 @@ from shutil import copy
 
 
 def copy_key_outputs(path, t1w_preproc, mni_raw):
-    source_path_T1 = path + "/T1w/ASL/TIs/OxfordASL/native_space/"
+    source_path_T1 = path + "/T1w/ASL/OxfordASL/native_space/"
     destination_path_T1 = path + "/T1w/ASL/"
 
-    source_path_MNI = path + "/MNINonLinear/ASL/Results/OutputtoCIFTI/"
-    source_path_MNI_pv = path + "/MNINonLinear/ASL/Results/pvcorr/OutputtoCIFTI/"
+    source_path_MNI = path + "/MNINonLinear/ASL/CIFTIPrepare/"
+    source_path_MNI_pv = path + "/MNINonLinear/ASL/CIFTIPrepare/pvcorr/"
     destination_path_MNI = path + "/MNINonLinear/ASL/"
 
     pv_prefix = "pvcorr"
@@ -20,8 +20,8 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     T1w_img = t1w_preproc + "/T1w_acpc_dc_restore.nii.gz"
     fsldir = Path(os.environ["FSLDIR"])
     mni_img = fsldir / "data/standard/MNI152_T1_2mm.nii.gz"
-    asl_grid_mni = path + "/MNINonLinear/ASL/Results/OutputtoCIFTI/asl_grid_mni.nii.gz"
-    destination_path_MNI_voxel = path + "/MNINonLinear/ASL/Results/OxfordASL/std_space/"
+    asl_grid_mni = path + "/MNINonLinear/ASL/CIFTIPrepare/asl_grid_mni.nii.gz"
+    destination_path_MNI_voxel = path + "/MNINonLinear/ASL/OxfordASL/std_space/"
 
     t1_out_dir = Path(destination_path_T1)
     t1_out_dir.mkdir(exist_ok=True)
@@ -188,18 +188,12 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     # Make key perfusion and arrival volume results more prominent in /MNINonLinear/ASL
     for c in key_volume_non_pvec:
         copy(
-            (destination_path_MNI + "Results/OxfordASL/std_space/" + c),
+            (destination_path_MNI + "OxfordASL/std_space/" + c),
             (destination_path_MNI + c),
         )
     for d in key_volume_pvec:
         copy(
-            (
-                destination_path_MNI
-                + "Results/OxfordASL/std_space/"
-                + pv_prefix
-                + "/"
-                + d
-            ),
+            (destination_path_MNI + "OxfordASL/std_space/" + pv_prefix + "/" + d),
             (destination_path_MNI + pv_prefix + "_" + d),
         )
 

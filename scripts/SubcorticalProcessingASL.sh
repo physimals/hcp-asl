@@ -3,19 +3,19 @@ set -e
 script_name="SubcorticalProcessingASL.sh"
 echo "${script_name}: START"
 
-AtlasSpaceFolder="$2" #"${StudyFolder}/${SubjectID}/MNINonLinear" # 
+AtlasSpaceFolder="$2" 
 echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 
-ROIFolder="$7" #"${AtlasSpaceFolder}/ROIs" # 
+ROIFolder="$7" 
 echo "${script_name}: ROIFolder: ${ROIFolder}"
 
 FinalASLResolution="$4" # "2.5" # 
 echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
-ResultsFolder="$3" #"${StudyFolder}/${SubjectID}/MINNonLinear/ASL/Results/OutputtoCIFTI" # 
+ResultsFolder="$3" 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
-ASLVariable="$1" #"perfusion_calib" #
+ASLVariable="$1" 
 echo "${script_name}: ASLVariable: ${ASLVariable}"
 
 SmoothingFWHM="$5" #"2" #

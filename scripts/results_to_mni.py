@@ -19,12 +19,12 @@ def main():
     ]  # {StudyDir}/{SubjectID}/MNINonLinear/xfms/acpc_dc2standard.nii.gz
     path_to_T1_space_ASL_variable = sys.argv[
         2
-    ]  # {StudyDir}/{SubjectID}/T1w/ASL/TIs/OxfordASL/native_space/<perfusion_variable>
+    ]  # {StudyDir}/{SubjectID}/T1w/ASL/OxfordASL/native_space/<perfusion_variable>
     path_T1 = sys.argv[3]  # {StudyDir}/{SubjectID}/T1w/T1w_acpc_dc_restore.nii.gz
     path_MNI = sys.argv[4]  # /usr/local/fsl/data/standard/MNI152_T1_2mm.nii.gz
     path_to_lowres_MNI = sys.argv[
         5
-    ]  # {StudyDir}/{SubjectID}/MNINonLinear/ASL/OutputtoCIFTI/asl_grid_mni.nii.gz
+    ]  # {StudyDir}/{SubjectID}/MNINonLinear/ASL/CIFTIPrepare/asl_grid_mni.nii.gz
     path_to_MNI_space_ASL_variable = sys.argv[
         6
     ]  # {StudyDir}/{SubjectID}/MNINonLinear/ASL/Results/<folder/perfusion_variable_MNI>
