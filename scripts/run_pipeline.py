@@ -25,6 +25,7 @@ from hcpasl.utils import (
     create_dirs,
     split_mbpcasl,
     copy_oxford_asl_inputs,
+    subprocess_popen,
 )
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
@@ -107,7 +108,13 @@ def process_subject(
         banding corrections are applied by default).
     outdir : str, optional
         Name of the main results directory. Default is 'hcp_asl'.
+    stages: set, optional
+        List or set of integer stage numbers (zero-indexed) to run.
+        All prior stages are assumed to have run successfully.
     """
+
+    if not isinstance(stages, (list, set)):
+        raise RuntimeError("stages must either be a set or list of ints")
 
     subject_dir = (studydir / subid).resolve(strict=True)
     logger = logging.getLogger("HCPASL")
@@ -119,8 +126,8 @@ def process_subject(
         asl_dir / name for name in ("TIs", "Calib/Calib0", "Calib/Calib1")
     ]
     create_dirs([asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir])
+
     # split mbPCASL sequence into TIs and calibration images
-    logger.info("Splitting mbPCASL sequence into ASL series and calibration images.")
     tis_name, calib0_name, calib1_name = [
         d / name
         for d, name in zip(
@@ -128,59 +135,64 @@ def process_subject(
             ("tis.nii.gz", "calib0.nii.gz", "calib1.nii.gz"),
         )
     ]
-    split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
+    if 0 in stages:
+        logger.info(
+            "Stage 0: splitting mbPCASL sequence into ASL and calibration images."
+        )
+        split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
 
     # run gradient_unwarp and topup, storing results
     # in gradunwarp_dir and topup_dir respectively
-    if gradients is None:
-        logger.info(
-            "Gradient coefficient file not provided. Gradient distortion correction steps will be skipped."
-        )
-        logger.info("Running EPI distortion estimation steps.")
-        gd_corr = False
-    else:
-        logger.info("Running gradient_unwarp and topup.")
-        gd_corr = True
     gradunwarp_dir = asl_dir / "gradient_unwarp"
     topup_dir = asl_dir / "topup"
-    gradunwarp_and_topup(
-        vol=str(calib0_name),
-        coeffs_path=gradients,
-        gradunwarp_dir=gradunwarp_dir,
-        topup_dir=topup_dir,
-        pa_sefm=str(fmaps["PA"]),
-        ap_sefm=str(fmaps["AP"]),
-        interpolation=interpolation,
-        gd_corr=gd_corr,
-    )
+    gd_corr = gradients is not None
+    if 1 in stages:
+        logger.info("Stage 1: derive gradient and EPI distortion corrections")
+        if not gd_corr:
+            logger.info(
+                "Gradient coefficient file not provided. Gradient distortion correction steps will be skipped."
+            )
+            logger.info("Running EPI distortion estimation steps.")
+        else:
+            logger.info("Running gradient and EPI distortion correction.")
+        gradunwarp_and_topup(
+            vol=str(calib0_name),
+            coeffs_path=gradients,
+            gradunwarp_dir=gradunwarp_dir,
+            topup_dir=topup_dir,
+            pa_sefm=str(fmaps["PA"]),
+            ap_sefm=str(fmaps["AP"]),
+            interpolation=interpolation,
+            gd_corr=gd_corr,
+        )
 
     # apply corrections to the calibration images
-    logger.info("Running M0 corrections.")
     hcppipedir = Path(os.environ["HCPPIPEDIR"])
     corticallut = hcppipedir / "global/config/FreeSurferCorticalLabelTableLut.txt"
     subcorticallut = hcppipedir / "global/config/FreeSurferSubcorticalLabelTableLut.txt"
     t1w_dir = structural["struct"].parent
-    correct_M0(
-        subject_dir=subject_dir,
-        calib_dir=calib0_dir.parent,
-        mt_factors=mt_factors,
-        t1w_dir=t1w_dir,
-        aslt1w_dir=aslt1w_dir,
-        gradunwarp_dir=gradunwarp_dir,
-        gd_corr=gd_corr,
-        topup_dir=topup_dir,
-        wmparc=wmparc,
-        ribbon=ribbon,
-        corticallut=corticallut,
-        subcorticallut=subcorticallut,
-        interpolation=interpolation,
-        nobandingcorr=nobandingcorr,
-        outdir=outdir,
-    )
+    if 2 in stages:
+        logger.info("Stage 2: correct M0 image.")
+        correct_M0(
+            subject_dir=subject_dir,
+            calib_dir=calib0_dir.parent,
+            mt_factors=mt_factors,
+            t1w_dir=t1w_dir,
+            aslt1w_dir=aslt1w_dir,
+            gradunwarp_dir=gradunwarp_dir,
+            gd_corr=gd_corr,
+            topup_dir=topup_dir,
+            wmparc=wmparc,
+            ribbon=ribbon,
+            corticallut=corticallut,
+            subcorticallut=subcorticallut,
+            interpolation=interpolation,
+            nobandingcorr=nobandingcorr,
+            outdir=outdir,
+        )
 
     # correct ASL series for distortion, bias, motion and banding
     # giving an ASL series in ASL0 space
-    logger.info("Estimating ASL motion.")
     calib_prefix = "dc"
     if gd_corr:
         calib_prefix = "gdc_" + calib_prefix
@@ -191,38 +203,54 @@ def process_subject(
     else:
         calib_corr = calib0_dir / f"BiasCorr/{calib_prefix}_calib0_restore.nii.gz"
     calib2struct = calib0_dir / "DistCorr/asl2struct.mat"
-    single_step_resample_to_asl0(
-        subject_dir=subject_dir,
-        tis_dir=tis_dir,
-        mt_factors=mt_factors,
-        bias_name=bias_field,
-        calib_name=calib_corr,
-        calib2struct=calib2struct,
-        gradunwarp_dir=gradunwarp_dir,
-        gd_corr=gd_corr,
-        topup_dir=topup_dir,
-        t1w_dir=t1w_dir,
-        cores=cores,
-        interpolation=interpolation,
-        nobandingcorr=nobandingcorr,
-        outdir=outdir,
-    )
+    if 3 in stages:
+        logger.info("Stage 3: correct ASL image.")
+        single_step_resample_to_asl0(
+            subject_dir=subject_dir,
+            tis_dir=tis_dir,
+            mt_factors=mt_factors,
+            bias_name=bias_field,
+            calib_name=calib_corr,
+            calib2struct=calib2struct,
+            gradunwarp_dir=gradunwarp_dir,
+            gd_corr=gd_corr,
+            topup_dir=topup_dir,
+            t1w_dir=t1w_dir,
+            cores=cores,
+            interpolation=interpolation,
+            nobandingcorr=nobandingcorr,
+            outdir=outdir,
+        )
 
     # perform tag-control subtraction in ASL0 space
-    logger.info(
-        "Performing tag-control subtraction of the corrected ASL series in ASL0 space."
-    )
     if not nobandingcorr:
         series = tis_dir / "tis_dc_moco_restore_bandcorr.nii.gz"
     else:
         series = tis_dir / "tis_dc_moco_restore.nii.gz"
     scaling_factors = tis_dir / "combined_scaling_factors.nii.gz"
+    betas_dir = tis_dir / "MotionSubtraction"
     asl0_brainmask = tis_dir / "brain_fov_mask.nii.gz"
     if 4 in stages:
+        logger.info("Stage 4: Label-control subtraction in ASL0 space.")
+        tag_control_differencing(
+            series, scaling_factors, betas_dir, mask=asl0_brainmask
+        )
 
     # estimate perfusion in ASL0 space using oxford_asl
+    oxford_asl_dir = tis_dir.parent / "OxfordASL"
     oxford_asl_dir.mkdir(exist_ok=True, parents=True)
     if 5 in stages:
+        logger.info("Stage 5: Perfusion estimation in ASL0 space.")
+        logger_oxasl = setup_logger(
+            "HCPASL.oxford_asl", oxford_asl_dir / "oxford_asl.log", "INFO"
+        )
+        logger.info(
+            f"Copying oxford_asl inputs to one location ({str(oxford_asl_dir/'oxford_asl_inputs')})."
+        )
+        oxasl_inputs = {
+            "-i": betas_dir / "beta_perf.nii.gz",
+            "-m": asl0_brainmask,
+        }
         copy_oxford_asl_inputs(oxasl_inputs, oxford_asl_dir / "oxford_asl_inputs")
         oxford_asl_call = [
             "oxford_asl",
@@ -248,108 +276,133 @@ def process_subject(
         subprocess_popen(oxford_asl_call, logger_oxasl)
 
     # get data in ASLT1w space
-    logger.info("Get data into ASLT1w space and re-estimate bias field.")
     if not nobandingcorr:
         asl_scaling_factors = tis_dir / "STCorr2/combined_scaling_factors_asln.nii.gz"
         mt_name = mt_factors
     else:
         asl_scaling_factors, mt_name = None, None
     t1_est = tis_dir / "SatRecov2/spatial/mean_T1t_filt.nii.gz"
-    single_step_resample_to_aslt1w(
-        asl_name=tis_name,
-        calib_name=calib0_name,
-        subject_dir=subject_dir,
-        t1w_dir=t1w_dir,
-        aslt1w_dir=aslt1w_dir,
-        moco_dir=tis_dir / "MoCo/asln2m0_final.mat",
-        perfusion_name=tis_dir / "OxfordASL/native_space/perfusion.nii.gz",
-        gradunwarp_dir=gradunwarp_dir,
-        gd_corr=gd_corr,
-        topup_dir=topup_dir,
-        ribbon=ribbon,
-        wmparc=wmparc,
-        corticallut=corticallut,
-        subcorticallut=subcorticallut,
-        asl_scaling_factors=asl_scaling_factors,
-        mt_factors=mt_name,
-        t1_est=t1_est,
-        nobandingcorr=nobandingcorr,
-        interpolation=interpolation,
-        cores=cores,
-    )
+    if 6 in stages:
+        logger.info(
+            "Stage 6: Registration and resampling of ASL/M0 into ASL-gridded T1w space."
+        )
+        single_step_resample_to_aslt1w(
+            asl_name=tis_name,
+            calib_name=calib0_name,
+            subject_dir=subject_dir,
+            t1w_dir=t1w_dir,
+            aslt1w_dir=aslt1w_dir,
+            moco_dir=tis_dir / "MoCo/asln2m0_final.mat",
+            perfusion_name=tis_dir.parent / "OxfordASL/native_space/perfusion.nii.gz",
+            gradunwarp_dir=gradunwarp_dir,
+            gd_corr=gd_corr,
+            topup_dir=topup_dir,
+            ribbon=ribbon,
+            wmparc=wmparc,
+            corticallut=corticallut,
+            subcorticallut=subcorticallut,
+            asl_scaling_factors=asl_scaling_factors,
+            mt_factors=mt_name,
+            t1_est=t1_est,
+            nobandingcorr=nobandingcorr,
+            interpolation=interpolation,
+            cores=cores,
+        )
 
     # perform partial volume estimation
-    logger.info("Performing partial volume estimation.")
-    pves_dir = aslt1w_dir / "PVEs"
-    pves_dir.mkdir(exist_ok=True)
-    logger_pv = setup_logger("HCPASL.pv_est_asl", pves_dir / "pv_est.log", "INFO")
-    pv_est_call = [
-        "pv_est_asl",
-        str(studydir),
-        subid,
-        "--cores",
-        str(cores),
-        "--outdir",
-        outdir,
-        "--interpolation",
-        str(interpolation),
-    ]
-    process = subprocess.Popen(pv_est_call, stdout=subprocess.PIPE)
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        logger.info(f"retcode={retcode}")
-        logger.exception("Process failed.")
+    if 7 in stages:
+        logger.info("Stage 7: Partial volume estimation in ASLT1w space.")
+        t1asl_pv_estimation.run(studydir, subid, cores, outdir, interpolation)
 
     # perform tag-control subtraction in ASLT1w space
-    logger.info(
-        "Performing tag-control subtraction of the corrected ASL series in ASLT1w space."
-    )
     aslt1w_dir = aslt1w_dir
     series = aslt1w_dir / "TIs/asl_corr.nii.gz"
     scaling_factors = aslt1w_dir / "TIs/combined_scaling_factors.nii.gz"
-    betas_dir = aslt1w_dir / "TIs/Betas"
+    betas_dir = aslt1w_dir / "TIs/MotionSubtraction"
     brainmask = aslt1w_dir / "TIs/reg/brain_fov_mask.nii.gz"
     if 8 in stages:
-        series, scaling_factors, betas_dir, subject_dir, outdir, mask=brainmask
-    )
+        logger.info("Stage 8: Label-control subtraction in ASLT1w space")
+        tag_control_differencing(series, scaling_factors, betas_dir, mask=brainmask)
 
     # final perfusion estimation in ASLT1w space
-    logger.info("Running oxford_asl in ASLT1w space.")
     pve_dir = aslt1w_dir / "PVEs"
     gm_pve, wm_pve = [pve_dir / f"pve_{tiss}.nii.gz" for tiss in ("GM", "WM")]
+    oxford_aslt1w_dir = aslt1w_dir / "OxfordASL"
     oxford_aslt1w_dir.mkdir(parents=True, exist_ok=True)
     if 9 in stages:
+        logger.info("Stage 9: Perfusion estimation in ASLT1w space")
+        logger.info(
+            f"Copying oxford_asl inputs to one location ({str(oxford_aslt1w_dir/'oxford_asl_inputs')})."
+        )
+        oxasl_inputs = {
+            "-i": betas_dir / "beta_perf.nii.gz",
+            "--pvgm": gm_pve,
+            "--pvwm": wm_pve,
+            "--csf": pve_dir / "vent_csf_mask.nii.gz",
+            "-c": aslt1w_dir / "Calib/Calib0/calib0_corr_aslt1w.nii.gz",
             "-m": aslt1w_dir / "TIs/reg/brain_fov_mask.nii.gz",
             "--tiimg": aslt1w_dir / "TIs/timing_img_aslt1w.nii.gz",
+        }
+        if use_t1:
+            oxasl_inputs["--t1im"] = aslt1w_dir / "TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
+        copy_oxford_asl_inputs(oxasl_inputs, oxford_aslt1w_dir / "oxford_asl_inputs")
+        logger_oxaslt1w = setup_logger(
+            "HCPASL.oxford_aslt1w", oxford_aslt1w_dir / "oxford_aslt1w.log", "INFO"
+        )
+        oxford_aslt1w_call = [
+            "oxford_asl",
+            f"-i={str(betas_dir/'beta_perf.nii.gz')}",
+            f"-o={str(oxford_aslt1w_dir)}",
+            f"--pvgm={str(gm_pve)}",
+            f"--pvwm={str(wm_pve)}",
+            f"--csf={str(pve_dir/'vent_csf_mask.nii.gz')}",
+            f"-c={str(aslt1w_dir/'Calib/Calib0/calib0_corr_aslt1w.nii.gz')}",
+            f"-m={str(brainmask)}",
+            f"--tiimg={str(aslt1w_dir/'TIs/timing_img_aslt1w.nii.gz')}",
+            "--casl",
+            "--ibf=tis",
+            "--iaf=diff",
+            "--rpts=6,6,6,10,15",
+            "--fixbolus",
+            "--bolus=1.5",
+            "--te=19",
+            "--spatial=off",
+            "--tr=8",
+            "--pvcorr",
+        ]
+        if use_t1:
+            est_t1 = aslt1w_dir / "TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
+            oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
+        logger_oxaslt1w.info(oxford_aslt1w_call)
         subprocess_popen(oxford_aslt1w_call, logger_oxaslt1w)
 
     mninonlinear_name = subject_dir / "MNINonLinear"
-    roi_stats(
-        struct_name=structural["struct"],
-        oxford_asl_dir=oxford_aslt1w_dir,
-        gm_pve=gm_pve,
-        wm_pve=wm_pve,
-        std2struct_name=mninonlinear_name / "xfms/standard2acpc_dc.nii.gz",
-        roi_stats_dir=aslt1w_dir / "roi_stats",
-        territories_atlas=territories_atlas,
-        territories_labels=territories_labels,
-    )
+    if 10 in stages:
+        logger.info("Stage 10: Summary statistics within ROIs.")
+        roi_stats(
+            struct_name=structural["struct"],
+            oxford_asl_dir=oxford_aslt1w_dir,
+            gm_pve=gm_pve,
+            wm_pve=wm_pve,
+            std2struct_name=mninonlinear_name / "xfms/standard2acpc_dc.nii.gz",
+            roi_stats_dir=aslt1w_dir / "roi_stats",
+            territories_atlas=territories_atlas,
+            territories_labels=territories_labels,
+        )
 
-    logger.info("Projecting volumetric results to surface.")
-    project_to_surface(studydir, subid, outdir=outdir, wbdir=wbdir)
+    if 11 in stages:
+        logger.info("Stage 11: Volume to surface projection ")
+        surface_projection_stage(studydir, subid, outdir=outdir, wbdir=wbdir)
 
-    logger.info(
-        "Copying key outputs to $StudyDir/$SubID/$Outdir/T1w/ASL and $StudyDir/$SubID/$Outdir/MNINonLinear/ASL"
-    )
-    copy_outputs(studydir, subid, outdir)
+    if 12 in stages:
+        logger.info(
+            "Stage 12: Copy key results into $outdir/T1w/ASL and $outdir/MNINonLinear/ASL"
+        )
+        copy_outputs(studydir, subid, outdir)
 
-    logger.info("Creating QC report.")
-    create_qc_report(subject_dir, outdir)
+    if 13 in stages:
+        logger.info("Stage 13: Creating QC report.")
+        create_qc_report(subject_dir, outdir)
 
 
 def project_to_surface(
@@ -516,10 +569,11 @@ def main():
         + "use the scaling factors included with the distribution.",
     )
     parser.add_argument(
-        "--ribbon",
-        help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction.",
-        default=None,
-        required=True,
+        "--stages",
+        help="Pipeline stages (zero-indexed, separated by spaces) to run, eg 0 3 5",
+        nargs="*",
+        type=int,
+        default=set(range(14)),
     )
     parser.add_argument(
         "--cores",
@@ -641,6 +695,10 @@ def main():
         )
         grads = None
 
+    logger.info("All pipeline arguments:")
+    for k,v in vars(args).items(): 
+        logger.info(f"{k}: {v}")
+
     # process subject
     logger.info(f"Processing subject {studydir/subid}.")
     process_subject(
@@ -661,6 +719,7 @@ def main():
         nobandingcorr=args.nobandingcorr,
         outdir=args.outdir,
         wbdir=args.wbdir,
+        stages=args.stages,
     )
 
 
