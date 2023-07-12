@@ -44,7 +44,7 @@ from fsl.wrappers.flirt import applyxfm, mcflirt
 from scipy.ndimage import binary_dilation
 
 from .m0_correction import generate_asl2struct
-from .utils import create_dirs, setup_logger
+from . import utils
 
 # asl sequence parameters
 NTIS = 5
@@ -322,8 +322,7 @@ def _slicetiming_correction(asl_name, t1_name, tis, rpts, slicedt, sliceband, n_
     num = 1 - np.exp(numexp)
     # divide asl sequence by satrecov model evaluated at actual slice-time
     denexp = np.zeros(asl_img.shape)
-    np.divide(-slice_times, t1_data, 
-              out=denexp, where=(t1_data > 0))
+    np.divide(-slice_times, t1_data, out=denexp, where=(t1_data > 0))
     den = 1 - np.exp(denexp)
     # evaluate scaling factors
     stcorr_factors = np.ones_like(num)
@@ -476,7 +475,7 @@ def single_step_resample_to_asl0(
     # set up logger
     logger_name = "HCPASL.single_step_resample_to_asl0"
     log_out = subject_dir / outdir / f"ASL/single_step_resample_to_asl0.log"
-    logger = setup_logger(logger_name, log_out, "INFO")
+    logger = utils.setup_logger(logger_name, log_out, "INFO")
 
     logger.info("Running single_step_resample_to_asl0()")
     logger.info(f"Subject directory: {subject_dir}")
@@ -510,13 +509,13 @@ def single_step_resample_to_asl0(
     moco_dir = tis_dir / "MoCo"
     asln2m0_name = moco_dir / "asln2m0.mat"
     satrecov_dir = tis_dir / "SatRecov"
-    create_dirs(
+    utils.create_dirs(
         [tis_dir, bcorr_dir, distcorr_dir, moco_dir, asln2m0_name, satrecov_dir]
     )
     if not nobandingcorr:
         mtcorr_dir = tis_dir / "MTCorr"
         stcorr_dir = tis_dir / "STCorr"
-        create_dirs([mtcorr_dir, stcorr_dir])
+        utils.create_dirs([mtcorr_dir, stcorr_dir])
 
     # apply gradient distortion correction to the ASL series
     # load gdc warp
@@ -616,7 +615,7 @@ def single_step_resample_to_asl0(
     mcflirt(
         str(asl_corr), reffile=str(calib_name), mats=True, plots=True, out=str(reg_name)
     )
-    # rename mcflirt matrices directory
+    # rename mcflirt matrices directory and load transform
     orig_mcflirt = moco_dir / "initial_registration_TIs.nii.gz.mat"
     if asln2m0_name.exists():
         shutil.rmtree(asln2m0_name)
@@ -719,7 +718,7 @@ def single_step_resample_to_asl0(
     logger.info("Re-fitting the satrecov model since data has been motion-corrected.")
     satrecov_dir = tis_dir / "SatRecov2"
     stcorr_dir = tis_dir / "STCorr2"
-    create_dirs([satrecov_dir, stcorr_dir])
+    utils.create_dirs([satrecov_dir, stcorr_dir])
     t1_name = _saturation_recovery(asl_corr, satrecov_dir, NTIS, IAF, IBF, TIS, RPTS)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
 
@@ -940,7 +939,7 @@ def single_step_resample_to_aslt1w(
     tis_aslt1w_dir = aslt1w_dir / "TIs"
     tis_aslt1w_dir.mkdir(exist_ok=True, parents=True)
     log_out = tis_aslt1w_dir / "single_step_resample_to_aslt1w.log"
-    logger = setup_logger(logger_name, log_out, "INFO")
+    logger = utils.setup_logger(logger_name, log_out, "INFO")
 
     logger.info("Running single_step_resample_to_aslt1w()")
     logger.info(f"ASL series: {asl_name}")
@@ -1162,15 +1161,19 @@ def single_step_resample_to_aslt1w(
 
     # apply bias field and banding corrections to ASL series
     logger.info(
-        "Applying SE-based bias correction and banding corrections to ASL series."
+        "Applying SE-based bias correction and bandi corrections to ASL series."
     )
     bias = nb.load(bias_name)
     asl_corr = np.zeros_like(asl_dc_moco.get_fdata())
-    np.divide(asl_dc_moco.get_fdata() * aslt1w_sfs.get_fdata(), 
-              bias.get_fdata()[...,np.newaxis],
-              out=asl_corr, where=(bias.get_fdata()[...,np.newaxis] != 0))
-    asl_corr = nb.nifti1.Nifti1Image(asl_corr.astype(np.float32), 
-                                     affine=asl_dc_moco.affine)
+    np.divide(
+        asl_dc_moco.get_fdata() * aslt1w_sfs.get_fdata(),
+        bias.get_fdata()[..., np.newaxis],
+        out=asl_corr,
+        where=(bias.get_fdata()[..., np.newaxis] != 0),
+    )
+    asl_corr = nb.nifti1.Nifti1Image(
+        asl_corr.astype(np.float32), affine=asl_dc_moco.affine
+    )
     asl_corr_name = tis_aslt1w_dir / "asl_corr.nii.gz"
     nb.save(asl_corr, asl_corr_name)
 
@@ -1214,20 +1217,25 @@ def single_step_resample_to_aslt1w(
 
         # perform slicetime correction on the calibration image
         num = np.zeros_like(t1_est_aslt1w.get_fdata())
-        np.divide(-8, t1_est_aslt1w.get_fdata(), 
-                  out=num, where=(t1_est_aslt1w.get_fdata() > 0))
+        np.divide(
+            -8,
+            t1_est_aslt1w.get_fdata(),
+            out=num,
+            where=(t1_est_aslt1w.get_fdata() > 0),
+        )
         num = 1 - np.exp(num)
         den = np.zeros_like(t1_est_aslt1w.get_fdata())
-        fltr = ((t1_est_aslt1w.get_fdata() > 0) 
-                & (calib_aslt1w_timing.get_fdata() > 0.1))
-        np.divide(-calib_aslt1w_timing.get_fdata(), 
-                  t1_est_aslt1w.get_fdata(), 
-                  out=den, where=fltr)
+        fltr = (t1_est_aslt1w.get_fdata() > 0) & (calib_aslt1w_timing.get_fdata() > 0.1)
+        np.divide(
+            -calib_aslt1w_timing.get_fdata(),
+            t1_est_aslt1w.get_fdata(),
+            out=den,
+            where=fltr,
+        )
         den = 1 - np.exp(den)
 
         calib_aslt1w_stcorr_factors = np.ones_like(den)
-        np.divide(num, den, where=(den > 0),
-                  out=calib_aslt1w_stcorr_factors)
+        np.divide(num, den, where=(den > 0), out=calib_aslt1w_stcorr_factors)
         calib_aslt1w_stcorr_factors_img = nb.nifti1.Nifti1Image(
             calib_aslt1w_stcorr_factors, affine=calib_dc_aslt1w.affine
         )

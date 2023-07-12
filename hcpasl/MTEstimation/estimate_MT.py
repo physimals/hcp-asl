@@ -3,7 +3,7 @@ Set of functions for estimating the MT effect
 """
 from pathlib import Path
 
-from .. import utils 
+from .. import utils
 
 import matplotlib.pyplot as plt
 import numpy as np

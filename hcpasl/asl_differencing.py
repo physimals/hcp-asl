@@ -14,9 +14,7 @@ import nibabel as nb
 import numpy as np
 
 
-def tag_control_differencing(
-    series, scaling_factors, betas_dir, subject_dir, outdir="hcp_asl", mask=None
-):
+def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -30,10 +28,8 @@ def tag_control_differencing(
         Path to the scaling factors used to de-band the ASL series.
     betas_dir : pathlib.Path
         Path to the directory in which to save the results.
-    subject_dir : pathlib.Path
-        Path to the subject's base directory.
-    outdir : str
-        Name of the main results directory. Default is 'hcp_asl'.
+    mask : pathlib.Path:
+        operate only within mask
 
     .. [1] Suzuki, Yuriko, et al. "A framework for motion
        correction of background suppressed arterial spin labeling

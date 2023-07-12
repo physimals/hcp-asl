@@ -7,7 +7,8 @@ import regtricks as rt
 import os.path as op
 import nibabel as nb
 import sys
-import logging 
+import logging
+
 
 def main():
     logger_name = "HCPASL.results_to_mni"

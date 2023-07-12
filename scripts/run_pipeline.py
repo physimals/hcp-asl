@@ -31,7 +31,6 @@ from scripts import t1asl_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
-import subprocess
 import argparse
 from multiprocessing import cpu_count
 
@@ -54,6 +53,7 @@ def process_subject(
     interpolation=3,
     nobandingcorr=False,
     outdir="hcp_asl",
+    stages=set(range(14)),
 ):
     """
     Run the hcp-asl pipeline for a given subject.
@@ -406,7 +406,7 @@ def process_subject(
         create_qc_report(subject_dir, outdir)
 
 
-def project_to_surface(
+def surface_projection_stage(
     studydir,
     subid,
     outdir,
@@ -420,7 +420,7 @@ def project_to_surface(
     """
     Project perfusion results to the cortical surface and generate
     CIFTI representation which includes both low res mesh surfaces
-    in MSMSulc Atlas space, and subcortical structures in MNI
+    in MSMAll Atlas space, and subcortical structures in MNI
     voxel space
 
     Parameters
@@ -448,7 +448,7 @@ def project_to_surface(
     for idx in range(4):
         non_pvcorr_cmd = [
             script,
-            studydir,
+            str(studydir),
             subid,
             ASLVariable[idx],
             ASLVariableVar[idx],
@@ -464,7 +464,7 @@ def project_to_surface(
 
         pvcorr_cmd = [
             script,
-            studydir,
+            str(studydir),
             subid,
             ASLVariable[idx],
             ASLVariableVar[idx],
@@ -535,17 +535,17 @@ def main():
     parser.add_argument(
         "--mbpcasl",
         help="Filename for the mbPCASLhr acquisition, default is within subject's directory",
-        required=True
+        required=True,
     )
     parser.add_argument(
         "--fmap_ap",
         help="Filename for the AP fieldmap for use in distortion correction",
-        required=True
+        required=True,
     )
     parser.add_argument(
         "--fmap_pa",
         help="Filename for the PA fieldmap for use in distortion correction",
-        required=True
+        required=True,
     )
     parser.add_argument(
         "--wmparc",
@@ -647,29 +647,29 @@ def main():
         f"HCP-ASL pipeline v{__version__} (commit {__sha1__} on {__timestamp__})."
     )
 
-    # Look for required files in default paths if not provided. 
+    # Look for required files in default paths if not provided.
     if args.struct is None:
         args.struct = subdir / "T1w/T1w_acpc_dc_restore.nii.gz"
         logger.info(f"Using default for struct: {args.struct}")
-    if not os.path.exists(args.struct): 
+    if not os.path.exists(args.struct):
         raise ValueError(f"Path to struct does not exist: {args.struct}")
 
     if args.sbrain is None:
         args.sbrain = subdir / "T1w/T1w_acpc_dc_restore_brain.nii.gz"
         logger.info(f"Using default for sbrain: {args.sbrain}")
-    if not os.path.exists(args.sbrain): 
+    if not os.path.exists(args.sbrain):
         raise ValueError(f"Path to sbrain does not exist: {args.sbrain}")
 
     if args.wmparc is None:
         args.wmparc = subdir / "T1w/wmparc.nii.gz"
         logger.info(f"Using default for wmparc: {args.wmparc}")
-    if not os.path.exists(args.wmparc): 
+    if not os.path.exists(args.wmparc):
         raise ValueError(f"Path to wmparc does not exist: {args.wmparc}")
 
     if args.ribbon is None:
         args.ribbon = subdir / "T1w/ribbon.nii.gz"
         logger.info(f"Using default for ribbon: {args.ribbon}")
-    if not os.path.exists(args.ribbon): 
+    if not os.path.exists(args.ribbon):
         raise ValueError(f"Path to ribbon does not exist: {args.ribbon}")
 
     # parse remaining arguments
@@ -697,7 +697,7 @@ def main():
         grads = None
 
     logger.info("All pipeline arguments:")
-    for k,v in vars(args).items(): 
+    for k, v in vars(args).items():
         logger.info(f"{k}: {v}")
 
     # process subject

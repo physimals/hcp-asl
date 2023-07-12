@@ -135,8 +135,7 @@ def se_based_bias_estimation():
 
     # find ratio between SpinEchoMean and M0
     SEdivM0 = np.zeros_like(sem_img.data)
-    np.divide(sem_img.data, m0_img.data, 
-              out=SEdivM0, where=(m0_img.data != 0))
+    np.divide(sem_img.data, m0_img.data, out=SEdivM0, where=(m0_img.data != 0))
     if debug:
         SEdivM0_name = str(outdir / "SEdivM0.nii.gz")
         SEdivM0_img = Image(SEdivM0, header=m0_img.header)
@@ -180,8 +179,12 @@ def se_based_bias_estimation():
     )
     SEdivM0_brain_bias = np.zeros_like(SEdivM0_brain_thr)
     fltr = (SEdivM0_brain_thr_roi_s5 > 0) & (mask_img.data == 1)
-    np.divide(SEdivM0_brain_thr_s5, SEdivM0_brain_thr_roi_s5, 
-              out=SEdivM0_brain_bias, where=fltr)
+    np.divide(
+        SEdivM0_brain_thr_s5,
+        SEdivM0_brain_thr_roi_s5,
+        out=SEdivM0_brain_bias,
+        where=fltr,
+    )
     if debug:
         savenames = [
             str(outdir / f"SEdivM0_brain_{name}.nii.gz")
@@ -203,8 +206,7 @@ def se_based_bias_estimation():
     # correct the SEFM image
     SpinEchoMean_brain_BC = np.zeros_like(SEdivM0_brain_bias)
     fltr = (mask_img.data == 1) & (SEdivM0_brain_bias > 0)
-    np.divide(sem_img.data, SEdivM0_brain_bias, 
-              out=SpinEchoMean_brain_BC, where=fltr)
+    np.divide(sem_img.data, SEdivM0_brain_bias, out=SpinEchoMean_brain_BC, where=fltr)
     if debug:
         SpinEchoMean_brain_BC_name = str(outdir / "SpinEchoMean_brain_BC.nii.gz")
         SpinEchoMean_brain_BC_img = Image(SpinEchoMean_brain_BC, header=m0_img.header)
@@ -213,8 +215,7 @@ def se_based_bias_estimation():
     # get ratio between bias-corrected FM and M0 image
     SEBCdivM0_brain = np.zeros_like(SpinEchoMean_brain_BC)
     fltr = (mask_img.data == 1) & (SpinEchoMean_brain_BC != 0)
-    np.divide(m0_img.data, SpinEchoMean_brain_BC, 
-              out=SEBCdivM0_brain, where=fltr)
+    np.divide(m0_img.data, SpinEchoMean_brain_BC, out=SEBCdivM0_brain, where=fltr)
     if debug:
         SEBCdivM0_brain_name = str(outdir / "SEBCdivM0_brain.nii.gz")
         SEBCdivM0_brain_img = Image(SEBCdivM0_brain, header=m0_img.header)
@@ -301,8 +302,7 @@ def se_based_bias_estimation():
     # M0_bias_raw needs to undergo fslmaths' -dilall
     M0_bias_raw = np.zeros_like(M0_grey_s5)
     fltr = (tissue_mask != 0) & (M0_greyroi_s5 != 0)
-    np.divide(M0_grey_s5, M0_greyroi_s5, 
-              out=M0_bias_raw, where=fltr)
+    np.divide(M0_grey_s5, M0_greyroi_s5, out=M0_bias_raw, where=fltr)
     M0_bias_raw_name = str(outdir / "M0_bias_raw.nii.gz")
     M0_bias_raw_img = Image(M0_bias_raw, header=m0_img.header)
     M0_bias_raw_img.save(M0_bias_raw_name)
@@ -328,8 +328,7 @@ def se_based_bias_estimation():
     ]
     M0_bias = np.zeros_like(M0_bias_raw_s5)
     fltr = (mask_img.data != 0) & (M0_bias_roi_s5 != 0)
-    np.divide(M0_bias_raw_s5, M0_bias_roi_s5, 
-              out=M0_bias, where=fltr)
+    np.divide(M0_bias_raw_s5, M0_bias_roi_s5, out=M0_bias, where=fltr)
     if debug:
         savenames = [
             str(outdir / f"M0_bias{part}.nii.gz")
@@ -365,12 +364,17 @@ def se_based_bias_estimation():
     # apply bias field to calibration and ASL images
     sebased_bias = Image(sebased_bias_dil_name)
     calib_bc = m0_img.data.copy()
-    np.divide(m0_img.data, sebased_bias.data, 
-              out=calib_bc, where=(sebased_bias.data > 0))
+    np.divide(
+        m0_img.data, sebased_bias.data, out=calib_bc, where=(sebased_bias.data > 0)
+    )
     Image(calib_bc, header=m0_img.header).save(str(outdir / "calib0_secorr.nii.gz"))
     if asl_name:
         asl_img = Image(asl_name)
         asl_bc = asl_img.data.copy()
-        np.divide(asl_img.data, sebased_bias.data[...,np.newaxis],
-                  out=asl_bc, where=(sebased_bias.data[...,np.newaxis] != 0))
+        np.divide(
+            asl_img.data,
+            sebased_bias.data[..., np.newaxis],
+            out=asl_bc,
+            where=(sebased_bias.data[..., np.newaxis] != 0),
+        )
         Image(asl_bc, header=asl_img.header).save(str(outdir / "tis_secorr.nii.gz"))
