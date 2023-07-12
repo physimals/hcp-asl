@@ -31,7 +31,9 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
     vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
 
     # Resample to target space, re-threshold
-    output = rt.Registration.identity().apply_to_array(vent_mask, aparc_aseg, ref_spc)
+    output = rt.Registration.identity().apply_to_array(
+        vent_mask, src=aparc_aseg, ref=ref_spc
+    )
     output = output > 0.8
     return output
 
@@ -52,7 +54,6 @@ def estimate_pvs(t1_dir, ref_spc, ref2struct=None, cores=1):
     # Load the t1 image, aparc+aseg and surfaces from their expected
     # names and locations within t1w_dir
     surf_dict = {}
-    t1 = op.join(t1_dir, "T1w_acpc_dc.nii.gz")
     aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
     for k, n in zip(
         ["LWS", "LPS", "RPS", "RWS"],
@@ -64,7 +65,8 @@ def estimate_pvs(t1_dir, ref_spc, ref2struct=None, cores=1):
         ],
     ):
         paths = glob.glob(op.join(t1_dir, "fsaverage_LR32k", "*" + n))
-        assert len(paths) == 1, f"Found multiple surfaces for {k}"
+        if len(paths) > 1:
+            raise RuntimeError(f"Found multiple surfaces for {k}")
         surf_dict[k] = paths[0]
 
     # Generate a single 4D volume of PV estimates, stacked GM/WM/CSF
@@ -73,6 +75,60 @@ def estimate_pvs(t1_dir, ref_spc, ref2struct=None, cores=1):
     )
 
     return pvs_stacked
+
+
+def run(study_dir, sub_id, cores, outdir, interpolation):
+    # for debug, re-use intermediate results
+    force_refresh = True
+
+    sub_base = op.abspath(op.join(study_dir, sub_id))
+    t1_dir = op.join(sub_base, "T1w")
+    t1_asl_dir = op.join(sub_base, outdir, "T1w", "ASL")
+    asl = op.join(sub_base, outdir, "ASL", "TIs", "tis.nii.gz")
+    struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
+
+    # Create ASL-gridded version of T1 image
+    t1_asl_grid = op.join(t1_asl_dir, "reg", "ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    if not op.exists(t1_asl_grid) or force_refresh:
+        asl_spc = rt.ImageSpace(asl)
+        t1_spc = rt.ImageSpace(struct)
+        t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
+        nib.save(
+            rt.Registration.identity().apply_to_image(struct, ref=t1_asl_grid_spc),
+            t1_asl_grid,
+        )
+
+    # Create PVEs directory
+    pve_dir = op.join(sub_base, outdir, "T1w", "ASL", "PVEs")
+    os.makedirs(pve_dir, exist_ok=True)
+
+    # Create a ventricle CSF mask in T1 ASL space
+    ventricle_mask = op.join(pve_dir, "vent_csf_mask.nii.gz")
+    if not op.exists(ventricle_mask) or force_refresh:
+        aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
+        vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
+        rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
+
+    # Estimate PVs in ASL0 space then register them to ASLT1w space
+    # Yes this seems stupid but theres a good reason for it
+    # aka double-resampling (ask TK)
+    asl2struct = op.join(t1_asl_dir, "TIs", "reg", "asl2struct.mat")
+    pv_gm = op.join(pve_dir, "pve_GM.nii.gz")
+    if not op.exists(pv_gm) or force_refresh:
+        pvs_stacked = estimate_pvs(t1_dir, asl, ref2struct=asl2struct, cores=cores)
+
+        # register the PVEs from ASL0 space to ASLT1w space with the
+        # same order of interpolation used to register the ASL series
+        asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
+        pvs_stacked = asl2struct.apply_to_image(
+            src=pvs_stacked, ref=t1_asl_grid, order=interpolation, cores=cores
+        )
+
+        # Save output with tissue suffix
+        fileroot = op.join(pve_dir, "pve")
+        for idx, suffix in enumerate(["GM", "WM"]):
+            p = "{}_{}.nii.gz".format(fileroot, suffix)
+            rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[..., idx], p)
 
 
 def main():
@@ -108,63 +164,4 @@ def main():
     )
 
     args = parser.parse_args()
-    study_dir = args.study_dir
-    sub_id = args.sub_number
-
-    # for debug, re-use intermediate results
-    force_refresh = True
-
-    sub_base = op.abspath(op.join(study_dir, sub_id))
-    t1_dir = op.join(sub_base, "T1w")
-    t1_asl_dir = op.join(sub_base, args.outdir, "T1w", "ASL")
-    asl = op.join(sub_base, args.outdir, "ASL", "TIs", "tis.nii.gz")
-    struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
-
-    # Create ASL-gridded version of T1 image
-    t1_asl_grid = op.join(t1_asl_dir, "reg", "ASL_grid_T1w_acpc_dc_restore.nii.gz")
-    if not op.exists(t1_asl_grid) or force_refresh:
-        asl_spc = rt.ImageSpace(asl)
-        t1_spc = rt.ImageSpace(struct)
-        t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
-        nib.save(
-            rt.Registration.identity().apply_to_image(struct, t1_asl_grid_spc),
-            t1_asl_grid,
-        )
-
-    # Create PVEs directory
-    pve_dir = op.join(sub_base, args.outdir, "T1w", "ASL", "PVEs")
-    os.makedirs(pve_dir, exist_ok=True)
-
-    # Create a ventricle CSF mask in T1 ASL space
-    ventricle_mask = op.join(pve_dir, "vent_csf_mask.nii.gz")
-    if not op.exists(ventricle_mask) or force_refresh:
-        aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
-        vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
-        rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
-
-    # Estimate PVs in ASL0 space then register them to ASLT1w space
-    asl2struct = op.join(t1_asl_dir, "TIs", "reg", "asl2struct.mat")
-    pv_gm = op.join(pve_dir, "pve_GM.nii.gz")
-    if not op.exists(pv_gm) or force_refresh:
-        aparc_seg = op.join(t1_dir, "aparc+aseg.nii.gz")
-        pvs_stacked = estimate_pvs(t1_dir, asl, ref2struct=asl2struct, cores=args.cores)
-
-        # register the PVEs from ASL0 space to ASLT1w space with the
-        # same order of interpolation used to register the ASL series
-        asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
-        pvs_stacked = asl2struct.apply_to_image(
-            src=pvs_stacked, ref=t1_asl_grid, order=args.interpolation, cores=args.cores
-        )
-
-        # Save output with tissue suffix
-        fileroot = op.join(pve_dir, "pve")
-        for idx, suffix in enumerate(["GM", "WM", "CSF"]):
-            p = "{}_{}.nii.gz".format(fileroot, suffix)
-            rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[..., idx], p)
-
-
-if __name__ == "__main__":
-    # study_dir = 'HCP_asl_min_req'
-    # sub_number = 'HCA6002236'
-    # sys.argv[1:] = ('%s %s' % (study_dir, sub_number)).split()
-    main()
+    run(args.study_dir, args.sub_id, args.cores, args.outdir, args.interpolation)
