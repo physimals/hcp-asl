@@ -644,6 +644,8 @@ def single_step_resample_to_asl0(
         calib2struct_reg.inverse(), asln2m0_moco.transforms[0].inverse()
     )
     aslfs_mask = struct2asl0_reg.apply_to_image(src=fs_brainmask, ref=asl_spc, order=1)
+    asl_fs_brainmask = tis_dir / "brain_mask.nii.gz"
+    nb.save(aslfs_mask, asl_fs_brainmask)
     aslfs_mask = binary_dilation(aslfs_mask.get_fdata(), iterations=1).astype(
         np.float32
     )
