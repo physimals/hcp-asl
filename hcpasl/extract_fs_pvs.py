@@ -62,7 +62,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
         aparcseg: path to aparc+aseg file
         surf_dict: dict with LWS/LPS/RWS/RPS keys, paths to those surfaces
         ref_spc: space in which to estimate (ie, ASL-gridded T1)
-        superfactor: supersampling factor for intermediate steps
+        ref2struct: FLIRT registration between reference and T1w image 
         cores: number CPU cores to use, default is 1
     Returns:
         nibabel Nifti object
