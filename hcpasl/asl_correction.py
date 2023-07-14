@@ -629,7 +629,9 @@ def single_step_resample_to_asl0(
         src=asl_spc,
         ref=calib_spc,
     )
-    fov_mask_asl = utils.make_motion_fov_mask(asln2m0_moco, asl_spc, calib_spc)
+    asl02m0 = asln2m0_moco.transforms[0]
+    asln2asl0 = rt.chain(asln2m0_moco, asl02m0.inverse())
+    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc)
     fov_mask_asl_path = moco_dir / "fov_mask_initial.nii.gz"
     nb.save(fov_mask_asl, fov_mask_asl_path)
 
@@ -660,8 +662,6 @@ def single_step_resample_to_asl0(
 
     # register pre-ST-correction ASLn to ASL0
     logger.info("Apply distortion and motion correction to original ASL series.")
-    asl02m0 = asln2m0_moco.transforms[0]
-    asln2asl0 = rt.chain(asln2m0_moco, asl02m0.inverse())
     asl02fmap = rt.chain(asl02m0, calib2struct_reg, fmap2struct_reg.inverse())
     dc_asln2asl0 = rt.chain(asln2asl0, asl02fmap, dc_warp, asl02fmap.inverse())
     if gd_corr:
@@ -833,8 +833,10 @@ def single_step_resample_to_asl0(
     # Update the motion FoV mask
     asl_spc = rt.ImageSpace(asl_corr)
     calib_spc = rt.ImageSpace(calib_name)
-    final_mc = rt.MotionCorrection.from_mcflirt(asln2m0_final_name, asl_spc, calib_spc)
-    fov_mask_asl = utils.make_motion_fov_mask(final_mc, asl_spc, calib_spc)
+    asln2m0_final = rt.MotionCorrection.from_mcflirt(asln2m0_final_name, src=asl_spc, ref=calib_spc)
+    asl02m0_final = asln2m0_moco.transforms[0]
+    asln2asl0_final = rt.chain(asln2m0_moco, asl02m0.inverse())
+    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc)
     fov_mask_asl_path = moco_dir / "fov_mask.nii.gz"
     nb.save(fov_mask_asl, fov_mask_asl_path)
 

@@ -16,6 +16,14 @@ RegName="$9" #"MSMAll" #
 
 CARET7DIR="${12}"
 
+# Add leading underscore to regname for use in paths 
+RegString=""
+if [[ "$RegName" != "" ]]
+then
+    RegString="_$RegName"
+fi
+
+
 NeighborhoodSmoothing="5" # May need to change
 Factor="0.5" # May need to change                  
 
@@ -38,26 +46,26 @@ for Hemisphere in L R ; do
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
                             -ribbon-constrained \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".white.native.surf.gii \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".pial.native.surf.gii \
+                              "$T1wNativeFolder"/"$Subject"."$Hemisphere".white.native.surf.gii \
+                              "$T1wNativeFolder"/"$Subject"."$Hemisphere".pial.native.surf.gii \
                             -volume-roi \
-                            "$T1WorkingDirectory"/"$ASLVariable"_precision.nii.gz \
-                            -weighted \
+                              "$T1WorkingDirectory"/"$ASLVariable"_precision.nii.gz \
+                              -weighted \
                             -bad-vertices-out \
-                            "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".badvert_ribbonroi.native.func.gii
+                              "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".badvert_ribbonroi.native.func.gii
 
+  # 10mm dilation
   ${CARET7DIR}/wb_command -metric-dilate \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
                             "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
-                            10 "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii -nearest
+                            10 "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
+                            -bad-vertex-roi "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".badvert_ribbonroi.native.func.gii
   
-  ### NOT CLEAR IF THIS MASK CAN BE APPLIED HERE - IT IS AN MNI  SPACE ###
-  ###                    MASK AND A T1W SPACE SURFACE                  ###
-
-  # ${CARET7DIR}/wb_command -metric-mask \
-  #                          "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
-  #                          "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii  \
-  #                          "$WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii
+  # Mask using pre-computed ROI mask 
+  ${CARET7DIR}/wb_command -metric-mask \
+                           "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
+                           "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii  \
+                           "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii
 
   # Resample the surface to the 32k atlas space.
   ${CARET7DIR}/wb_command -metric-resample \
@@ -67,16 +75,18 @@ for Hemisphere in L R ; do
                             ADAP_BARY_AREA \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             -area-surfs \
-                            "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
-                            "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness_${RegName}."$LowResMesh"k_fs_LR.surf.gii \
+                              "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
+                              "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness${RegString}."$LowResMesh"k_fs_LR.surf.gii \
                             -current-roi \
-                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii
+                              "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".roi.native.shape.gii
 
+  # 30mm dilation 
   ${CARET7DIR}/wb_command -metric-dilate \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
-                            "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness_${RegName}."$LowResMesh"k_fs_LR.surf.gii \
-                            30 "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii -nearest
+                            "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness${RegString}."$LowResMesh"k_fs_LR.surf.gii \
+                            30 "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii 
 
+  # Final masking 
   ${CARET7DIR}/wb_command -metric-mask \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             "$AtlasDownSampleFolder"/"$Subject"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.shape.gii \

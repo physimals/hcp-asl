@@ -16,20 +16,18 @@ GrayordinatesResolution="$5" #"2" #"$8"
 
 CARET7DIR="${11}" #"/Applications/workbench/bin_macosx64"
 
-#Some way faster and more concise code:
-
 ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
     "$OutputAtlasDenseScalar".dscalar.nii -volume \
     "$AtlasResultsFolder"/"$NameOfASL"_AtlasSubcortical_s"$SmoothingFWHM".nii.gz \
     "$ROIFolder"/Atlas_ROIs."$GrayordinatesResolution".nii.gz \
     -left-metric \
-    "$T1wSpcResultsFolder"/"$NameOfASL"_s"$SmoothingFWHM".atlasroi.L."$LowResMesh"k_fs_LR.func.gii \
+        "$T1wSpcResultsFolder"/"$NameOfASL"_s"$SmoothingFWHM".atlasroi.L."$LowResMesh"k_fs_LR.func.gii \
     -roi-left \
-    "$AtlasDownSampleFolder"/"$Subject".L.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
+        "$AtlasDownSampleFolder"/"$Subject".L.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
     -right-metric \
-    "$T1wSpcResultsFolder"/"$NameOfASL"_s"$SmoothingFWHM".atlasroi.R."$LowResMesh"k_fs_LR.func.gii \
+        "$T1wSpcResultsFolder"/"$NameOfASL"_s"$SmoothingFWHM".atlasroi.R."$LowResMesh"k_fs_LR.func.gii \
     -roi-right \
-    "$AtlasDownSampleFolder"/"$Subject".R.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
+        "$AtlasDownSampleFolder"/"$Subject".R.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
 
 #Basic Cleanup
 # rm "$NameOfASL"_AtlasSubcortical_s"$SmoothingFWHM".nii.gz

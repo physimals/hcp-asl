@@ -47,7 +47,7 @@ then
     ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
         ${ResultsFolder}/${ASLVariable}_temp_subject.dscalar.nii \
         -volume "${VolumeASL}_MNI".nii.gz \
-        "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz
+            "$ROIFolder"/ROIs."$BrainOrdinatesResolution".nii.gz
 else
     echo "${script_name}: Creating subject-roi subcortical cifti at differing resolution"
     ${CARET7DIR}/wb_command -volume-affine-resample \
@@ -59,7 +59,7 @@ else
     ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
         ${ResultsFolder}/${ASLVariable}_temp_subject.dscalar.nii \
         -volume "${VolumeASL}_MNI".nii.gz \
-        "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz
+            "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz
 
     rm -f "$ResultsFolder"/ROIs."$FinalASLResolution".nii.gz
 fi
@@ -77,7 +77,7 @@ echo "${script_name}: Generate atlas subcortical template cifti"
 ${CARET7DIR}/wb_command -cifti-create-label \
     ${ResultsFolder}/${ASLVariable}_temp_template.dlabel.nii \
     -volume "$ROIFolder"/Atlas_ROIs."$BrainOrdinatesResolution".nii.gz \
-    "$ROIFolder"/Atlas_ROIs."$BrainOrdinatesResolution".nii.gz
+        "$ROIFolder"/Atlas_ROIs."$BrainOrdinatesResolution".nii.gz
 
 if [[ `echo "${Sigma} > 0" | bc -l | cut -f1 -d.` == "1" ]]
 then

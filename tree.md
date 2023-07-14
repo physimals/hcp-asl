@@ -189,20 +189,20 @@ hcpasl
 │       │           ├── perfusion_gm_var_calib_masked.nii.gz
 │       │           ├── perfusion_wm_calib_masked.nii.gz
 │       │           └── perfusion_wm_var_calib_masked.nii.gz
-│       ├── arrival.nii.gz # Volumetric and perfusion estimates, MNI space 
-│       ├── arrival_Atlas.dscalar.nii
-│       ├── arrival_cifti_mean_nonzero.txt
-│       ├── perfusion_calib.nii.gz
-│       ├── perfusion_calib_Atlas.dscalar.nii
-│       ├── perfusion_calib_cifti_mean_nonzero.txt
-│       ├── pvcorr_arrival_Atlas.dscalar.nii
-│       ├── pvcorr_arrival_cifti_mean_nonzero.txt
-│       ├── pvcorr_arrival_gm_masked.nii.gz
-│       ├── pvcorr_arrival_wm_masked.nii.gz
-│       ├── pvcorr_perfusion_calib_Atlas.dscalar.nii
-│       ├── pvcorr_perfusion_calib_cifti_mean_nonzero.txt
-│       ├── pvcorr_perfusion_gm_calib_masked.nii.gz
-│       └── pvcorr_perfusion_wm_calib_masked.nii.gz
+│       ├── arrival.nii.gz # MNI NIFTI, ATT, non-PVEc
+│       ├── arrival_Atlas.dscalar.nii # MNI CIFTI, ATT, non-PVEc
+│       ├── arrival_cifti_mean_nonzero.txt # ROI calculation 
+│       ├── perfusion_calib.nii.gz # MNI NIFTI, perfusion, non-PVEc
+│       ├── perfusion_calib_Atlas.dscalar.nii # MNI CIFTI, perfusion, non-PVEc
+│       ├── perfusion_calib_cifti_mean_nonzero.txt # ROI calculation 
+│       ├── pvcorr_arrival_Atlas.dscalar.nii # MNI CIFTI, ATT, PVEc
+│       ├── pvcorr_arrival_cifti_mean_nonzero.txt # ROI calculation 
+│       ├── pvcorr_arrival_gm_masked.nii.gz # MNI NIFTI, ATT, PVEc GM
+│       ├── pvcorr_arrival_wm_masked.nii.gz # MNI NIFTI, ATT, PVEc WM
+│       ├── pvcorr_perfusion_calib_Atlas.dscalar.nii # MNI CIFTI, perfusion, PVEc
+│       ├── pvcorr_perfusion_calib_cifti_mean_nonzero.txt # ROI calculation 
+│       ├── pvcorr_perfusion_gm_calib_masked.nii.gz # MNI NIFTI, perfusion, PVEc GM
+│       └── pvcorr_perfusion_wm_calib_masked.nii.gz # MNI NIFTI, perfusion, PVEc WM
 ├── T1w
 │   └── ASL
 │       ├── CIFTIPrepare # For preparing CIFTI outputs 
@@ -271,7 +271,7 @@ hcpasl
 │       │       ├── SEbased
 │       │       │   ├── AllGreyMatter.nii.gz
 │       │       │   └── sebased_bias_dilall.nii.gz
-│       │       ├── calib0_corr_aslt1w.nii.gz # Fully corrected M0
+│       │       ├── calib0_corr_aslt1w.nii.gz # Fully corrected M0 for alternative modelling 
 │       │       ├── calib_aslt1w_stcorr_factors.nii.gz
 │       │       └── calib_aslt1w_timing.nii.gz
 │       ├── OxfordASL # Oxford ASL inputs/outputs 
@@ -357,10 +357,10 @@ hcpasl
 │       │   │   └── tis_dc_moco.nii.gz
 │       │   ├── MotionSubtraction
 │       │   │   ├── beta_baseline.nii.gz
-│       │   │   ├── beta_perf.nii.gz
+│       │   │   ├── beta_perf.nii.gz # Label-control differences of fully corrected ASL timeseries for altnernative modelling 
 │       │   │   ├── combined_mask.nii.gz
 │       │   │   └── difference_mask.nii.gz
-│       │   ├── asl_corr.nii.gz # Fully corrected ASL timeseries
+│       │   ├── asl_corr.nii.gz # Fully corrected ASL timeseries for alternative modelling 
 │       │   ├── asl_noncorr.nii.gz # Uncorrected ASL timeseries, for QC comparison 
 │       │   ├── combined_scaling_factors.nii.gz
 │       │   ├── reg
@@ -374,27 +374,27 @@ hcpasl
 │       │   │   └── mean_T1t_filt_aslt1w.nii.gz
 │       │   ├── single_step_resample_to_aslt1w.log
 │       │   └── timing_img_aslt1w.nii.gz
-│       ├── aCBV_calib.nii.gz # Volumetric perfusion estimates, T1w space 
-│       ├── arrival.nii.gz
-│       ├── arrival_gm_mean.txt
+│       ├── aCBV_calib.nii.gz # T1w NIFTI, arterial cerebral blood volume, non-PVEc
+│       ├── arrival.nii.gz # T1w NIFTI, ATT, non-PVEc
+│       ├── arrival_gm_mean.txt # ROI calculation 
 │       ├── arrival_var.nii.gz
-│       ├── arrival_wm_mean.txt
-│       ├── perfusion_calib.nii.gz
-│       ├── perfusion_calib_gm_mean.txt
-│       ├── perfusion_calib_wm_mean.txt
+│       ├── arrival_wm_mean.txt # ROI calculation 
+│       ├── perfusion_calib.nii.gz # T1w NIFTI, perfusion, non-PVEc
+│       ├── perfusion_calib_gm_mean.txt # ROI calculation 
+│       ├── perfusion_calib_wm_mean.txt # ROI calculation 
 │       ├── perfusion_var_calib.nii.gz
-│       ├── pvcorr_aCBV_calib.nii.gz
-│       ├── pvcorr_arrival_gm_masked.nii.gz
-│       ├── pvcorr_arrival_gm_mean.txt
+│       ├── pvcorr_aCBV_calib.nii.gz # T1w NIFTI, arterial cerebral blood volume, PVEc
+│       ├── pvcorr_arrival_gm_masked.nii.gz # T1w NIFTI, ATT, PVEc GM
+│       ├── pvcorr_arrival_gm_mean.txt # ROI calculation 
 │       ├── pvcorr_arrival_gm_var_masked.nii.gz
-│       ├── pvcorr_arrival_wm_masked.nii.gz
-│       ├── pvcorr_arrival_wm_mean.txt
-│       ├── pvcorr_arrival_wm_var_masked.nii.gz
-│       ├── pvcorr_perfusion_calib_gm_mean.txt
-│       ├── pvcorr_perfusion_calib_wm_mean.txt
-│       ├── pvcorr_perfusion_gm_calib_masked.nii.gz
+│       ├── pvcorr_arrival_wm_masked.nii.gz # T1w NIFTI, ATT, PVEc WM
+│       ├── pvcorr_arrival_wm_mean.txt # ROI calculation 
+│       ├── pvcorr_arrival_wm_var_masked.nii.gz 
+│       ├── pvcorr_perfusion_calib_gm_mean.txt # ROI calculation 
+│       ├── pvcorr_perfusion_calib_wm_mean.txt # ROI calculation 
+│       ├── pvcorr_perfusion_gm_calib_masked.nii.gz # T1w NIFTI, perfusion, PVEc GM
 │       ├── pvcorr_perfusion_gm_var_calib_masked.nii.gz
-│       ├── pvcorr_perfusion_wm_calib_masked.nii.gz
+│       ├── pvcorr_perfusion_wm_calib_masked.nii.gz # T1w NIFTI, perfusion, PVEc WM
 │       ├── pvcorr_perfusion_wm_var_calib_masked.nii.gz
 │       ├── reg
 │       │   ├── ASL_grid_T1w_acpc_dc_restore.nii.gz
