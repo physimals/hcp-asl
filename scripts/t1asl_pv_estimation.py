@@ -45,8 +45,8 @@ def estimate_pvs(t1_dir, ref_spc, ref2struct=None, cores=1):
     Args:
         t1w_dir: path to subject's T1w directory containing aparc+aseg FS volumetric
             segmentation and fsaverage_32k surface directory
-        ref_spc: reference image space in which to estimate PVs 
-        ref2struct: FLIRT registration between reference and T1w image 
+        ref_spc: reference image space in which to estimate PVs
+        ref2struct: FLIRT registration between reference and T1w image
         cores: integer number of cores to use, default is 1
     """
 

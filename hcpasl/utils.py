@@ -250,16 +250,7 @@ def split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name):
     fslroi(str(mbpcasl), str(calib1_name), 89, 1)
 
 
-LOGGING_LEVELS = {
-    "DEBUG": logging.DEBUG,
-    "INFO": logging.INFO,
-    "WARNING": logging.WARNING,
-    "ERROR": logging.ERROR,
-    "CRITICAL": logging.CRITICAL,
-}
-
-
-def setup_logger(logger_name, out_name, level, verbose=False, mode="w"):
+def setup_logger(file_path):
     """
     Convenience function which returns a logger object with a
     specified name and level of reporting.
@@ -280,28 +271,22 @@ def setup_logger(logger_name, out_name, level, verbose=False, mode="w"):
         The mode of operation for the FileHandler. The default mode,
         "w", overwrites a logfile of the same name if it exists.
     """
+
     # set up logger's base reporting level and formatting
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(LOGGING_LEVELS[level])
-    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    logger = logging.getLogger()
+    logger.setLevel("INFO")
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)s %(module)s/:%(funcName)s: %(message)s"
+    )
 
-    # set up FileHandler
-    fh = logging.FileHandler(out_name, mode=mode)
-    handlers = [
-        fh,
-    ]
-
-    # set up StreamHandler (if verbose)
-    if verbose:
-        sh = logging.StreamHandler()
-        handlers.append(sh)
+    # set up FileHandler and StreamHanlder
+    handlers = [logging.FileHandler(file_path, mode="w")]
+    handlers.append(logging.StreamHandler())
 
     # add formatting to handlers and add to logger
     for handler in handlers:
         handler.setFormatter(formatter)
         logger.addHandler(handler)
-
-    return logger
 
 
 def get_package_data_name(name):
@@ -341,22 +326,22 @@ def make_motion_fov_mask(mc_transform, src, ref):
     Save mask in source space"""
 
     fov = np.ones(ref.size)
-    fov_motion = mc_transform.inverse().apply_to_array(fov, ref, src, order=1)
+    fov_motion = mc_transform.apply_to_array(fov, ref, src, order=1)
     fov_valid = (fov_motion > 0.9).all(-1)
     return src.make_nifti(fov_valid)
 
 
-def subprocess_popen(cmd, logger, **kwargs):
-    process = subprocess.Popen(
+def subprocess_popen(cmd, **kwargs):
+    with subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
-    )
-    while 1:
-        retcode = process.poll()
-        line = process.stdout.readline().decode("utf-8")
-        logger.info(line)
-        if line == "" and retcode is not None:
-            break
-    if retcode != 0:
-        msg = f"Subprocess {cmd} failed with exit code {retcode}."
-        logger.exception(msg)
-        raise RuntimeError(msg)
+    ) as process:
+        while 1:
+            retcode = process.poll()
+            line = process.stdout.readline().decode("utf-8").replace("\n", "")
+            logging.info(line)
+            if line == "" and retcode is not None:
+                break
+        if retcode != 0:
+            msg = f"Subprocess {cmd} failed with exit code {retcode}."
+            logging.exception(msg)
+            raise RuntimeError(msg)

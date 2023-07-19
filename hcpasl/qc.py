@@ -1,12 +1,13 @@
 import os
 from pathlib import Path
+import logging
 
 import nbformat
 import regtricks as rt
 from nbclient import execute
 from nbparameterise import extract_parameters, parameter_values, replace_definitions
 
-from hcpasl.utils import get_package_data_name, setup_logger, subprocess_popen
+from hcpasl.utils import get_package_data_name, subprocess_popen
 
 
 def create_qc_report(subject_dir, outdir):
@@ -25,7 +26,7 @@ def create_qc_report(subject_dir, outdir):
     _ = execute(new_nb)
 
     # save notebook in subject's main output directory
-    new_nb_name = Path(subject_dir) / outdir / "hcp_asl_report.ipynb"
+    new_nb_name = Path(subject_dir) / outdir / "T1w/ASL/hcp_asl_report.ipynb"
     with open(new_nb_name, "w") as f:
         nbformat.write(new_nb, f)
 
@@ -43,11 +44,7 @@ def roi_stats(
     # create directory for results
     roi_stats_dir.mkdir(exist_ok=True, parents=True)
 
-    # set up logger
-    logger_name = "HCPASL.roi_stats"
-    log_out = roi_stats_dir / "roi_stats.log"
-    logger = setup_logger(logger_name, log_out, "INFO")
-    logger.info("Producing summary statistics in ASLT1w ROIs.")
+    logging.info("Producing summary statistics in ASLT1w ROIs.")
 
     # get an FSL identity transform from asl2struct
     identity_name = roi_stats_dir / "fsl_identity.txt"
@@ -84,6 +81,6 @@ def roi_stats(
         "0.7",
         "--native-pves",
     ]
-    logger.info("Running oxford_asl_roi_stats.py with command:")
-    logger.info(" ".join(cmd))
-    subprocess_popen(cmd, logger)
+    logging.info("Running oxford_asl_roi_stats.py with command:")
+    logging.info(" ".join(cmd))
+    subprocess_popen(cmd)

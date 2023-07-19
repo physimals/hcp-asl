@@ -6,13 +6,14 @@ import os
 import os.path as op
 import subprocess
 from pathlib import Path
+import logging
 
 import nibabel as nb
 import numpy as np
 import regtricks as rt
 
 from .tissue_masks import generate_tissue_mask
-from .utils import setup_logger, subprocess_popen
+from .utils import subprocess_popen
 
 
 def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
@@ -31,16 +32,12 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     Returns:
         n/a, file 'asl2struct.mat' will be saved in reg_dir
     """
-    # set up logger
-    logger_name = "HCPASL.asl2struct_registration"
-    log_name = reg_dir / "asl2struct_reg.log"
-    logger = setup_logger(logger_name, log_name, "INFO")
 
-    logger.info("Running generate_asl2struct()")
-    logger.info(f"Movable volume: {asl_vol0}")
-    logger.info(f"T1w structural image: {struct}")
-    logger.info(f"FreeSurfer output directory: {fsdir}")
-    logger.info(f"Output directory: {reg_dir}")
+    logging.info("Running generate_asl2struct()")
+    logging.info(f"Movable volume: {asl_vol0}")
+    logging.info(f"T1w structural image: {struct}")
+    logging.info(f"FreeSurfer output directory: {fsdir}")
+    logging.info(f"Output directory: {reg_dir}")
 
     # We need to do some hacky stuff to get bbregister to work...
     # Split the path to the FS directory into a fake $SUBJECTS_DIR
@@ -53,34 +50,34 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
 
     # Run inside the regdir. Save the output in fsl format, by default
     # this targets the orig.mgz, NOT THE T1 IMAGE ITSELF!
-    logger.info(f"Changing directory to {reg_dir}")
+    logging.info(f"Changing directory to {reg_dir}")
     os.chdir(reg_dir)
     omat_path = op.join(reg_dir, "asl2struct.mat")
-    logger.info(f"Setting $SUBJECTS_DIR to {new_sd} for bbregister")
+    logging.info(f"Setting $SUBJECTS_DIR to {new_sd} for bbregister")
     cmd = os.environ["SUBJECTS_DIR"] = new_sd
     cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t2 "
     cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path} --init-fsl"
-    logger.info(f"Running bbregister: {cmd}")
+    logging.info(f"Running bbregister: {cmd}")
     fslog_name = op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.log")
-    logger.info(f"FreeSurfer's bbregister log: {fslog_name}")
-    subprocess_popen(cmd, logger, shell=True)
+    logging.info(f"FreeSurfer's bbregister log: {fslog_name}")
+    subprocess_popen(cmd, shell=True)
 
     # log final .dat transform
     with open(omat_path, "r") as f:
         lines = f.readlines()
         for line in lines:
-            logger.info(line)
+            logging.info(line)
 
     # log minimum registration cost
     mincost = np.loadtxt(op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.mincost"))
-    logger.info(f"bbregister's mincost: {mincost[0]:4f}")
+    logging.info(f"bbregister's mincost: {mincost[0]:4f}")
 
     # convert .dat to .mat
     try:
         asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
     except RuntimeError as e:
         # final row != [0 0 0 1], round to 5 d.p. and try again
-        logger.warning("FSL .mat file has an invalid format. Rounding to 5 d.p.")
+        logging.warning("FSL .mat file has an invalid format. Rounding to 5 d.p.")
         arr = np.loadtxt(omat_path)
         np.savetxt(omat_path, arr, fmt="%.5f")
         asl2orig_fsl = rt.Registration.from_flirt(omat_path, asl_vol0, orig_mgz)
@@ -89,9 +86,9 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     # asl -> T1, not orig.mgz. Save output.
     os.chdir(pwd)
     if old_sd:
-        logger.info(f"Changing $SUBJECTS_DIR back to {old_sd}")
+        logging.info(f"Changing $SUBJECTS_DIR back to {old_sd}")
         os.environ["SUBJECTS_DIR"] = old_sd
-    logger.info("Converting .mat to target T1w.nii.gz rather than orig.mgz.")
+    logging.info("Converting .mat to target T1w.nii.gz rather than orig.mgz.")
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, "asl2struct.mat"), asl2struct_fsl)
 
@@ -169,9 +166,6 @@ def correct_M0(
         Whether to perform gradient distortion correction or not.
         Default is True
     """
-    logger_name = "HCPASL.correct_M0"
-    log_name = subject_dir / outdir / "ASL/Calib/correct_M0.log"
-    logger = setup_logger(logger_name, log_name, "INFO")
 
     # get calibration image names
     calib0, calib1 = [
@@ -186,7 +180,7 @@ def correct_M0(
     ]
 
     # generate white matter mask in T1w space for use in registration
-    logger.info("Generating white matter mask in T1w space.")
+    logging.info("Generating white matter mask in T1w space.")
     t1reg_dir = aslt1w_dir / "reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
     aparc_aseg = (t1w_dir / "aparc+aseg.nii.gz").resolve(strict=True)
@@ -195,10 +189,10 @@ def correct_M0(
     nb.save(wmmask_img, wmmask_name)
 
     # load gradient distortion correction warp, fieldmaps and PA epidc warp
-    logger.info("Loading gradient and EPI distortion correction warps.")
+    logging.info("Loading gradient and EPI distortion correction warps.")
     gdc_name = (gradunwarp_dir / "fullWarp_abs.nii.gz").resolve()
     if gd_corr:
-        logger.info(f"gradient_unwarp.py was run, loading {gdc_name}")
+        logging.info(f"gradient_unwarp.py was run, loading {gdc_name}")
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
             coefficients=gdc_name,
             src=calib0,
@@ -206,7 +200,7 @@ def correct_M0(
             intensity_correct=True,
         )
     else:
-        logger.info(
+        logging.info(
             f"gradient_unwarp.py was not run, not applying gradient distortion correction."
         )
     fmap, fmapmag, fmapmagbrain = [
@@ -220,29 +214,29 @@ def correct_M0(
     )
 
     # register fieldmapmag to structural image for use in SE-based later
-    logger.info("Getting registration from fmapmag image to structural image.")
+    logging.info("Getting registration from fmapmag image to structural image.")
     fmap_struct_dir = topup_dir / "fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True, parents=True)
     fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
-    logger.info("Loading registration from fieldmap to struct.")
+    logging.info("Loading registration from fieldmap to struct.")
     bbr_fmap2struct = rt.Registration.from_flirt(
         fmap_struct_dir / "asl2struct.mat", src=fmapmag, ref=struct_name
     )
 
     # iterate over the two calibration images, applying the corrections to both
-    logger.info("Iterating over subject's calibration images.")
+    logging.info("Iterating over subject's calibration images.")
     for calib_name in (calib0, calib1):
         # get calib_dir and other info
         calib_dir = calib_name.parent
         calib_name_stem = calib_name.stem.split(".")[0]
-        logger.info(f"Processing {calib_name_stem}.")
+        logging.info(f"Processing {calib_name_stem}.")
         distcorr_dir = calib_dir / "DistCorr"
         distcorr_dir.mkdir(exist_ok=True, parents=True)
 
         # apply gdc to the calibration image
         if gd_corr:
-            logger.info(
+            logging.info(
                 f"Applying gradient distortion correction to {calib_name_stem}."
             )
             calib_img = gdc_warp.apply_to_image(
@@ -257,7 +251,7 @@ def correct_M0(
 
         # apply mt scaling factors to the (potentially) gradient distortion-corrected calibration image
         if not nobandingcorr:
-            logger.info(f"Applying MT scaling factors to {calib_name_stem}.")
+            logging.info(f"Applying MT scaling factors to {calib_name_stem}.")
             mt_sfs = np.loadtxt(mt_factors)
             assert len(mt_sfs) == calib_img.shape[2]
             mt_gdc_calib_img = nb.nifti1.Nifti1Image(
@@ -270,7 +264,7 @@ def correct_M0(
             nb.save(mt_gdc_calib_img, calib_corr_name)
 
         # get registration to structural
-        logger.info("Generate registration to structural.")
+        logging.info("Generate registration to structural.")
         generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
         asl2struct_reg = rt.Registration.from_flirt(
             src2ref=distcorr_dir / "asl2struct.mat",
@@ -289,7 +283,7 @@ def correct_M0(
         # this to apply gdc, epidc and MT correction to the calibration image
         # apply distortion corrections
         calib_name_stem = calib_name_stem.split("_")[-1]
-        logger.info(f"Applying distortion corrections to {calib_name_stem}.")
+        logging.info(f"Applying distortion corrections to {calib_name_stem}.")
         fmap2calib_reg = rt.chain(bbr_fmap2struct, struct2calib_reg)
         dc_calibspc_warp = rt.chain(
             fmap2calib_reg.inverse(), epi_dc_warp, fmap2calib_reg
@@ -306,7 +300,7 @@ def correct_M0(
         nb.save(dc_calib, dc_calib_name)
 
         # register fmapmag to calibration image space to perform SE-based bias estimation
-        logger.info(f"Registering {fmapmag.stem} to {calib_name_stem}")
+        logging.info(f"Registering {fmapmag.stem} to {calib_name_stem}")
         fmapmag_calibspc = fmap2calib_reg.apply_to_image(
             fmapmag, calib_name, order=interpolation
         )
@@ -317,7 +311,7 @@ def correct_M0(
         nb.save(fmapmag_calibspc, fmapmag_cspc_name)
 
         # get brain mask in calibration image space
-        logger.info("Getting brain mask in calibration image space.")
+        logging.info("Getting brain mask in calibration image space.")
         fs_brainmask = (t1w_dir / "brainmask_fs.nii.gz").resolve(strict=True)
         aslfs_mask_name = calib_dir / "aslfs_mask.nii.gz"
         aslfs_mask = struct2calib_reg.apply_to_image(
@@ -353,9 +347,9 @@ def correct_M0(
             struct_name,
             "--debug",
         ]
-        logger.info(f"Running SE-based bias estimation on {calib_name_stem}.")
-        logger.info(sebased_cmd)
-        subprocess_popen(sebased_cmd, logger)
+        logging.info(f"Running SE-based bias estimation on {calib_name_stem}.")
+        logging.info(sebased_cmd)
+        subprocess_popen(sebased_cmd)
 
         # apply dilall to bias estimate
         bias_name = sebased_dir / "sebased_bias_dil.nii.gz"
@@ -364,7 +358,7 @@ def correct_M0(
         subprocess.run(dilall_cmd, check=True)
 
         # bias correct and mt correct the distortion corrected calib image
-        logger.info(f"Performing bias correction.")
+        logging.info(f"Performing bias correction.")
         bias_img = nb.load(dilall_name)
         bc_calib = nb.nifti1.Nifti1Image(
             dc_calib.get_fdata() / bias_img.get_fdata(), dc_calib.affine
@@ -373,7 +367,7 @@ def correct_M0(
         nb.save(bc_calib, biascorr_name)
 
         if not nobandingcorr:
-            logger.info(f"Performing MT correction.")
+            logging.info(f"Performing MT correction.")
             mt_bc_calib = nb.nifti1.Nifti1Image(
                 bc_calib.get_fdata() * mt_sfs, bc_calib.affine
             )

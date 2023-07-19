@@ -10,7 +10,7 @@ import regtricks as rt
 from fsl.wrappers import bet
 from scipy.ndimage import binary_fill_holes
 
-from hcpasl.utils import setup_logger, subprocess_popen
+from hcpasl.utils import subprocess_popen
 
 
 def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
@@ -27,30 +27,29 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
     Returns:
         n/a, file 'fullWarp_abs.nii.gz' will be created in output dir
     """
-    # set up logger
-    logger = logging.getLogger("HCPASL.distortion_estimation")
-    logger.info("Running generate_gdc_warp")
-    logger.info(f"vol: {vol}")
-    logger.info(f"coeffs_path: {coeffs_path}")
-    logger.info(f"distcorr_dir: {distcorr_dir}")
-    logger.info(f"interpolation: {interpolation}")
+
+    logging.info("Running generate_gdc_warp")
+    logging.info(f"vol: {vol}")
+    logging.info(f"coeffs_path: {coeffs_path}")
+    logging.info(f"distcorr_dir: {distcorr_dir}")
+    logging.info(f"interpolation: {interpolation}")
 
     # Need to run in the output directory to make sure files end up in the
     # right place
     pwd = os.getcwd()
-    logger.info(f"PWD: {pwd}")
-    logger.info(f"Changing to {distcorr_dir}")
+    logging.info(f"PWD: {pwd}")
+    logging.info(f"Changing to {distcorr_dir}")
     os.chdir(distcorr_dir)
 
     cmd = "gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {} --interp_order {}".format(
         vol, coeffs_path, interpolation
     )
-    logger.info(f"gradient_unwarp.py command:")
-    logger.info(cmd)
-    subprocess_popen(cmd, logger, shell=True)
-    logger.info("gradient_unwarp.py run is complete.")
+    logging.info(f"gradient_unwarp.py command:")
+    logging.info(cmd)
+    subprocess_popen(cmd, shell=True)
+    logging.info("gradient_unwarp.py run is complete.")
     os.chdir(pwd)
-    logger.info(f"Changed directory back to {pwd}")
+    logging.info(f"Changed directory back to {pwd}")
 
 
 def generate_topup_params(pars_filepath):
@@ -152,16 +151,14 @@ def generate_fmaps(
     Returns:
         n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
     """
-    # set up logger
-    logger = logging.getLogger("HCPASL.distortion_estimation")
-    logger.info("Running generate_fmaps()")
-    logger.info(f"Spin Echo Field Maps: {pa_ap_sefms}")
-    logger.info(f"Topup param file: {params}")
-    logger.info(f"Topup config file: {config}")
-    logger.info(f"Topup output directory: {distcorr_dir}")
-    logger.info(f"Gradient distortion correction warp: {gdc_warp}")
-    logger.info(f"Perform gradient distortion correction: {gd_corr}")
-    logger.info(f"Interpolation order: {interpolation}")
+    logging.info("Running generate_fmaps()")
+    logging.info(f"Spin Echo Field Maps: {pa_ap_sefms}")
+    logging.info(f"Topup param file: {params}")
+    logging.info(f"Topup config file: {config}")
+    logging.info(f"Topup output directory: {distcorr_dir}")
+    logging.info(f"Gradient distortion correction warp: {gdc_warp}")
+    logging.info(f"Perform gradient distortion correction: {gd_corr}")
+    logging.info(f"Interpolation order: {interpolation}")
 
     pwd = os.getcwd()
     os.chdir(distcorr_dir)
@@ -197,15 +194,15 @@ def generate_fmaps(
         f"--jacout={op.join(distcorr_dir, 'Jacobian')}",
         "--verbose",
     ]
-    logger.info(f"Topup command: {' '.join(topup_cmd)}")
-    subprocess_popen(topup_cmd, logger)
+    logging.info(f"Topup command: {' '.join(topup_cmd)}")
+    subprocess_popen(topup_cmd)
     fmap, fmapmag, fmapmagbrain = [
         op.join(distcorr_dir, "{}.nii.gz".format(s))
         for s in ["fmap", "fmapmag", "fmapmagbrain"]
     ]
 
     # Convert fmap from Hz to rad/s
-    logger.info("Converting fieldmap from Hz to rad/s.")
+    logging.info("Converting fieldmap from Hz to rad/s.")
     fmap_spc = rt.ImageSpace(topup_fmap)
     fmap_arr_hz = nb.load(topup_fmap).get_fdata()
     fmap_arr = fmap_arr_hz * 2 * np.pi
@@ -213,7 +210,7 @@ def generate_fmaps(
 
     # Apply gdc warp from gradient_unwarp and topup's EPI-DC
     # warp (just generated) in one interpolation step
-    logger.info(
+    logging.info(
         "Applying distortion correction to fieldmap images in one interpolation step."
     )
     pa_ap_sefms_gdc_dc = apply_gdc_and_topup(
@@ -225,14 +222,14 @@ def generate_fmaps(
     )
 
     # Mean across volumes of corrected sefms to get fmapmag
-    logger.info("Taking mean of corrected fieldmap images to get fmapmag.nii.gz")
+    logging.info("Taking mean of corrected fieldmap images to get fmapmag.nii.gz")
     fmapmag_img = nb.nifti1.Nifti1Image(
         pa_ap_sefms_gdc_dc.get_fdata().mean(-1), affine=pa_ap_sefms_gdc_dc.affine
     )
     nb.save(fmapmag_img, fmapmag)
 
     # Run BET on fmapmag to get brain only version
-    logger.info("Running BET on fmapmag for brain-extracted version.")
+    logging.info("Running BET on fmapmag for brain-extracted version.")
     bet(fmapmag, output=fmapmagbrain)
 
     os.chdir(pwd)
@@ -331,16 +328,12 @@ def gradunwarp_and_topup(
     n/a: Saves outputs to file in ${output_dir}/gradient_unwarp and
         ${output_dir}/topup.
     """
-    # set up logger
-    log_name = "HCPASL.distortion_estimation"
-    out_log = gradunwarp_dir.parent / "distortion_estimation.log"
-    logger = setup_logger(log_name, out_log, "INFO")
 
     # run gradient_unwarp
     if gd_corr:
         gradunwarp_dir.mkdir(exist_ok=True, parents=True)
         gdc_warp_name = gradunwarp_dir / "fullWarp_abs.nii.gz"
-        logger.info("Running generate_gdc_warp().")
+        logging.info("Running generate_gdc_warp().")
         if not gdc_warp_name.exists() or force_refresh:
             generate_gdc_warp(vol, coeffs_path, gradunwarp_dir, interpolation)
     else:
@@ -352,13 +345,13 @@ def gradunwarp_and_topup(
     # stack raw fieldmap images for use in topup
     pa_ap_sefms = topup_dir / "merged_sefms.nii.gz"
     if not pa_ap_sefms.exists() or force_refresh:
-        logger.info("Concatenating Spin Echo fieldmap images.")
+        logging.info("Concatenating Spin Echo fieldmap images.")
         stack_fmaps(pa_sefm, ap_sefm, pa_ap_sefms)
 
     # generate topup params
     topup_params = topup_dir / "topup_params.txt"
     if not topup_params.exists() or force_refresh:
-        logger.info(f"Generating topup parameter file: {topup_params}")
+        logging.info(f"Generating topup parameter file: {topup_params}")
         generate_topup_params(topup_params)
 
     # run topup

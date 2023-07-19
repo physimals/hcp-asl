@@ -69,8 +69,8 @@ def update_metadata(version_str, timestamp_str, sha1_str):
 
 
 def get_requirements():
-    """ Get a list of all entries in the requirements file """
-    with io.open(os.path.join(ROOTDIR, 'requirements.txt'), encoding='utf-8') as f:
+    """Get a list of all entries in the requirements file"""
+    with io.open(os.path.join(ROOTDIR, "requirements.txt"), encoding="utf-8") as f:
         return [l.strip() for l in f.readlines()]
 
 
@@ -108,16 +108,16 @@ setup(
     version=get_version(),
     author="Flora Kennedy McConnell <bbzfk@exmail.nottingham.ac.uk>, Tom Kirk <thomas.kirk1@nottingham.ac.uk>, Jack Toner <bbzjt@exmail.nottingham.ac.uk>",
     author_email="thomas.kirk1@nottingham.ac.uk",
-    description="Minimal ASL processing pipeline for the HCP.",
+    description="Minimal ASL processing pipeline for the HCP Lifespan datasets",
     long_description=long_description,
-    url="https://github.com/ibme-qubic/hcp-asl",
+    url="https://github.com/physimals/hcp-asl",
     packages=find_packages(),
     python_requires=">=3.6, <3.8",
-    install_requires=get_requirements(), 
+    install_requires=get_requirements(),
     entry_points={
         "console_scripts": [
             "hcp_asl = scripts.run_pipeline:main",
-            "pv_est_asl = scripts.prepare_t1asl_space:main",
+            "pv_est_asl = scripts.t1asl_pv_estimation:main",
             "get_sebased_bias_asl = scripts.se_based:se_based_bias_estimation",
             "mt_estimation_asl = scripts.mt_estimation_pipeline:main",
             "results_to_mni_asl = scripts.results_to_mni:main",

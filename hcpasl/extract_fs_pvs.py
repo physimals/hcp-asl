@@ -9,48 +9,46 @@ import numpy as np
 import regtricks as rt
 from toblerone.pvestimation import cortex as estimate_cortex
 
-# Map from FS aseg labels to tissue types
+# Map from FS aparc+aseg labels to tissue types
 # NB cortex is ignored
 FS_LUT = {
     # Left hemisphere
-    2: "WM",
-    3: "GM",
+    2: "WM",  # Cerebral WM
+    7: "WM",  # Cerebellum
+    8: "GM",  # Cerebellum
+    10: "GM",  # L_Thal
+    11: "GM",  # L_Caud
+    12: "GM",  # L_Puta
+    13: "GM",  # L_Pall
+    17: "GM",  # L_Hipp
+    18: "GM",  # L_Amyg
+    26: "GM",  # L_Accu
     28: "WM",  # Left ventral DC
     30: "WM",  # Left vessel
     31: "GM",  # Left choroid plexus
-    26: "GM",  # L_Accu
-    18: "GM",  # L_Amyg
-    11: "GM",  # L_Caud
-    17: "GM",  # L_Hipp
-    13: "GM",  # L_Pall
-    12: "GM",  # L_Puta
-    9: "GM",  # L_Thal
-    10: "GM",  # L_Thal
-    77: "WM",
-    78: "WM",
-    79: "WM",
     # Right hemisphere
-    41: "WM",
-    42: "GM",
+    41: "WM",  # Cerebral WM
+    46: "WM",  # Cerebellum
+    47: "GM",  # Cerebellum
+    49: "GM",  # R_Thal
+    50: "GM",  # R_Caud
+    51: "GM",  # R_Puta
+    52: "GM",  # R_Pall
+    53: "GM",  # R_Hipp
+    54: "GM",  # R_Amyg
+    58: "GM",  # R_Accu
     60: "WM",  # Right ventral DC
     62: "WM",  # Right vessel
     63: "GM",  # Right choroid plexus
-    58: "GM",  # R_Accu
-    54: "GM",  # R_Amyg
-    50: "GM",  # R_Caud
-    53: "GM",  # R_Hipp
-    52: "GM",  # R_Pall
-    51: "GM",  # R_Puta
-    48: "GM",  # R_Thal
-    49: "GM",  # R_Thal
-    # Left cerebellum
-    7: "WM",
-    8: "GM",
-    # Right cerebellum
-    46: "WM",
-    47: "GM",
+    # Shared both sides
     16: "WM",  # Brainstem
     85: "WM",  # Optic chiasm
+    77: "WM",  # Hyperintensity
+    251: "WM",  # CC
+    252: "WM",  # CC
+    253: "WM",  # CC
+    254: "WM",  # CC
+    255: "WM",  # CC
 }
 
 
@@ -62,7 +60,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
         aparcseg: path to aparc+aseg file
         surf_dict: dict with LWS/LPS/RWS/RPS keys, paths to those surfaces
         ref_spc: space in which to estimate (ie, ASL-gridded T1)
-        ref2struct: FLIRT registration between reference and T1w image 
+        ref2struct: FLIRT registration between reference and T1w image
         cores: number CPU cores to use, default is 1
     Returns:
         nibabel Nifti object
