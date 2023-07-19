@@ -173,3 +173,7 @@ def main():
                 opath.stem.rsplit(".", 1)[0] + f"_{tiss}" + "".join(opath.suffixes)
             )
             spc.save_image(pvs[..., idx], n.as_posix())
+
+
+if __name__ == '__main__': 
+    main()
