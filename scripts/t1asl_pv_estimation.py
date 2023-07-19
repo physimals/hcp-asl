@@ -136,7 +136,7 @@ def main():
         description="Create T1-ASL space, estimate PVs, generate CSF ventricle mask"
     )
     parser.add_argument("study_dir", help="Path of the base study directory.")
-    parser.add_argument("sub_number", help="Subject number.")
+    parser.add_argument("sub_id", help="Subject ID.")
     parser.add_argument(
         "-c",
         "--cores",
