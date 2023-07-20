@@ -628,7 +628,7 @@ def single_step_resample_to_asl0(
     )
     asl02m0 = asln2m0_moco.transforms[0]
     asln2asl0 = rt.chain(asln2m0_moco, asl02m0.inverse())
-    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc)
+    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc, cores=cores)
     fov_mask_asl_path = moco_dir / "fov_mask_initial.nii.gz"
     nb.save(fov_mask_asl, fov_mask_asl_path)
 
@@ -840,7 +840,7 @@ def single_step_resample_to_asl0(
     )
     asl02m0_final = asln2m0_moco.transforms[0]
     asln2asl0_final = rt.chain(asln2m0_moco, asl02m0.inverse())
-    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc)
+    fov_mask_asl = utils.make_motion_fov_mask(asln2asl0, asl_spc, asl_spc, cores=cores)
     fov_mask_asl_path = moco_dir / "fov_mask.nii.gz"
     nb.save(fov_mask_asl, fov_mask_asl_path)
 
@@ -1079,7 +1079,7 @@ def single_step_resample_to_aslt1w(
     # Load motion-FoV mask prepared earlier and combine with brain mask
     fov_valid_asl = moco_dir.parent / "fov_mask.nii.gz"
     fov_valid_aslt1w = asl2struct_reg.apply_to_image(
-        fov_valid_asl, asl_gridded_t1w_spc, order=1
+        fov_valid_asl, asl_gridded_t1w_spc, order=1, cores=cores
     )
     fov_valid_aslt1w_path = reg_dir / "fov_mask.nii.gz"
     nb.save(fov_valid_aslt1w, fov_valid_aslt1w_path)
@@ -1183,7 +1183,7 @@ def single_step_resample_to_aslt1w(
 
     # transform raw ASL to ASLT1w space for QC purposes
     asl_noncorr_name = tis_aslt1w_dir / "asl_noncorr.nii.gz"
-    asl_noncorr = asl2struct_reg.apply_to_image(asl_name, aslt1_spc)
+    asl_noncorr = asl2struct_reg.apply_to_image(asl_name, aslt1_spc, order=interpolation, cores=cores)
     nb.save(asl_noncorr, asl_noncorr_name)
 
     # create TI timing image in ASL space and register to ASL-gridded T1w space

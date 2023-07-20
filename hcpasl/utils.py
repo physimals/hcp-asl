@@ -319,14 +319,14 @@ def copy_oxford_asl_inputs(input_dict, output_dir):
         shutil.copy2(old_loc, new_loc)
 
 
-def make_motion_fov_mask(mc_transform, src, ref):
+def make_motion_fov_mask(mc_transform, src, ref, cores=1):
     """Generate a FoV array in the reference of the motion transform
     Invert the transform and map the FoV into the source space
     Apply logical all across time to get valid FoV voxels
     Save mask in source space"""
 
     fov = np.ones(ref.size)
-    fov_motion = mc_transform.apply_to_array(fov, ref, src, order=1)
+    fov_motion = mc_transform.apply_to_array(fov, ref, src, order=1, cores=cores)
     fov_valid = (fov_motion > 0.9).all(-1)
     return src.make_nifti(fov_valid)
 
