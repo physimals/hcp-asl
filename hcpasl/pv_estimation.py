@@ -1,12 +1,16 @@
 #! /usr/bin/env python3
-"""Script to extract PVs from FS binary volumetric segmentation"""
+"""Partial volume processing using FS volumetric segmentation"""
 
 import argparse
+import glob
+import os
+import os.path as op
 import pathlib
 
 import nibabel as nib
 import numpy as np
 import regtricks as rt
+import scipy
 from toblerone.pvestimation import cortex as estimate_cortex
 
 # Map from FS aparc+aseg labels to tissue types
@@ -52,7 +56,7 @@ FS_LUT = {
 }
 
 
-def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
+def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg.
     Results are stored in ASL-gridded T1 space.
@@ -66,8 +70,25 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
         nibabel Nifti object
     """
 
+    # Load the t1 image, aparc+aseg and surfaces from their expected
+    # names and locations within t1w_dir
+    surf_dict = {}
+    for k, n in zip(
+        ["LWS", "LPS", "RPS", "RWS"],
+        [
+            "L.white.32k_fs_LR.surf.gii",
+            "L.pial.32k_fs_LR.surf.gii",
+            "R.pial.32k_fs_LR.surf.gii",
+            "R.white.32k_fs_LR.surf.gii",
+        ],
+    ):
+        paths = glob.glob(op.join(t1_dir, f"fsaverage_LR32k/*{n}"))
+        if len(paths) > 1:
+            raise RuntimeError(f"Found multiple surfaces for {k}")
+        surf_dict[k] = paths[0]
+
     ref_spc = rt.ImageSpace(ref_spc)
-    aseg_spc = nib.load(aparcseg)
+    aseg_spc = nib.load(op.join(t1_dir, "aparc+aseg.nii.gz"))
     aseg = aseg_spc.get_fdata().astype(int)
     aseg_spc = rt.ImageSpace(aseg_spc)
 
@@ -89,7 +110,7 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
     # Super-resolution resampling for the vol_pvs, a la applywarp.
     # 0: GM, 1: WM, always in the LAST dimension of an array
     non_cortex_pvs = struct2ref_reg.apply_to_array(
-        non_cortex_pvs, aseg_spc, ref_spc, order=1, superfactor=5, cores=cores
+        non_cortex_pvs, aseg_spc, ref_spc, order=1, cores=cores
     )
 
     ref_spc.save_image(non_cortex_pvs, "non_cortex.nii.gz")
@@ -128,6 +149,76 @@ def extract_fs_pvs(aparcseg, surf_dict, ref_spc, ref2struct=None, cores=1):
     return ref_spc.make_nifti(out)
 
 
+def generate_ventricle_mask(aparc_aseg, t1_asl):
+    ref_spc = rt.ImageSpace(t1_asl)
+
+    # get ventricles mask from aparc+aseg image
+    aseg = nib.load(aparc_aseg).get_fdata()
+    vent_mask = np.logical_or(
+        aseg == 43, aseg == 4  # left ventricle  # right ventricle
+    )
+
+    # erosion in t1 space for safety
+    vent_mask = scipy.ndimage.morphology.binary_erosion(vent_mask)
+
+    # Resample to target space, re-threshold
+    output = rt.Registration.identity().apply_to_array(
+        vent_mask, src=aparc_aseg, ref=ref_spc, order=1
+    )
+    output = output > 0.8
+    return output
+
+
+def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
+
+    sub_base = op.abspath(op.join(study_dir, sub_id))
+    t1_dir = op.join(sub_base, "T1w")
+    t1_asl_dir = op.join(sub_base, outdir, "T1w", "ASL")
+    asl = op.join(sub_base, outdir, "ASL", "TIs", "tis.nii.gz")
+    struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
+
+    # Create ASL-gridded version of T1 image
+    t1_asl_grid = op.join(t1_asl_dir, "reg", "ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    asl_spc = rt.ImageSpace(asl)
+    t1_spc = rt.ImageSpace(struct)
+    t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
+    nib.save(
+        rt.Registration.identity().apply_to_image(struct, ref=t1_asl_grid_spc),
+        t1_asl_grid,
+    )
+
+    # Create PVEs directory
+    pve_dir = op.join(sub_base, outdir, "T1w", "ASL", "PVEs")
+    os.makedirs(pve_dir, exist_ok=True)
+
+    # Create a ventricle CSF mask in T1 ASL space
+    ventricle_mask = op.join(pve_dir, "vent_csf_mask.nii.gz")
+    aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
+    vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
+    rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
+
+    # Estimate PVs in ASL0 space then register them to ASLT1w space
+    # Yes this seems stupid but theres a good reason for it
+    # aka double-resampling (ask TK)
+    asl2struct = op.join(t1_asl_dir, "TIs", "reg", "asl2struct.mat")
+    pvs_stacked = pvs_from_freesurfer(t1_dir, asl, ref2struct=asl2struct, cores=cores)
+
+    # register the PVEs from ASL0 space to ASLT1w space with the
+    # same order of interpolation used to register the ASL series
+    asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
+    pvs_stacked = asl2struct.apply_to_image(
+        src=pvs_stacked, ref=t1_asl_grid, order=interpolation, cores=cores
+    )
+
+    # Save output with tissue suffix
+    fileroot = op.join(pve_dir, "pve")
+    for idx, suffix in enumerate(["GM", "WM"]):
+        p = "{}_{}.nii.gz".format(fileroot, suffix)
+        rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[..., idx], p)
+
+
+
+
 def main():
     desc = """
     Generate PV estimates for a reference voxel grid. FS' volumetric 
@@ -137,14 +228,10 @@ def main():
 
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument(
-        "--aparcseg",
+        "--t1_dir",
         required=True,
-        help="path to volumetric FS segmentation (aparc+aseg.mgz)",
+        help="HCP pre-processed T1w dir containing aparc+aseg and fsaverage_LR32k",
     )
-    parser.add_argument("--LWS", required=True, help="path to left white surface")
-    parser.add_argument("--LPS", required=True, help="path to left pial surface")
-    parser.add_argument("--RPS", required=True, help="path to right pial surface")
-    parser.add_argument("--RWS", required=True, help="path to right white surface")
     parser.add_argument(
         "--ref", required=True, help="path to image defining reference grid for PVs"
     )
@@ -155,10 +242,8 @@ def main():
     parser.add_argument("--cores", default=1, type=int, help="CPU cores to use")
 
     args = parser.parse_args()
-    surf_dict = dict([(k, getattr(args, k)) for k in ["LWS", "LPS", "RPS", "RWS"]])
-
-    pvs = extract_fs_pvs(
-        aparcseg=args.aparcseg, surf_dict=surf_dict, ref_spc=args.ref, cores=args.cores
+    pvs = pvs_from_freesurfer(
+        t1_dir=args.t1_dir, ref_spc=args.ref, cores=args.cores
     )
 
     if args.stack:

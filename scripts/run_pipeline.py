@@ -27,7 +27,7 @@ from hcpasl.utils import (
     subprocess_popen,
     setup_logger,
 )
-from scripts import t1asl_pv_estimation
+from hcpasl.pv_estimation import run_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.key_outputs import copy_key_outputs
 from pathlib import Path
@@ -314,7 +314,7 @@ def process_subject(
     # perform partial volume estimation
     if 7 in stages:
         logging.info("Stage 7: Partial volume estimation in ASLT1w space.")
-        t1asl_pv_estimation.run(studydir, subid, cores, outdir, interpolation)
+        run_pv_estimation(studydir, subid, cores, outdir, interpolation)
 
     # perform tag-control subtraction in ASLT1w space
     aslt1w_dir = aslt1w_dir

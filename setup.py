@@ -116,8 +116,7 @@ setup(
     install_requires=get_requirements(),
     entry_points={
         "console_scripts": [
-            "hcp_asl = scripts.run_pipeline:main",
-            "pv_est_asl = scripts.t1asl_pv_estimation:main",
+            "process_hcp_asl = scripts.run_pipeline:main",
             "get_sebased_bias_asl = scripts.se_based:se_based_bias_estimation",
             "mt_estimation_asl = scripts.mt_estimation_pipeline:main",
             "results_to_mni_asl = scripts.results_to_mni:main",
