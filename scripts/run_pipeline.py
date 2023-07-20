@@ -45,7 +45,6 @@ def process_subject(
     gradients,
     wmparc,
     ribbon,
-    wbdir,
     territories_atlas,
     territories_labels,
     use_t1=False,
@@ -84,9 +83,6 @@ def process_subject(
     ribbon : str
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in
         SE-based bias correction.
-    wbdir : str
-        path to development version of wb_command's bin directory
-        e.g. workbench/bin_macosx64
     territories_atlas : pathlib.Path
         Path to vascular territories atlas.
     territories_labels: pathlib.Path
@@ -391,7 +387,7 @@ def process_subject(
 
     if 11 in stages:
         logging.info("Stage 11: Volume to surface projection ")
-        surface_projection_stage(studydir, subid, outdir=outdir, wbdir=wbdir)
+        surface_projection_stage(studydir, subid, outdir=outdir)
 
     if 12 in stages:
         logging.info(
@@ -408,7 +404,6 @@ def surface_projection_stage(
     studydir,
     subid,
     outdir,
-    wbdir,
     lowresmesh="32",
     FinalASLRes="2.5",
     SmoothingFWHM="2",
@@ -431,7 +426,7 @@ def surface_projection_stage(
 
     # Projection scripts path:
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
-    wb_path = str(Path(wbdir).resolve(strict=True))
+    wb_path = os.environ['CARET7DIR']
 
     ASLVariable = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
     ASLVariableVar = [
@@ -504,83 +499,88 @@ def main():
     parser = argparse.ArgumentParser(
         description="Minimal processing pipeline for HCP Lifespan ASL data."
     )
-    parser.add_argument(
+
+    required = parser.add_argument_group('required arguments')
+    required.add_argument(
         "--studydir", help="Path to the study's base directory.", required=True
     )
-    parser.add_argument(
+    required.add_argument(
         "--subid", help="Subject ID to process within the studydir.", required=True
     )
-    parser.add_argument(
-        "-g",
-        "--grads",
-        help="Filename of the gradient coefficients for gradient"
-        + "distortion correction.",
-        required=False,
-    )
-    parser.add_argument(
-        "-s",
-        "--struct",
-        help="Filename for the acpc-aligned, dc-restored structural image,"
-        + "default is within subject's directory",
-    )
-    parser.add_argument(
-        "--sbrain",
-        help="Filename for the brain-extracted acpc-aligned, "
-        + "dc-restored structural image, default is within subject's directory",
-    )
-    parser.add_argument(
+    required.add_argument(
         "--mbpcasl",
-        help="Filename for the mbPCASLhr acquisition, default is within subject's directory",
+        help="Filename for the mbPCASLhr acquisition",
         required=True,
     )
-    parser.add_argument(
+    required.add_argument(
         "--fmap_ap",
         help="Filename for the AP fieldmap for use in distortion correction",
         required=True,
     )
-    parser.add_argument(
+    required.add_argument(
         "--fmap_pa",
         help="Filename for the PA fieldmap for use in distortion correction",
         required=True,
     )
-    parser.add_argument(
+
+    optional = parser.add_argument_group(
+        'optional arguments', 
+        description='(will attempt to load from default locations in $studydir/$subid)'
+    )
+    optional.add_argument(
+        "--grads",
+        help="Filename of the gradient coefficients for gradient"
+        + " distortion correction.",
+        required=False,
+    )
+    optional.add_argument(
+        "--struct",
+        help="Filename for the acpc-aligned, dc-restored structural image,"
+        + " default is within subject's directory",
+    )
+    optional.add_argument(
+        "--sbrain",
+        help="Filename for the brain-extracted acpc-aligned, "
+        + "dc-restored structural image, default is within subject's directory",
+    )
+    optional.add_argument(
         "--wmparc",
         help="wmparc.nii.gz from FreeSurfer for use in SE-based bias correction",
     )
-    parser.add_argument(
+    optional.add_argument(
         "--ribbon",
         help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction,"
         + " default is within subject's directory",
     )
-    parser.add_argument(
+    optional.add_argument(
         "--use_t1",
         help="If this flag is provided, the T1 estimates from the satrecov "
         + "will also be registered to ASL-gridded T1 space for use in "
         + "perfusion estimation via oxford_asl.",
         action="store_true",
     )
-    parser.add_argument(
+    optional.add_argument(
         "--mtname",
-        help="Filename of the empirically estimated MT-correction"
+        help="Filename of the empirically estimated MT-correction "
         + "scaling factors. If not provided, the pipeline will "
         + "use the scaling factors included with the distribution.",
     )
-    parser.add_argument(
+    optional.add_argument(
         "--stages",
         help="Pipeline stages (zero-indexed, separated by spaces) to run, eg 0 3 5",
         nargs="*",
         type=int,
         default=set(range(14)),
     )
-    parser.add_argument(
+    optional.add_argument(
         "--cores",
         help="Number of cores to use when applying motion correction and "
-        + "other potentially multi-core operations. Default is 1.",
+        + "other multi-core operations. Default is 1.",
         default=1,
         type=int,
         choices=range(1, cpu_count() + 1),
     )
-    parser.add_argument(
+    optional.add_argument(
         "--interpolation",
         help="Interpolation order for registrations. This can be any "
         + "integer from 0-5 inclusive. Default is 3. See scipy's "
@@ -589,43 +589,30 @@ def main():
         type=int,
         choices=range(0, 5 + 1),
     )
-    parser.add_argument(
+    optional.add_argument(
         "--nobandingcorr",
         help="If this option is provided, the MT and ST banding corrections "
         + "won't be applied. This is to be used to compare the difference "
         + "our banding corrections make.",
         action="store_true",
     )
-    parser.add_argument(
-        "--wbdir",
-        help="Location of wb_command executable (>= v1.5.0). Defaults to "
-        + "the user's $CARET7DIR (this must be set).",
-        default=os.environ["CARET7DIR"],
-    )
-    parser.add_argument(
+    optional.add_argument(
         "--territories_atlas",
         help="Location of vascular territory atlas.",
         default=get_package_data_name("vascular_territories_atlas.nii.gz"),
     )
-    parser.add_argument(
+    optional.add_argument(
         "--territories_labels",
         help="Location of txt file with labels for vascular territory atlas.",
         default=get_package_data_name("vascular_territories_atlas_labels.txt"),
     )
-    parser.add_argument(
+    optional.add_argument(
         "--outdir",
-        help="Name of the directory within which we will store all of the "
-        + "pipeline's outputs in sub-directories. Default is the subject's"
-        + "base directory.",
+        help="Name of top-level output directory (will contain "
+        + "sub-directories). Default is the subject's base directory.",
         default="",
     )
-    parser.add_argument(
-        "-v",
-        "--verbose",
-        help="If this option is provided, stdout will go to the terminal "
-        + "as well as to a logfile. Default is False.",
-        action="store_true",
-    )
+
     # assign arguments to variables
     args = parser.parse_args()
     studydir = Path(args.studydir).resolve(strict=True)
@@ -717,25 +704,17 @@ def main():
         ribbon=args.ribbon,
         nobandingcorr=args.nobandingcorr,
         outdir=args.outdir,
-        wbdir=args.wbdir,
         stages=args.stages,
     )
 
 
 if __name__ == "__main__":
-    if not os.environ.get("HCPPIPEDIR"):
-        raise RuntimeError(
-            "Environment variable HCPPIPEDIR must be set (see HCP pipeline installation)"
-        )
 
-    if not os.environ.get("FREESURFER_HOME"):
-        raise RuntimeError(
-            "Environment variable FREESURFER_HOME must be set (see FreeSurfer installation)"
-        )
-
-    if not os.environ.get("FSLDIR"):
-        raise RuntimeError(
-            "Environment variable FSLDIR must be set (see FSL installation)"
-        )
+    env_var = ["HCPPIPEDIR", "FREESURFER_HOME", "FSLDIR", "CARET7DIR"]
+    for ev in env_var: 
+        if not os.environ.get(ev):
+            raise RuntimeError(
+                f"Environment variable {ev} must be set (see installation instructions)"
+            )
 
     main()

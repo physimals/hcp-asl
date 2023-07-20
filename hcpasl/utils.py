@@ -276,7 +276,7 @@ def setup_logger(file_path):
     logger = logging.getLogger()
     logger.setLevel("INFO")
     formatter = logging.Formatter(
-        "%(asctime)s %(levelname)s %(module)s/:%(funcName)s: %(message)s"
+        "%(asctime)s %(levelname)s %(module)s/%(funcName)s: %(message)s"
     )
 
     # set up FileHandler and StreamHanlder

@@ -36,13 +36,13 @@ pip install git+https://github.com/physimals/hcp-asl.git
 Once installed, the pipeline may be run as a command-line script as follows:
 
 ```
-hcp_asl --studydir ${StudyDir} --subid ${Subjectid} --mtname ${ScalingFactors} -g ${GradientCoeffs} -s ${T1} --sbrain ${T1Brain} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} --cores ${n_cores} --interpolation ${InterpType} --pvcorr --wmparc ${wmparc.nii.gz} --ribbon ${ribbon.nii.gz} --territories_atlas ${Atlas} --territories_labels ${AtlasLabels} --wbdir ${wbDir} -v
+hcp_asl --studydir ${StudyDir} --subid ${Subjectid} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} -g ${GradientCoeffs}
 ```
 
-The filepaths passed to the script may be relative or absolute. A more detailed explanation of the arguments can be found by running:
+The filepaths passed to the script may be relative or absolute. A more detailed explanation of the arguments, including optionals, can be found by running:
 
 ```
-hcp_asl --help
+process_hcp_asl --help
 ```
 
 ## Pipeline stages
