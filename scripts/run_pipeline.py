@@ -9,7 +9,7 @@ name of the MT correction scaling factors image.
 
 import os
 import logging
-from shutil import copy
+from shutil import copy, rmtree
 
 from hcpasl import __version__, __timestamp__, __sha1__
 from hcpasl.distortion_correction import gradunwarp_and_topup
@@ -612,6 +612,11 @@ def main():
         + "sub-directories). Default is the subject's base directory.",
         default="",
     )
+    optional.add_argument(
+        "--clean", 
+        help="Remove all previous outputs found within --outdir", 
+        action='store_true' 
+    )
 
     # assign arguments to variables
     args = parser.parse_args()
@@ -622,6 +627,12 @@ def main():
     # create file handler
     subdir = studydir / subid
     base_dir = subdir / args.outdir
+
+    if args.clean: 
+        for d in ['ASL', 'T1w/ASL', 'MNINonLinear/ASL']:
+            if (base_dir/d).exists(): 
+                rmtree(base_dir/d, ignore_errors=True)
+
     base_dir.mkdir(exist_ok=True, parents=True)
     log_path = base_dir / f"T1w/ASL/{subid}_hcp_asl.log"
     log_path.parent.mkdir(exist_ok=True, parents=True)
