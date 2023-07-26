@@ -667,7 +667,7 @@ def single_step_resample_to_asl0(
         asl_name, calib_name, cores=cores, order=interpolation
     )
     reg_dc = nb.nifti1.Nifti1Image(
-        (reg_dc.get_fdata() * mask4d).astype(np.float32), affine=reg_dc.affine
+        reg_dc.get_fdata().astype(np.float32), affine=reg_dc.affine
     )
     reg_dc_name = distcorr_dir / "temp_reg_dc_tis.nii.gz"
     nb.save(reg_dc, reg_dc_name)
@@ -691,7 +691,7 @@ def single_step_resample_to_asl0(
     )
     bias_img = nb.load(bias_name)
     reg_dc_biascorr = nb.nifti1.Nifti1Image(
-        ((reg_dc.get_fdata() * mask4d) / bias_img.get_fdata()[..., np.newaxis]).astype(
+        (reg_dc.get_fdata() / bias_img.get_fdata()[..., np.newaxis]).astype(
             np.float32
         ),
         affine=reg_dc.affine,
@@ -703,7 +703,7 @@ def single_step_resample_to_asl0(
     if not nobandingcorr:
         temp_reg_dc_mtcorr = moco_dir / "temp_reg_dc_tis_mtcorr.nii.gz"
         reg_dc_mtcorr = nb.nifti1.Nifti1Image(
-            (reg_dc_biascorr.get_fdata() * mt_reg_img.get_fdata() * mask4d).astype(
+            (reg_dc_biascorr.get_fdata() * mt_reg_img.get_fdata()).astype(
                 np.float32
             ),
             affine=reg_dc.affine,
@@ -1081,14 +1081,12 @@ def single_step_resample_to_aslt1w(
     fov_valid_aslt1w = asl2struct_reg.apply_to_image(
         fov_valid_asl, asl_gridded_t1w_spc, order=1, cores=cores
     )
+    fov_valid_aslt1w = (fov_valid_aslt1w.get_fdata() > 0.9)
     fov_valid_aslt1w_path = reg_dir / "fov_mask.nii.gz"
-    nb.save(fov_valid_aslt1w, fov_valid_aslt1w_path)
-    fov_brain_mask = (fov_valid_aslt1w.get_fdata() > 0) & (
-        aslt1_brain_mask.get_fdata() > 0
-    )
+    asl_gridded_t1w_spc.save_image(fov_valid_aslt1w, fov_valid_aslt1w_path)
+    fov_brain_mask = (fov_valid_aslt1w & (aslt1_brain_mask.get_fdata() > 0))
     fov_brainmask_name = reg_dir / "brain_fov_mask.nii.gz"
     asl_gridded_t1w_spc.save_image(fov_brain_mask, fov_brainmask_name)
-    fov_brain_mask4d = fov_brain_mask.astype(float)[..., None]
 
     # get ASLT1w space SE-based bias estimate
     logging.info("Performing SE-based bias estimation in ASLT1w space.")
@@ -1101,7 +1099,7 @@ def single_step_resample_to_aslt1w(
         "-f",
         fmap_aslt1w_name,
         "-m",
-        fov_brainmask_name,
+        aslt1_brain_mask_name,
         "-o",
         sebased_dir,
         "--ribbon",
@@ -1137,7 +1135,7 @@ def single_step_resample_to_aslt1w(
         order=interpolation,
     )
     asl_dc_moco = nb.nifti1.Nifti1Image(
-        (asl_dc_moco.get_fdata() * fov_brain_mask4d).astype(np.float32),
+        asl_dc_moco.get_fdata().astype(np.float32),
         affine=asl_dc_moco.affine,
     )
     asl_dc_moco_name = distcorr_dir / "tis_dc_moco.nii.gz"
@@ -1153,7 +1151,7 @@ def single_step_resample_to_aslt1w(
             order=interpolation,
         )
         aslt1w_sfs = nb.nifti1.Nifti1Image(
-            (aslt1w_sfs.get_fdata() * fov_brain_mask4d).astype(np.float32),
+            aslt1w_sfs.get_fdata().astype(np.float32),
             affine=aslt1w_sfs.affine,
         )
     else:
@@ -1165,7 +1163,7 @@ def single_step_resample_to_aslt1w(
 
     # apply bias field and banding corrections to ASL series
     logging.info(
-        "Applying SE-based bias correction and bandi corrections to ASL series."
+        "Applying SE-based bias correction and banding corrections to ASL series."
     )
     bias = nb.load(bias_name)
     asl_corr = np.zeros_like(asl_dc_moco.get_fdata())
