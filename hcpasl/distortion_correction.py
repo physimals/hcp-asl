@@ -439,4 +439,3 @@ def generate_epidc_warp(
         + "--echospacing=0.00057 --pedir=y"
     )
     sp.run(cmd, shell=True)
-

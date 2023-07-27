@@ -691,9 +691,7 @@ def single_step_resample_to_asl0(
     )
     bias_img = nb.load(bias_name)
     reg_dc_biascorr = nb.nifti1.Nifti1Image(
-        (reg_dc.get_fdata() / bias_img.get_fdata()[..., np.newaxis]).astype(
-            np.float32
-        ),
+        (reg_dc.get_fdata() / bias_img.get_fdata()[..., np.newaxis]).astype(np.float32),
         affine=reg_dc.affine,
     )
     reg_dc_biascorr_name = moco_dir / "reg_dc_tis_biascorr.nii.gz"
@@ -703,9 +701,7 @@ def single_step_resample_to_asl0(
     if not nobandingcorr:
         temp_reg_dc_mtcorr = moco_dir / "temp_reg_dc_tis_mtcorr.nii.gz"
         reg_dc_mtcorr = nb.nifti1.Nifti1Image(
-            (reg_dc_biascorr.get_fdata() * mt_reg_img.get_fdata()).astype(
-                np.float32
-            ),
+            (reg_dc_biascorr.get_fdata() * mt_reg_img.get_fdata()).astype(np.float32),
             affine=reg_dc.affine,
         )
         nb.save(reg_dc_mtcorr, temp_reg_dc_mtcorr)
@@ -1081,10 +1077,10 @@ def single_step_resample_to_aslt1w(
     fov_valid_aslt1w = asl2struct_reg.apply_to_image(
         fov_valid_asl, asl_gridded_t1w_spc, order=1, cores=cores
     )
-    fov_valid_aslt1w = (fov_valid_aslt1w.get_fdata() > 0.9)
+    fov_valid_aslt1w = fov_valid_aslt1w.get_fdata() > 0.9
     fov_valid_aslt1w_path = reg_dir / "fov_mask.nii.gz"
     asl_gridded_t1w_spc.save_image(fov_valid_aslt1w, fov_valid_aslt1w_path)
-    fov_brain_mask = (fov_valid_aslt1w & (aslt1_brain_mask.get_fdata() > 0))
+    fov_brain_mask = fov_valid_aslt1w & (aslt1_brain_mask.get_fdata() > 0)
     fov_brainmask_name = reg_dir / "brain_fov_mask.nii.gz"
     asl_gridded_t1w_spc.save_image(fov_brain_mask, fov_brainmask_name)
 
@@ -1181,7 +1177,9 @@ def single_step_resample_to_aslt1w(
 
     # transform raw ASL to ASLT1w space for QC purposes
     asl_noncorr_name = tis_aslt1w_dir / "asl_noncorr.nii.gz"
-    asl_noncorr = asl2struct_reg.apply_to_image(asl_name, aslt1_spc, order=interpolation, cores=cores)
+    asl_noncorr = asl2struct_reg.apply_to_image(
+        asl_name, aslt1_spc, order=interpolation, cores=cores
+    )
     nb.save(asl_noncorr, asl_noncorr_name)
 
     # create TI timing image in ASL space and register to ASL-gridded T1w space
