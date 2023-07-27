@@ -170,7 +170,6 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
 
 
 def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
-
     sub_base = op.abspath(op.join(study_dir, sub_id))
     t1_dir = op.join(sub_base, "T1w")
     t1_asl_dir = op.join(sub_base, outdir, "T1w", "ASL")
@@ -217,8 +216,6 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
         rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[..., idx], p)
 
 
-
-
 def main():
     desc = """
     Generate PV estimates for a reference voxel grid. FS' volumetric 
@@ -242,9 +239,7 @@ def main():
     parser.add_argument("--cores", default=1, type=int, help="CPU cores to use")
 
     args = parser.parse_args()
-    pvs = pvs_from_freesurfer(
-        t1_dir=args.t1_dir, ref_spc=args.ref, cores=args.cores
-    )
+    pvs = pvs_from_freesurfer(t1_dir=args.t1_dir, ref_spc=args.ref, cores=args.cores)
 
     if args.stack:
         nib.save(pvs, args.out)
@@ -260,5 +255,5 @@ def main():
             spc.save_image(pvs[..., idx], n.as_posix())
 
 
-if __name__ == '__main__': 
+if __name__ == "__main__":
     main()

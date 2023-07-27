@@ -608,8 +608,7 @@ def main():
     )
     optional.add_argument(
         "--outdir",
-        help="Name of top-level output directory (will contain "
-        + "sub-directories). Default is the subject's base directory.",
+        help="Name of output directory to be created within subjects's directory.",
         default="",
     )
     optional.add_argument(
