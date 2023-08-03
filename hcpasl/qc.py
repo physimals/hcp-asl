@@ -20,10 +20,12 @@ def create_qc_report(subject_dir, outdir):
 
     # Sneaky redirection of paths.
     # The template scene file is referenced to MNINonLinear/ASL/ASLQC
-    # So we generate the scene file there, template in subject-specific data, 
+    # So we generate the scene file there, template in subject-specific data,
     # and then re-base the scene to T1w/ASL/ASLQC
     subject_id = subject_dir.stem
-    scene_initial = Path(subject_dir) / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
+    scene_initial = (
+        Path(subject_dir) / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
+    )
     rel_path_outdir = os.path.relpath(outdir / "T1w/ASL", start=scene_initial.parent)
     scene_initial.parent.mkdir(parents=True, exist_ok=True)
 
@@ -39,7 +41,7 @@ def create_qc_report(subject_dir, outdir):
         f.write(scene_file)
 
     # If an outdir has been set, rebase scene to outdir/MNINonLinear/ASL/ASLQC
-    # then remove the initial one 
+    # then remove the initial one
     scene_final = outdir / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
     scene_final.parent.mkdir(parents=True, exist_ok=True)
     logging.info(f"Generating wb_view QC scene at {scene_final}")
@@ -78,9 +80,7 @@ def create_qc_report(subject_dir, outdir):
 
     # save notebook in subject's main output directory
     new_nb_name = (
-        Path(subject_dir)
-        / outdir
-        / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_report.ipynb"
+        Path(subject_dir) / outdir / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_report.ipynb"
     )
     logging.info(f"Generating jupyter notebook at {new_nb_name}")
     with open(new_nb_name, "w") as f:

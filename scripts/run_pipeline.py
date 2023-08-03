@@ -426,7 +426,7 @@ def surface_projection_stage(
 
     # Projection scripts path:
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
-    wb_path = os.environ['CARET7DIR']
+    wb_path = os.environ["CARET7DIR"]
 
     ASLVariable = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
     ASLVariableVar = [
@@ -500,7 +500,7 @@ def main():
         description="Minimal processing pipeline for HCP Lifespan ASL data."
     )
 
-    required = parser.add_argument_group('required arguments')
+    required = parser.add_argument_group("required arguments")
     required.add_argument(
         "--studydir", help="Path to the study's base directory.", required=True
     )
@@ -524,8 +524,8 @@ def main():
     )
 
     optional = parser.add_argument_group(
-        'optional arguments', 
-        description='(will attempt to load from default locations in $studydir/$subid)'
+        "optional arguments",
+        description="(will attempt to load from default locations in $studydir/$subid)",
     )
     optional.add_argument(
         "--grads",
@@ -612,9 +612,9 @@ def main():
         default="",
     )
     optional.add_argument(
-        "--clean", 
-        help="Remove all previous outputs found within --outdir", 
-        action='store_true' 
+        "--clean",
+        help="Remove all previous outputs found within --outdir",
+        action="store_true",
     )
 
     # assign arguments to variables
@@ -627,10 +627,10 @@ def main():
     subdir = studydir / subid
     base_dir = subdir / args.outdir
 
-    if args.clean: 
-        for d in ['ASL', 'T1w/ASL', 'MNINonLinear/ASL']:
-            if (base_dir/d).exists(): 
-                rmtree(base_dir/d, ignore_errors=True)
+    if args.clean:
+        for d in ["ASL", "T1w/ASL", "MNINonLinear/ASL"]:
+            if (base_dir / d).exists():
+                rmtree(base_dir / d, ignore_errors=True)
 
     base_dir.mkdir(exist_ok=True, parents=True)
     log_path = base_dir / f"T1w/ASL/{subid}_hcp_asl.log"
@@ -719,9 +719,8 @@ def main():
 
 
 if __name__ == "__main__":
-
     env_var = ["HCPPIPEDIR", "FREESURFER_HOME", "FSLDIR", "CARET7DIR"]
-    for ev in env_var: 
+    for ev in env_var:
         if not os.environ.get(ev):
             raise RuntimeError(
                 f"Environment variable {ev} must be set (see installation instructions)"

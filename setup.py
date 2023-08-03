@@ -106,7 +106,7 @@ with open("README.md", "r") as fh:
 setup(
     name=PACKAGE_NAME,
     version=get_version(),
-    author="Flora Kennedy McConnell <bbzfk@exmail.nottingham.ac.uk>, Tom Kirk <thomas.kirk1@nottingham.ac.uk>, Jack Toner <bbzjt@exmail.nottingham.ac.uk>",
+    author="Flora Kennedy McConnell, Thomas Kirk, Jack Toner",
     author_email="thomas.kirk1@nottingham.ac.uk",
     description="Minimal ASL processing pipeline for the HCP Lifespan datasets",
     long_description=long_description,
@@ -135,7 +135,7 @@ setup(
             "resources/scaling_factors.txt",
             "resources/vascular_territories_atlas.nii.gz",
             "resources/vascular_territories_atlas_labels.txt",
-            "resources/ASLQC_template.scene"
+            "resources/ASLQC_template.scene",
         ]
     },
 )
