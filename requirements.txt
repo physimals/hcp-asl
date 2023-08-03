@@ -5,10 +5,10 @@ fslpy>=3.1.0
 nibabel
 pyfab
 regtricks
-toblerone>=0.8.2
+toblerone @ git+https://github.com/tomfrankkirk/toblerone@v0.8.2
 gradunwarp
 requests
-regtricks>=0.3.5
+regtricks @ git+https://github.com/tomfrankkirk/regtricks@v0.3.6
 scikit-learn
 nilearn
 pandas
