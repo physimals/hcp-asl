@@ -245,6 +245,16 @@ MNINonLinear # MNI space results
 │   └── pvcorr_perfusion_wm_calib_masked.nii.gz # MNI NIFTI, perfusion, PVEc WM
 T1w # T1w aligned space
 └── ASL # T1w aligned at ASL resolution, used for final processing of all data. 
+    ├── ASLQC # WB scene file and jupyter notebook for visual QC. 
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc.scene
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_1.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_2.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_3.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_4.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_5.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_6.png
+    │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_7.png
+    │   └── HCD0378150_V1_MR_hcp_asl_report.ipynb
     ├── CIFTIPrepare
     │   ├── arrival.L.badvert_ribbonroi.native.func.gii
     │   ├── [ .... ]
@@ -263,6 +273,7 @@ T1w # T1w aligned space
     │       │   ├── [ .... ]
     │       │   └── sebased_bias_dilall.nii.gz
     │       ├── calib0_corr.nii.gz
+    │       ├── calib0_noncorr.nii.gz
     │       ├── calib_aslt1w_stcorr_factors.nii.gz
     │       └── calib_aslt1w_timing.nii.gz
     ├── HCD0378150_V1_MR_hcp_asl.log # HCP-ASL pipeline logfile 
