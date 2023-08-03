@@ -20,12 +20,12 @@ def create_qc_report(subject_dir, outdir):
 
     # Sneaky redirection of paths.
     # HCPASL outputs need to be referenced to the output directory
-    # The scene file is inserted into the subjects T1w preprocessed directory
+    # The scene file is inserted into the subjects MNINonLinear preprocessed directory
     # (not necessarily the same as the output) so it can pick up all the surfaces
     # etc automatically. Then the pipeline outputs are templated in using
     # relative paths. Finally we re-base the whole scene using wb_command.
     subject_id = subject_dir.stem
-    scene_initial = Path(subject_dir) / f"T1w/ASL/{subject_id}_hcp_asl_qc.scene"
+    scene_initial = Path(subject_dir) / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
     rel_path_outdir = os.path.relpath(outdir / "T1w/ASL", start=scene_initial.parent)
     scene_initial.parent.mkdir(parents=True, exist_ok=True)
 
@@ -34,23 +34,23 @@ def create_qc_report(subject_dir, outdir):
     with open(template_name, "r") as f:
         scene_template = Template(f.read())
 
-    # Write in subject variables, save in T1w/ASL
+    # Write in subject variables
     data = {"SUBID": subject_id, "REL_PATH_TO_OUT_T1wASL": rel_path_outdir}
     with open(scene_initial, "w") as f:
         scene_file = scene_template.substitute(data)
         f.write(scene_file)
 
-    # Rebase scene to MNINonLinear/ASL/ASLQC, remove the one at T1w/ASL
-    scene_final = (
-        Path(subject_dir)
-        / outdir
-        / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
-    )
-    scene_final.parent.mkdir(parents=True, exist_ok=True)
-    logging.info(f"Generating wb_view QC scene at {scene_final}")
-    cmd = ["wb_command", "-scene-file-relocate", scene_initial, scene_final]
-    subprocess_popen(cmd)
-    os.remove(scene_initial)
+    # If an outdir has been set, rebase scene to outdir/MNINonLinear/ASL/ASLQC
+    # then remove the initial one 
+    scene_final = outdir / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
+    if scene_final != scene_initial: 
+        scene_final.parent.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Generating wb_view QC scene at {scene_final}")
+        cmd = ["wb_command", "-scene-file-relocate", str(scene_initial), str(scene_final)]
+        subprocess_popen(cmd)
+        os.remove(scene_initial)
+    else: 
+        scene_final = scene_initial
 
     wb_cmd = os.environ["CARET7DIR"] + "/wb_command"
     for idx in range(1, 8):

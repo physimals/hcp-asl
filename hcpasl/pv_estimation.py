@@ -113,8 +113,6 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
         non_cortex_pvs, aseg_spc, ref_spc, order=1, cores=cores
     )
 
-    ref_spc.save_image(non_cortex_pvs, "non_cortex.nii.gz")
-
     # Estimate cortical PVs
     cortex = estimate_cortex(
         ref=ref_spc,
@@ -142,9 +140,6 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
     assert (out >= 0).all(), "Negative PV"
     assert (out <= 1).all(), "PV > 1"
     assert out.sum(-1).max() <= 1.001, "PV sum > 1"
-
-    ref_spc.save_image(out, "asl_pvs.nii.gz")
-    ref_spc.save_image(out.sum(-1), "gmwm.nii.gz")
 
     return ref_spc.make_nifti(out)
 

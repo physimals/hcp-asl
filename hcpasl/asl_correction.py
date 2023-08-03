@@ -1182,6 +1182,11 @@ def single_step_resample_to_aslt1w(
     )
     nb.save(asl_noncorr, asl_noncorr_name)
 
+    # transform raw calib to ASLT1w space for QC purposes
+    calib_noncorr_name = aslt1w_dir / "Calib/Calib0/calib0_noncorr.nii.gz"
+    calib_noncorr = m02struct.apply_to_image(calib_name, ref=aslt1_spc, order=interpolation)
+    nb.save(calib_noncorr, calib_noncorr_name)
+
     # create TI timing image in ASL space and register to ASL-gridded T1w space
     logging.info("Creating TI image in ASLT1w space for use in oxford_asl.")
     ti_aslt1w_name = tis_aslt1w_dir / "timing_img_aslt1w.nii.gz"
