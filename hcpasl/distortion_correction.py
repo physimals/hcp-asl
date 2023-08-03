@@ -45,7 +45,6 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
         vol, coeffs_path, interpolation
     )
     logging.info(f"gradient_unwarp.py command:")
-    logging.info(cmd)
     subprocess_popen(cmd, shell=True)
     logging.info("gradient_unwarp.py run is complete.")
     os.chdir(pwd)
