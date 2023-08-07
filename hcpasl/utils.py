@@ -4,6 +4,7 @@ import shutil
 import subprocess
 from importlib.resources import path as resource_path
 from pathlib import Path
+import os
 
 import numpy as np
 from fsl.data import atlases
@@ -346,3 +347,13 @@ def subprocess_popen(cmd, **kwargs):
             msg = f"Subprocess {cmd} failed with exit code {retcode}."
             logging.exception(msg)
             raise RuntimeError(msg)
+
+
+def get_roi_stats_script():
+    """FSL script can have two different names (with or without .py extension)"""
+    roi_script_name = Path(os.environ["FSLDIR"]) / "bin/oxford_asl_roi_stats"
+    if not roi_script_name.exists():
+        roi_script_name = roi_script_name.with_suffix(".py")
+    if not roi_script_name.exists():
+        raise RuntimeError("Cannot find oxford_asl_roi_stats within $FSLDIR")
+    return roi_script_name

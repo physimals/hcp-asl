@@ -26,6 +26,7 @@ from hcpasl.utils import (
     copy_oxford_asl_inputs,
     subprocess_popen,
     setup_logger,
+    get_roi_stats_script,
 )
 from hcpasl.pv_estimation import run_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
@@ -725,5 +726,8 @@ if __name__ == "__main__":
             raise RuntimeError(
                 f"Environment variable {ev} must be set (see installation instructions)"
             )
+
+    # Try and load the ROI stats script now - func will raise exception if not found.
+    get_roi_stats_script()
 
     main()

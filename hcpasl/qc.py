@@ -9,7 +9,7 @@ import regtricks as rt
 from nbclient import execute
 from nbparameterise import extract_parameters, parameter_values, replace_definitions
 
-from hcpasl.utils import get_package_data_name, subprocess_popen
+from hcpasl.utils import get_package_data_name, subprocess_popen, get_roi_stats_script
 
 
 def create_qc_report(subject_dir, outdir):
@@ -109,12 +109,12 @@ def roi_stats(
     )
 
     # set up and run oxford_asl_roi_stats command
-    roi_script_name = Path(os.environ["FSLDIR"]) / "bin/oxford_asl_roi_stats.py"
+    roi_script_name = get_roi_stats_script()
     cmd = [
         "fslpython",
         str(roi_script_name),
         "--oxasl-output",
-        str(oxford_asl_dir),
+        str(oxford_asl_dir / "native_space"),
         "--struc",
         str(struct_name),
         "--gm-pve",
@@ -138,5 +138,4 @@ def roi_stats(
         "--native-pves",
     ]
     logging.info("Running oxford_asl_roi_stats.py with command:")
-    logging.info(" ".join(cmd))
     subprocess_popen(cmd)
