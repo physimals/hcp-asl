@@ -16,3 +16,4 @@ nbformat
 nbclient
 nbparameterise
 ipywidgets
+ipykernel 

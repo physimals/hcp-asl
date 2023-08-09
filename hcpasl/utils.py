@@ -340,8 +340,8 @@ def subprocess_popen(cmd, **kwargs):
         while 1:
             retcode = process.poll()
             line = process.stdout.readline().decode("utf-8").replace("\n", "")
-            logging.info(line)
-            if line == "" and retcode is not None:
+            if line: logging.info(line)
+            if retcode is not None:
                 break
         if retcode != 0:
             msg = f"Subprocess {cmd} failed with exit code {retcode}."
