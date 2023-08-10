@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import logging
 from string import Template
-
+from shutil import rmtree
 
 import nbformat
 import regtricks as rt
@@ -19,12 +19,11 @@ def create_qc_report(subject_dir, outdir):
         outdir = subject_dir / outdir
 
     # Sneaky redirection of paths.
-    # The template scene file is referenced to MNINonLinear/ASL/ASLQC
-    # So we generate the scene file there, template in subject-specific data,
-    # and then re-base the scene to T1w/ASL/ASLQC
+    # The template scene file is referenced to T1w/ASL/ASLQC
+    # So we generate the scene file there, template in subject-specific data
     subject_id = subject_dir.stem
     scene_initial = (
-        Path(subject_dir) / f"MNINonLinear/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
+        Path(subject_dir) / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_qc.wb_scene"
     )
     rel_path_outdir = os.path.relpath(outdir / "T1w/ASL", start=scene_initial.parent)
     scene_initial.parent.mkdir(parents=True, exist_ok=True)
@@ -40,19 +39,24 @@ def create_qc_report(subject_dir, outdir):
         scene_file = scene_template.substitute(data)
         f.write(scene_file)
 
-    # If an outdir has been set, rebase scene to outdir/MNINonLinear/ASL/ASLQC
-    # then remove the initial one
-    scene_final = outdir / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_qc.scene"
-    scene_final.parent.mkdir(parents=True, exist_ok=True)
-    logging.info(f"Generating wb_view QC scene at {scene_final}")
-    cmd = ["wb_command", "-scene-file-relocate", str(scene_initial), str(scene_final)]
-    subprocess_popen(cmd)
-    os.remove(scene_initial)
-    os.rmdir(scene_initial.parent)
+    scene_final = outdir / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_qc.wb_scene"
+    if scene_final != scene_initial:
+        scene_final.parent.mkdir(parents=True, exist_ok=True)
+        logging.info(f"Generating wb_view QC scene at {scene_final}")
+        cmd = [
+            "wb_command",
+            "-scene-file-relocate",
+            str(scene_initial),
+            str(scene_final),
+        ]
+        subprocess_popen(cmd)
+        rmtree(scene_initial.parent)
+    else:
+        scene_final = scene_initial
 
     wb_cmd = os.environ["CARET7DIR"] + "/wb_command"
     for idx in range(1, 8):
-        png = scene_final.parent / f"{subject_id}_hcp_asl_qc_scene_{idx}.png"
+        png = scene_final.parent / f"{subject_id}_hcp_asl_qc.wb_scene{idx}.png"
         cmd = [
             wb_cmd,
             "-show-scene",

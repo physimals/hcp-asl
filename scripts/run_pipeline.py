@@ -262,7 +262,7 @@ def process_subject(
             "--bolus=1.5",
             "--te=19",
             "--spatial=off",
-            "--debug", 
+            "--debug",
         ]
         if use_t1:
             est_t1 = tis_dir / "SatRecov2/spatial/mean_T1t_filt.nii.gz"
