@@ -35,7 +35,12 @@ NativeFolder="Native"
 ResultsFolder="CIFTIPrepare"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
 ROIFolder="ROIs"
-OutputAtlasDenseScalar="${ASLVariable}_Atlas"
+RegString=""
+if [[ "$RegName" != "" ]]
+then
+    RegString="_$RegName"
+fi
+OutputAtlasDenseScalar="${ASLVariable}_Atlas${RegString}"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"

@@ -67,7 +67,7 @@ def create_qc_report(subject_dir, outdir):
             str(png),
             "100",
             "100",
-            "-use-window-size"
+            "-use-window-size",
         ]
         subprocess_popen(cmd)
 
