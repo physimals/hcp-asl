@@ -2,19 +2,18 @@
 set -e
 echo -e "\n START: RibbonVolumeToSurfaceMapping"
 
-T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL/CIFTIPrepare" # # 
-ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/OxfordASL/native_space" # # 
+Subject="$1" #"${SubjectID}_V1_MR" 
+ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/OxfordASL/native_space"
 ASLVariable="$3" #"perfusion_calib"
 ASLVariableVar="$4" # e.g. perfusion_var_calib
-Subject="$1" #"${SubjectID}_V1_MR" #
-T1DownsampleFolder="${10}" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" #  # 
-AtlasDownSampleFolder="${11}" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
-LowResMesh="$8" #32 # #
-T1wNativeFolder="$6" #"$StudyFolder/$SubjectID/T1w/Native" #
+T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL/CIFTIPrepare" #
+T1wNativeFolder="$6" #"$StudyFolder/$SubjectID/T1w/Native"
 AtlasSpaceNativeFolder="$7" #"$StudyFolder/$SubjectID/MNINonLinear/Native" 
-RegName="$9" #"MSMAll" #
-
-CARET7DIR="${12}"
+LowResMesh="$8" #32
+T1DownsampleFolder="$10" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" 
+RegName="$9" #"MSMAll" 
+AtlasDownSampleFolder="$11" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
+CARET7DIR="$12"
 
 # Add leading underscore to regname for use in paths 
 RegString=""
@@ -22,10 +21,7 @@ if [[ "$RegName" != "" ]]
 then
     RegString="_$RegName"
 fi
-
-
-NeighborhoodSmoothing="5" # May need to change
-Factor="0.5" # May need to change                  
+             
 
 # Reciprocal of the ASLVariable variance is the precision
 # This is required for precision-weighting of the volume to
@@ -73,7 +69,7 @@ for Hemisphere in L R ; do
                             "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".sphere.${RegName}.native.surf.gii \
                             "$AtlasDownSampleFolder"/"$Subject"."$Hemisphere".sphere."$LowResMesh"k_fs_LR.surf.gii \
                             ADAP_BARY_AREA \
-                            "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             -area-surfs \
                               "$T1wNativeFolder"/"$Subject"."$Hemisphere".midthickness.native.surf.gii \
                               "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness${RegString}."$LowResMesh"k_fs_LR.surf.gii \
@@ -82,15 +78,15 @@ for Hemisphere in L R ; do
 
   # 30mm dilation 
   ${CARET7DIR}/wb_command -metric-dilate \
-                            "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             "$T1DownsampleFolder"/"$Subject"."$Hemisphere".midthickness${RegString}."$LowResMesh"k_fs_LR.surf.gii \
-                            30 "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii 
+                            30 "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii 
 
   # Final masking 
   ${CARET7DIR}/wb_command -metric-mask \
-                            "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
+                            "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
                             "$AtlasDownSampleFolder"/"$Subject"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.shape.gii \
-                            "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii
+                            "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii
 done
 
 echo " END: RibbonVolumeToSurfaceMapping"

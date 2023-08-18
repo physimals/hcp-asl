@@ -1,22 +1,21 @@
 #!/bin/bash 
 set -e
+
 script_name="SubcorticalProcessingASL.sh"
 echo "${script_name}: START"
+
+ASLVariable="$1" 
+echo "${script_name}: ASLVariable: ${ASLVariable}"
 
 AtlasSpaceFolder="$2" 
 echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 
-ROIFolder="$7" 
-echo "${script_name}: ROIFolder: ${ROIFolder}"
-
-FinalASLResolution="$4" # "2.5" # 
-echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
-
 ResultsFolder="$3" 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
-ASLVariable="$1" 
-echo "${script_name}: ASLVariable: ${ASLVariable}"
+
+FinalASLResolution="$4" # "2.5" # 
+echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
 SmoothingFWHM="$5" #"2" #
 echo "${script_name}: SmoothingFWHM: ${SmoothingFWHM}"
@@ -24,15 +23,19 @@ echo "${script_name}: SmoothingFWHM: ${SmoothingFWHM}"
 BrainOrdinatesResolution="$6" #"2" #
 echo "${script_name}: BrainOrdinatesResolution: ${BrainOrdinatesResolution}"
 
+ROIFolder="$7" 
+echo "${script_name}: ROIFolder: ${ROIFolder}"
+
+CARET7DIR="$8" #"/Applications/workbench/bin_macosx64"
+#NOTE: wmparc has dashes in structure names, which -cifti-create-* won't accept
+#ROIs files have acceptable structure names
+
 VolumeASL="${ResultsFolder}/${ASLVariable}"
 echo "${script_name}: VolumeASL: ${VolumeASL}"
 
 Sigma=`echo "$SmoothingFWHM / ( 2 * ( sqrt ( 2 * l ( 2 ) ) ) )" | bc -l`
 echo "${script_name}: Sigma: ${Sigma}"
 
-CARET7DIR="$8" #"/Applications/workbench/bin_macosx64"
-#NOTE: wmparc has dashes in structure names, which -cifti-create-* won't accept
-#ROIs files have acceptable structure names
 
 #deal with fsl_sub being silly when we want to use numeric equality on decimals
 unset POSIXLY_CORRECT
