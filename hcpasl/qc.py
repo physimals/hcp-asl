@@ -12,7 +12,7 @@ from nbparameterise import extract_parameters, parameter_values, replace_definit
 from hcpasl.utils import get_package_data_name, subprocess_popen, get_roi_stats_script
 
 
-def create_qc_report(subject_dir, outdir):
+def create_qc_report(subject_dir, outdir, regname="MSMAll"):
     if not outdir:
         outdir = subject_dir
     else:
@@ -80,7 +80,7 @@ def create_qc_report(subject_dir, outdir):
 
     # replace with parameters for this subject and execute notebook
     new_parameters = parameter_values(
-        orig_parameters, subject_dir=str(subject_dir), outdir=str(outdir)
+        orig_parameters, subject_dir=str(subject_dir), outdir=str(outdir), regname=regname
     )
     new_nb = replace_definitions(template_nb, new_parameters, execute=False)
     _ = execute(new_nb)
