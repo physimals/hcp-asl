@@ -10,9 +10,9 @@ GrayordinatesResolution="$6"
 SmoothingFWHM="$7" #"2"
 OutputAtlasDenseScalar="$8" #"${AtlasResultsFolder}/${NameOfASL}_Atlas" 
 AtlasDownSampleFolder="$9" #"${StudyFolder}/${Subject}/MNINonLinear/fsaverage_LR32k" 
-AtlasResultsFolder="$10" #"${StudyFolder}/${Subject}/MNINonLinear/ASL/CIFTIPrepare"
-T1wSpcResultsFolder="$11" #"${StudyFolder}/${Subject}/T1w/ASL/CIFTIPrepare"
-CARET7DIR="$12" #"/Applications/workbench/bin_macosx64"
+AtlasResultsFolder="${10}" #"${StudyFolder}/${Subject}/MNINonLinear/ASL/CIFTIPrepare"
+T1wSpcResultsFolder="${11}" #"${StudyFolder}/${Subject}/T1w/ASL/CIFTIPrepare"
+CARET7DIR="${12}" #"/Applications/workbench/bin_macosx64"
 
 # Add leading underscore to regname for use in paths 
 RegString=""

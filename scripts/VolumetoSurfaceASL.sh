@@ -6,14 +6,14 @@ Subject="$1" #"${SubjectID}_V1_MR"
 ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/OxfordASL/native_space"
 ASLVariable="$3" #"perfusion_calib"
 ASLVariableVar="$4" # e.g. perfusion_var_calib
-T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL/CIFTIPrepare" #
+T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL" #
 T1wNativeFolder="$6" #"$StudyFolder/$SubjectID/T1w/Native"
 AtlasSpaceNativeFolder="$7" #"$StudyFolder/$SubjectID/MNINonLinear/Native" 
 LowResMesh="$8" #32
-T1DownsampleFolder="$10" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" 
 RegName="$9" #"MSMAll" 
-AtlasDownSampleFolder="$11" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
-CARET7DIR="$12"
+T1DownsampleFolder="${10}" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" 
+AtlasDownSampleFolder="${11}" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
+CARET7DIR="${12}"
 
 # Add leading underscore to regname for use in paths 
 RegString=""

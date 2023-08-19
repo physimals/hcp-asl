@@ -11,9 +11,9 @@ FinalASLResolution="$6" #2.5
 SmoothingFWHM="$7" # "2"
 GrayordinatesResolution="$8" # "2"
 RegName="$9" # "MSMAll" 
-CARET7DIR="$10" #"workbench/bin_macosx64 directory" 
-pvcorr="$11"
-Outdir="$12"
+CARET7DIR="${10}" #"workbench/bin_macosx64 directory" 
+pvcorr="${11}"
+Outdir="${12}"
 
 #Naming 
 T1wFolder="T1w"
@@ -27,7 +27,6 @@ if [[ "$RegName" != "" ]]
 then
     RegString="_$RegName"
 fi
-OutputAtlasDenseScalar="${ASLVariable}_Atlas${RegString}"
 
 AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
 T1wFolder="$Path"/"$Subject"/"$T1wFolder"
@@ -75,6 +74,7 @@ SubcorticalProcessingASL.sh "$ASLVariable" "$AtlasSpaceFolder" \
         "$GrayordinatesResolution" "$ROIFolder" "$CARET7DIR"
 
 #Generation of dense scalar image 
+OutputAtlasDenseScalar="${ASLVariable}_Atlas${RegString}"
 CreateDenseScalarASL.sh "$Subject" "$ASLVariable" \
         "$ROIFolder" "$LowResMesh" "$RegName" "$GrayordinatesResolution" \
         "$SmoothingFWHM" "$AtlasResultsFolder"/"$OutputAtlasDenseScalar" \

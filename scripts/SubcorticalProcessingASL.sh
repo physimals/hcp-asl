@@ -13,7 +13,6 @@ echo "${script_name}: AtlasSpaceFolder: ${AtlasSpaceFolder}"
 ResultsFolder="$3" 
 echo "${script_name}: ResultsFolder: ${ResultsFolder}"
 
-
 FinalASLResolution="$4" # "2.5" # 
 echo "${script_name}: FinalASLResolution: ${FinalASLResolution}"
 
