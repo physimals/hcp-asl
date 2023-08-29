@@ -571,9 +571,10 @@ def main():
     optional.add_argument(
         "--stages",
         help="Pipeline stages (zero-indexed, separated by spaces) to run, eg 0 3 5",
-        nargs="*",
+        nargs="+",
         type=int,
         default=set(range(14)),
+        metavar='N'
     )
     optional.add_argument(
         "--cores",
