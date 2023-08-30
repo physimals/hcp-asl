@@ -105,7 +105,7 @@ def process_subject(
         pipeline will be switched off. Default is False (i.e.
         banding corrections are applied by default).
     outdir : str, optional
-        Name of the main results directory. Default is 'hcp_asl'.
+        Name of the results directory with subject folder.
     stages: set, optional
         List or set of integer stage numbers (zero-indexed) to run.
         All prior stages are assumed to have run successfully.
@@ -431,6 +431,11 @@ def surface_projection_stage(
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path = os.environ["CARET7DIR"]
 
+    if not outdir: 
+        outdir = studydir / subid
+    else: 
+        outdir = studydir / subid / outdir
+
     ASLVariable = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
     ASLVariableVar = [
         "perfusion_var_calib",
@@ -453,7 +458,7 @@ def surface_projection_stage(
             RegName,
             wb_path,
             "false",
-            outdir,
+            str(outdir),
         ]
 
         pvcorr_cmd = [
@@ -469,7 +474,7 @@ def surface_projection_stage(
             RegName,
             wb_path,
             "true",
-            outdir,
+            str(outdir),
         ]
 
         subprocess_popen(non_pvcorr_cmd)
