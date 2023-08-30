@@ -1,5 +1,5 @@
 #!/bin/bash 
-set -e
+set -e -u
 
 # parse arguments
 Path="$1"
@@ -28,45 +28,45 @@ then
     RegString="_$RegName"
 fi
 
-AtlasSpaceFolder="$Path"/"$Subject"/"$AtlasSpaceFolder"
-T1wFolder="$Path"/"$Subject"/"$T1wFolder"
-ASLT1wFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"
+AtlasSpaceFolder="${Path}/${Subject}/${AtlasSpaceFolder}"
+T1wFolder="${Path}/${Subject}/${T1wFolder}"
+ASLT1wFolder="${Outdir}/T1w/ASL"
+
 if [ "$pvcorr" = false ] ; then
-    InitialASLResults="$ASLT1wFolder"/"OxfordASL/native_space"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"
+    InitialASLResults="${ASLT1wFolder}/OxfordASL/native_space"
+    T1wSpcResultsFolder="${Outdir}/T1w/ASL/${ResultsFolder}"
+    AtlasResultsFolder="${Outdir}/MNINonLinear/ASL/${ResultsFolder}"
 else
-    InitialASLResults="$ASLT1wFolder"/"OxfordASL/native_space/pvcorr"
-    T1wSpcResultsFolder="$Path"/"$Subject"/"$Outdir"/"T1w/ASL"/"$ResultsFolder"/"pvcorr"
-    AtlasResultsFolder="$Path"/"$Subject"/"$Outdir"/"MNINonLinear/ASL"/"$ResultsFolder"/"pvcorr"
+    InitialASLResults="${ASLT1wFolder}/OxfordASL/native_space/pvcorr"
+    T1wSpcResultsFolder="${Outdir}/T1w/ASL/${ResultsFolder}/pvcorr"
+    AtlasResultsFolder="${Outdir}/MNINonLinear/ASL/${ResultsFolder}/pvcorr"
 fi
+
 echo "Projecting ASL Variables from: $InitialASLResults"
-T1DownSampleFolder="$T1wFolder"/"$DownSampleFolder"
-AtlasDownSampleFolder="$AtlasSpaceFolder"/"$DownSampleFolder"
-ROIFolder="$AtlasSpaceFolder"/"$ROIFolder"
+T1DownSampleFolder="${T1wFolder}/${DownSampleFolder}"
+AtlasDownSampleFolder="${AtlasSpaceFolder}/${DownSampleFolder}"
+ROIFolder="${AtlasSpaceFolder}/${ROIFolder}"
 
-#Ribbon-based Volume to Surface mapping and resampling to standard surface
-
-# log_Msg "Do volume to surface mapping"
+# Volume to surface mapping
 mkdir -p "$T1wSpcResultsFolder"
 VolumetoSurfaceASL.sh "$Subject" "$InitialASLResults" "$ASLVariable" \
         "$ASLVariableVar" "$T1wSpcResultsFolder" \
-        "$T1wFolder"/"$NativeFolder" \
-        "$AtlasSpaceFolder"/"$NativeFolder" "$LowResMesh" "$RegName" \
+        "${T1wFolder}/${NativeFolder}" \
+        "${AtlasSpaceFolder}/${NativeFolder}" "$LowResMesh" "$RegName" \
         "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$CARET7DIR"
 
 #Surface Smoothing
-SurfaceSmoothASL.sh "$Subject" "$T1wSpcResultsFolder"/"$ASLVariable" \
+SurfaceSmoothASL.sh "$Subject" "${T1wSpcResultsFolder}/${ASLVariable}" \
         "$T1DownSampleFolder" "$AtlasDownSampleFolder" "$LowResMesh" "$SmoothingFWHM" \
         "$RegName" "$CARET7DIR"
 
 # Transform voxelwise perfusion variables to MNI space
 mkdir -p "$AtlasResultsFolder"
-results_to_mni_asl "$AtlasSpaceFolder"/"xfms"/"acpc_dc2standard.nii.gz" \
-        "$InitialASLResults"/"${ASLVariable}.nii.gz" "$T1wFolder"/"T1w_acpc_dc_restore.nii.gz" \
+results_to_mni_asl "${AtlasSpaceFolder}/xfms/acpc_dc2standard.nii.gz" \
+        "${InitialASLResults}/${ASLVariable}.nii.gz" "${T1wFolder}/T1w_acpc_dc_restore.nii.gz" \
         "${FSLDIR}/data/standard/MNI152_T1_2mm.nii.gz" \
-        "$AtlasResultsFolder"/"asl_grid_mni.nii.gz" \
-        "$AtlasResultsFolder"/"${ASLVariable}_MNI.nii.gz"
+        "${AtlasResultsFolder}/asl_grid_mni.nii.gz" \
+        "${AtlasResultsFolder}/${ASLVariable}_MNI.nii.gz"
 
 #Subcortical Processing
 SubcorticalProcessingASL.sh "$ASLVariable" "$AtlasSpaceFolder" \
@@ -77,6 +77,6 @@ SubcorticalProcessingASL.sh "$ASLVariable" "$AtlasSpaceFolder" \
 OutputAtlasDenseScalar="${ASLVariable}_Atlas${RegString}"
 CreateDenseScalarASL.sh "$Subject" "$ASLVariable" \
         "$ROIFolder" "$LowResMesh" "$RegName" "$GrayordinatesResolution" \
-        "$SmoothingFWHM" "$AtlasResultsFolder"/"$OutputAtlasDenseScalar" \
+        "$SmoothingFWHM" "${AtlasResultsFolder}/${OutputAtlasDenseScalar}" \
         "$AtlasDownSampleFolder" "$AtlasResultsFolder" \
         "$T1wSpcResultsFolder" "$CARET7DIR"

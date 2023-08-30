@@ -1,5 +1,5 @@
 #!/bin/bash 
-set -e
+set -e -u
 
 script_name="SubcorticalProcessingASL.sh"
 echo "${script_name}: START"

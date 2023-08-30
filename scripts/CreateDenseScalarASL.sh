@@ -1,5 +1,6 @@
 #!/bin/bash 
-echo -e "\n START: CreateDenseScalarASL"
+set -e -u
+echo -e "START: CreateDenseScalarASL"
 
 Subject="$1" 
 ASLVariable="$2" #perfusion_calib"
@@ -18,20 +19,16 @@ CARET7DIR="${12}" #"/Applications/workbench/bin_macosx64"
 RegString=""
 if [[ "$RegName" != "" ]]
 then
-    RegString="_$RegName"
+    RegString="_${RegName}"
 fi
 
 ${CARET7DIR}/wb_command -cifti-create-dense-scalar \
-    "$OutputAtlasDenseScalar".dscalar.nii -volume \
-    "$AtlasResultsFolder"/"$NameOfASL"_AtlasSubcortical_s"$SmoothingFWHM".nii.gz \
-    "$ROIFolder"/Atlas_ROIs."$GrayordinatesResolution".nii.gz \
-    -left-metric \
-        "$T1wSpcResultsFolder"/"$NameOfASL""$RegString"_s"$SmoothingFWHM".atlasroi.L."$LowResMesh"k_fs_LR.func.gii \
-    -roi-left \
-        "$AtlasDownSampleFolder"/"$Subject".L.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
-    -right-metric \
-        "$T1wSpcResultsFolder"/"$NameOfASL""$RegString"_s"$SmoothingFWHM".atlasroi.R."$LowResMesh"k_fs_LR.func.gii \
-    -roi-right \
-        "$AtlasDownSampleFolder"/"$Subject".R.atlasroi."$LowResMesh"k_fs_LR.shape.gii \
+    "${OutputAtlasDenseScalar}.dscalar.nii" -volume \
+    "${AtlasResultsFolder}/${ASLVariable}_AtlasSubcortical_s${SmoothingFWHM}.nii.gz" \
+    "${ROIFolder}/Atlas_ROIs.${GrayordinatesResolution}.nii.gz" \
+    -left-metric "${T1wSpcResultsFolder}/${ASLVariable}${RegString}_s${SmoothingFWHM}.atlasroi.L.${LowResMesh}k_fs_LR.func.gii" \
+    -roi-left "${AtlasDownSampleFolder}/${Subject}.L.atlasroi.${LowResMesh}k_fs_LR.shape.gii" \
+    -right-metric "$T1wSpcResultsFolder/${ASLVariable}${RegString}_s${SmoothingFWHM}.atlasroi.R.${LowResMesh}k_fs_LR.func.gii" \
+    -roi-right "${AtlasDownSampleFolder}/${Subject}.R.atlasroi.${LowResMesh}k_fs_LR.shape.gii" \
 
 echo " END: CreateDenseScalarASL"

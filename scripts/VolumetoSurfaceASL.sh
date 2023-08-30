@@ -1,5 +1,5 @@
 #!/bin/bash 
-set -e
+set -e -u
 echo -e "\n START: RibbonVolumeToSurfaceMapping"
 
 Subject="$1" #"${SubjectID}_V1_MR" 

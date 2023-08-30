@@ -1,5 +1,5 @@
 #!/bin/bash 
-set -e
+set -e -u
 echo -e "\n START: SurfaceSmoothing"
 
 Subject="$1"
