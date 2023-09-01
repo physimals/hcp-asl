@@ -333,7 +333,7 @@ def make_motion_fov_mask(mc_transform, src, ref, cores=1):
 
 
 def subprocess_popen(cmd, **kwargs):
-    logging.info(" ".join(cmd))
+    logging.info(cmd)
     with subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
     ) as process:
