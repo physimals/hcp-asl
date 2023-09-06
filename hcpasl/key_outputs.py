@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from shutil import copy
+from shutil import copy, move
 from glob import glob
 
 
@@ -192,10 +192,6 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     for b in cifti_files:
         fname = [Path(f).name for f in glob(source_path_MNI + b)]
         for f in fname:
-            copy((source_path_MNI + f), (destination_path_MNI + f))
-
-            copy((source_path_MNI_pv + f), destination_path_MNI + pv_prefix + "_" + f)
-
             # Produce arrival and perfusion CIFTI summary values in /MNINonLinear/ASL/
             stem = f.replace(".dscalar.nii", "")
             cmd = [
@@ -219,3 +215,6 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
                 destination_path_MNI + f"pvcorr_{stem}_mean_nonzero.txt",
             ]
             subprocess.run(" ".join(cmd), shell=True, check=True)
+
+            move((source_path_MNI + f), (destination_path_MNI + f))
+            move((source_path_MNI_pv + f), destination_path_MNI + pv_prefix + "_" + f)
