@@ -46,7 +46,7 @@ def create_qc_report(subject_dir, outdir, regname="MSMAll"):
             str(scene_initial),
             str(scene_final),
         ]
-        subprocess_popen(cmd)
+        sp_run(cmd)
         rmtree(scene_initial.parent)
     else:
         scene_final = scene_initial
@@ -120,4 +120,4 @@ def roi_stats(
         "--native-pves",
     ]
     logging.info("Running oxford_asl_roi_stats.py with command:")
-    subprocess_popen(cmd)
+    sp_run(cmd)

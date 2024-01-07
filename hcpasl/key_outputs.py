@@ -1,8 +1,9 @@
 import os
-import subprocess
+from glob import glob
 from pathlib import Path
 from shutil import copy, move
-from glob import glob
+
+from hcpasl.utils import sp_run
 
 
 def copy_key_outputs(path, t1w_preproc, mni_raw):
@@ -49,9 +50,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             gm_mask,
             source_path_T1 + pv_prefix + "/" + gm_pvcorr_var_out,
         ]
-        subprocess.run(
-            mask_cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-        )
+        sp_run(mask_cmd)
 
     wm_mask = source_path_T1 + "wm_mask.nii.gz"
     wm_pvcorr_vars = ["perfusion_wm_var_calib.nii.gz", "arrival_wm_var.nii.gz"]
@@ -70,9 +69,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             wm_mask,
             source_path_T1 + pv_prefix + "/" + wm_pvcorr_var_out,
         ]
-        subprocess.run(
-            mask_cmd, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE
-        )
+        sp_run(mask_cmd)
 
     # Make key outputs more prominent in /T1w/ASL/ and warp the voxelwise results to
     # MNI space
@@ -85,7 +82,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     ]
     for x in nonpv_img_files:
         copy((source_path_T1 + x), (destination_path_T1 + x))
-        if x is not "aCBV_calib.nii.gz":
+        if x != "aCBV_calib.nii.gz":
             warp_cmd = [
                 script,
                 warp,
@@ -95,7 +92,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
                 asl_grid_mni,
                 (destination_path_MNI_voxel + x),
             ]
-            subprocess.run(warp_cmd, check=True)
+            sp_run(warp_cmd)
 
     # Make key perfusion summary values more priminent in /T1w/ASL/
     nonpv_txt_files = [
@@ -137,7 +134,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             (source_path_T1 + pv_prefix + "/" + en),
             (destination_path_T1 + pv_prefix + "_" + out),
         )
-        if en is not "aCBV_calib.nii.gz":
+        if en != "aCBV_calib.nii.gz":
             pv_warp_cmd = [
                 script,
                 warp,
@@ -147,7 +144,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
                 asl_grid_mni,
                 (destination_path_MNI_voxel + pv_prefix + "/" + out),
             ]
-            subprocess.run(pv_warp_cmd, check=True)
+            sp_run(pv_warp_cmd)
 
     # Make key pvcorr perfusion summary results more prominent in /T1w/ASL/
     pv_txt_files = [
@@ -195,7 +192,7 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
             # Produce arrival and perfusion CIFTI summary values in /MNINonLinear/ASL/
             stem = f.replace(".dscalar.nii", "")
             cmd = [
-                "wb_command",
+                f"{os.environ['CARET7DIR']}/wb_command",
                 "-cifti-stats",
                 (source_path_MNI + f),
                 "-reduce",
@@ -203,10 +200,11 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
                 ">",
                 destination_path_MNI + f"{stem}_mean_nonzero.txt",
             ]
-            subprocess.run(" ".join(cmd), shell=True, check=True)
+            cmd = " ".join(cmd)
+            sp_run(cmd, shell=True)
 
             cmd = [
-                "wb_command",
+                f"{os.environ['CARET7DIR']}/wb_command",
                 "-cifti-stats",
                 (source_path_MNI_pv + f),
                 "-reduce",
@@ -214,7 +212,8 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
                 ">",
                 destination_path_MNI + f"pvcorr_{stem}_mean_nonzero.txt",
             ]
-            subprocess.run(" ".join(cmd), shell=True, check=True)
+            cmd = " ".join(cmd)
+            sp_run(cmd, shell=True)
 
             move((source_path_MNI + f), (destination_path_MNI + f))
             move((source_path_MNI_pv + f), destination_path_MNI + pv_prefix + "_" + f)

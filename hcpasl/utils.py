@@ -1,10 +1,10 @@
 import json
 import logging
+import os
 import shutil
 import subprocess
 from importlib.resources import path as resource_path
 from pathlib import Path
-import os
 
 import numpy as np
 from fsl.data import atlases
@@ -205,7 +205,7 @@ def linear_asl_reg(calib_name, results_dir, t1_name, t1_brain_name, wm_mask):
         "--tissseg",
         wm_mask,
     ]
-    subprocess.run(aslreg_cmd, check=True)
+    sp_run(aslreg_cmd)
 
 
 def get_ventricular_csf_mask(fslanatdir, interpolation=3):
@@ -296,7 +296,6 @@ def get_package_data_name(name):
     included as part of the pipeline.
 
     The choices are:
-    * report_template.ipynb
     * scaling_factors.txt
     """
     p = resource_path(resources, name)
@@ -332,22 +331,16 @@ def make_motion_fov_mask(mc_transform, src, ref, cores=1):
     return src.make_nifti(fov_valid)
 
 
-def subprocess_popen(cmd, **kwargs):
+def sp_run(cmd, **kwargs):
     logging.info(cmd)
-    with subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **kwargs
-    ) as process:
-        while 1:
-            retcode = process.poll()
-            line = process.stdout.readline().decode("utf-8").replace("\n", "")
-            if line:
-                logging.info(line)
-            if retcode is not None:
-                break
-        if retcode != 0:
-            msg = f"Subprocess {cmd} failed with exit code {retcode}."
-            logging.exception(msg)
-            raise RuntimeError(msg)
+    env = {**os.environ, **kwargs.pop("env", {})}
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env, **kwargs)
+    if result.returncode == 0:
+        logging.info(result.stdout)
+    else:
+        logging.error(f"Subprocess {cmd} failed with exit code {result.returncode}.")
+        logging.error(result.stderr)
+        exit(-1)
 
 
 def get_roi_stats_script():

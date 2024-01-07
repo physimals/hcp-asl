@@ -23,10 +23,10 @@ The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` se
 FreeSurfer must be installed to enable boundary-based registration (BBR). The environment variable `FREESURFER_HOME` must be set. 
 
 ## Installation
-It is advised that the pipeline is installed in a conda environment, for example following the steps below. The pipeline cannot natively be installed on Mac arm64 processors due to dependency incompatibility, but Rosetta emulation can be used. 
+It is advised that the pipeline is installed in a conda environment. Python >= 3.9 is required. Note that some dependencies require cython and numpy to be installed prior to installing the hcp-asl package, for example following the steps below. 
 
 ```
-conda create -n hcpasl python=3.7 cython numpy
+conda create -n hcpasl python=3.11 cython 'numpy>=1.25'
 conda activate hcpasl
 pip install git+https://github.com/physimals/hcp-asl.git 
 ```

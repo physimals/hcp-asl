@@ -2,18 +2,16 @@
 This contains a range of functions required to correct for the 
 Magnetisation Transfer effect visible in the HCP data.
 """
-import os
-import os.path as op
-import subprocess
-from pathlib import Path
 import logging
+import os.path as op
+from pathlib import Path
 
 import nibabel as nb
 import numpy as np
 import regtricks as rt
 
 from .tissue_masks import generate_tissue_mask
-from .utils import subprocess_popen
+from .utils import sp_run
 
 
 def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
@@ -44,23 +42,17 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     # and subject_id. We temporarily set the environment variable
     # before making the call, and then revert back afterwards
     new_sd, sid = op.split(fsdir)
-    old_sd = os.environ.get("SUBJECTS_DIR")
-    pwd = os.getcwd()
     orig_mgz = op.join(fsdir, "mri", "orig.mgz")
 
-    # Run inside the regdir. Save the output in fsl format, by default
+    # Save the output in fsl format, by default
     # this targets the orig.mgz, NOT THE T1 IMAGE ITSELF!
-    logging.info(f"Changing directory to {reg_dir}")
-    os.chdir(reg_dir)
+    logging.info(f"Running bbregister in {reg_dir}; setting $SUBJECTS_DIR to {new_sd}")
     omat_path = op.join(reg_dir, "asl2struct.mat")
-    logging.info(f"Setting $SUBJECTS_DIR to {new_sd} for bbregister")
-    cmd = os.environ["SUBJECTS_DIR"] = new_sd
     cmd = f"$FREESURFER_HOME/bin/bbregister --s {sid} --mov {asl_vol0} --t2 "
     cmd += f"--reg asl2orig_mgz_initial_bbr.dat --fslmat {omat_path} --init-fsl"
-    logging.info(f"Running bbregister: {cmd}")
     fslog_name = op.join(reg_dir, "asl2orig_mgz_initial_bbr.dat.log")
     logging.info(f"FreeSurfer's bbregister log: {fslog_name}")
-    subprocess_popen(cmd, shell=True)
+    sp_run(cmd, shell=True, env={"SUBJECTS_DIR": new_sd}, cwd=reg_dir)
 
     # log final .dat transform
     with open(omat_path, "r") as f:
@@ -84,10 +76,6 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
 
     # Return to original working directory, and flip the FSL matrix to target
     # asl -> T1, not orig.mgz. Save output.
-    os.chdir(pwd)
-    if old_sd:
-        logging.info(f"Changing $SUBJECTS_DIR back to {old_sd}")
-        os.environ["SUBJECTS_DIR"] = old_sd
     logging.info("Converting .mat to target T1w.nii.gz rather than orig.mgz.")
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, "asl2struct.mat"), asl2struct_fsl)
@@ -348,14 +336,13 @@ def correct_M0(
             "--debug",
         ]
         logging.info(f"Running SE-based bias estimation on {calib_name_stem}.")
-        logging.info(sebased_cmd)
-        subprocess_popen(sebased_cmd)
+        sp_run(sebased_cmd)
 
         # apply dilall to bias estimate
         bias_name = sebased_dir / "sebased_bias_dil.nii.gz"
         dilall_name = biascorr_dir / f"{calib_name_stem}_bias.nii.gz"
         dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
-        subprocess.run(dilall_cmd, check=True)
+        sp_run(dilall_cmd)
 
         # bias correct and mt correct the distortion corrected calib image
         logging.info(f"Performing bias correction.")

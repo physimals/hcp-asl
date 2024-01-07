@@ -8,9 +8,8 @@ import nibabel as nb
 import numpy as np
 import regtricks as rt
 from fsl.wrappers import bet
-from scipy.ndimage import binary_fill_holes
 
-from hcpasl.utils import subprocess_popen
+from hcpasl.utils import sp_run
 
 
 def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
@@ -34,21 +33,12 @@ def generate_gdc_warp(vol, coeffs_path, distcorr_dir, interpolation=1):
     logging.info(f"distcorr_dir: {distcorr_dir}")
     logging.info(f"interpolation: {interpolation}")
 
-    # Need to run in the output directory to make sure files end up in the
-    # right place
-    pwd = os.getcwd()
-    logging.info(f"PWD: {pwd}")
-    logging.info(f"Changing to {distcorr_dir}")
-    os.chdir(distcorr_dir)
-
     cmd = "gradient_unwarp.py {} gdc_corr_vol1.nii.gz siemens -g {} --interp_order {}".format(
         vol, coeffs_path, interpolation
     )
-    logging.info(f"gradient_unwarp.py command:")
-    subprocess_popen(cmd, shell=True)
+    logging.info(f"Running gradient_unwarp.py in {distcorr_dir} with command {cmd}")
+    sp_run(cmd, shell=True, cwd=distcorr_dir)
     logging.info("gradient_unwarp.py run is complete.")
-    os.chdir(pwd)
-    logging.info(f"Changed directory back to {pwd}")
 
 
 def generate_topup_params(pars_filepath):
@@ -159,9 +149,6 @@ def generate_fmaps(
     logging.info(f"Perform gradient distortion correction: {gd_corr}")
     logging.info(f"Interpolation order: {interpolation}")
 
-    pwd = os.getcwd()
-    os.chdir(distcorr_dir)
-
     # apply gradient distortion correction to stacked SEFMs
     if gd_corr:
         gdc = rt.NonLinearRegistration.from_fnirt(
@@ -185,7 +172,7 @@ def generate_fmaps(
         f"--imain={topup_input_pa_ap_sefms_name}",
         f"--datain={params}",
         f"--config={config}",
-        f"--out=topup",
+        f"--out={op.join(distcorr_dir, 'topup')}",
         f"--iout={op.join(distcorr_dir, 'corrected_sefms.nii.gz')}",
         f"--fout={topup_fmap}",
         f"--dfout={op.join(distcorr_dir, 'WarpField')}",
@@ -193,8 +180,7 @@ def generate_fmaps(
         f"--jacout={op.join(distcorr_dir, 'Jacobian')}",
         "--verbose",
     ]
-    logging.info(f"Topup command: {' '.join(topup_cmd)}")
-    subprocess_popen(topup_cmd)
+    sp_run(topup_cmd)
     fmap, fmapmag, fmapmagbrain = [
         op.join(distcorr_dir, "{}.nii.gz".format(s))
         for s in ["fmap", "fmapmag", "fmapmagbrain"]
@@ -230,8 +216,6 @@ def generate_fmaps(
     # Run BET on fmapmag to get brain only version
     logging.info("Running BET on fmapmag for brain-extracted version.")
     bet(fmapmag, output=fmapmagbrain)
-
-    os.chdir(pwd)
 
 
 def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
@@ -292,7 +276,7 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
         schedule,
     ]
     for cmd in (init_cmd, sec_cmd, bbr_cmd):
-        sp.run(cmd, check=True)
+        sp.run(cmd)
     return str(bbr_xform)
 
 
@@ -437,4 +421,4 @@ def generate_epidc_warp(
         + "--fmapmagbrain={} --nofmapreg ".format(fmapmagbrain_struct)
         + "--echospacing=0.00057 --pedir=y"
     )
-    sp.run(cmd, shell=True)
+    sp.run(cmd)

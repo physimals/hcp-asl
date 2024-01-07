@@ -1,4 +1,3 @@
-import subprocess
 from pathlib import Path
 
 import nibabel as nb
@@ -8,6 +7,7 @@ from fsl.wrappers import LOAD, bet, fast
 
 from hcpasl.distortion_correction import register_fmap
 from hcpasl.tissue_masks import generate_tissue_mask_in_ref_space
+from hcpasl.utils import sp_run
 
 
 def bias_estimation_calib(calib_name):
@@ -164,10 +164,10 @@ def bias_estimation_sebased(
             gm_seg_name,
             "--debug",
         ]
-        subprocess.run(sebased_cmd, check=True)
+        sp_run(sebased_cmd)
     dilall_name = results_dir / "sebased_bias_dilall.nii.gz"
     dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
-    subprocess.run(dilall_cmd, check=True)
+    sp_run(dilall_cmd)
     bias_field = nb.load(dilall_name)
     return bias_field
 

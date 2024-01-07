@@ -238,7 +238,7 @@ def se_based_bias_estimation():
     if tissue_mask:
         tissue_mask = (
             rt.Registration.identity()
-            .apply_to_image(tissue_mask, m0_name, order=0)
+            .apply_to_image(tissue_mask, m0_name, order=0, cores=1)
             .get_fdata()
         )
         if debug:
@@ -254,7 +254,7 @@ def se_based_bias_estimation():
         else:
             registration = rt.Registration.identity()
         wmparc_aslt1, ribbon_aslt1 = [
-            registration.apply_to_image(name, m0_name, order=0)
+            registration.apply_to_image(name, m0_name, order=0, cores=1)
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs

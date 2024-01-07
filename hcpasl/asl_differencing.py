@@ -60,7 +60,9 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
     # ignore voxels where below would lead to dividing by zero
     nonzero_mask = np.abs(X_odd - X_even) > 1e-6
     mask_name = betas_dir / "difference_mask.nii.gz"
-    nb.save(nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name)
+    nb.save(
+        nb.Nifti1Image(nonzero_mask.astype(np.int32), affine=Y_moco.affine), mask_name
+    )
 
     # only perform calculation within the provided mask
     if mask is not None:
@@ -70,7 +72,8 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
         nonzero_mask = np.logical_and(nonzero_mask, mask)
         mask_name = betas_dir / "combined_mask.nii.gz"
         nb.save(
-            nb.Nifti1Image(nonzero_mask.astype(int), affine=Y_moco.affine), mask_name
+            nb.Nifti1Image(nonzero_mask.astype(np.int32), affine=Y_moco.affine),
+            mask_name,
         )
 
     # calculate B_perf and B_baseline at voxels within mask

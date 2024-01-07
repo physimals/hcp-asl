@@ -1,8 +1,9 @@
-from setuptools import setup, find_packages
-import os
-import subprocess
-import re
 import io
+import os
+import re
+import subprocess
+
+from setuptools import find_packages, setup
 
 PACKAGE_NAME = "hcpasl"
 ROOTDIR = os.path.abspath(os.path.dirname(__file__))
@@ -106,13 +107,13 @@ with open("README.md", "r") as fh:
 setup(
     name=PACKAGE_NAME,
     version=get_version(),
-    author="Flora Kennedy McConnell, Thomas Kirk, Jack Toner",
+    author="Flora Kennedy McConnell, Jack Toner, Thomas Kirk",
     author_email="thomas.kirk1@nottingham.ac.uk",
     description="Minimal ASL processing pipeline for the HCP Lifespan datasets",
     long_description=long_description,
     url="https://github.com/physimals/hcp-asl",
     packages=find_packages(),
-    python_requires=">=3.6, <3.8",
+    python_requires=">=3.9",
     install_requires=get_requirements(),
     entry_points={
         "console_scripts": [

@@ -89,7 +89,7 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
 
     ref_spc = rt.ImageSpace(ref_spc)
     aseg_spc = nib.load(op.join(t1_dir, "aparc+aseg.nii.gz"))
-    aseg = aseg_spc.get_fdata().astype(int)
+    aseg = aseg_spc.get_fdata().astype(np.int32)
     aseg_spc = rt.ImageSpace(aseg_spc)
 
     # If not provided, an identity transform is used

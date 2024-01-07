@@ -7,33 +7,25 @@ the directories of the subjects of interest and finally the
 name of the MT correction scaling factors image.
 """
 
-import os
+import argparse
 import logging
+import os
+from multiprocessing import cpu_count
+from pathlib import Path
 from shutil import copy, rmtree
 
-from hcpasl import __version__, __timestamp__, __sha1__
-from hcpasl.distortion_correction import gradunwarp_and_topup
-from hcpasl.m0_correction import correct_M0
-from hcpasl.asl_correction import (
-    single_step_resample_to_asl0,
-    single_step_resample_to_aslt1w,
-)
+from hcpasl import __sha1__, __timestamp__, __version__
+from hcpasl.asl_correction import (single_step_resample_to_asl0,
+                                   single_step_resample_to_aslt1w)
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.utils import (
-    get_package_data_name,
-    create_dirs,
-    split_mbpcasl,
-    copy_oxford_asl_inputs,
-    subprocess_popen,
-    setup_logger,
-    get_roi_stats_script,
-)
+from hcpasl.distortion_correction import gradunwarp_and_topup
+from hcpasl.key_outputs import copy_key_outputs
+from hcpasl.m0_correction import correct_M0
 from hcpasl.pv_estimation import run_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
-from hcpasl.key_outputs import copy_key_outputs
-from pathlib import Path
-import argparse
-from multiprocessing import cpu_count
+from hcpasl.utils import (copy_oxford_asl_inputs, create_dirs,
+                          get_package_data_name, get_roi_stats_script,
+                          setup_logger, sp_run, split_mbpcasl)
 
 
 def process_subject(
@@ -268,7 +260,7 @@ def process_subject(
             est_t1 = tis_dir / "SatRecov2/spatial/mean_T1t_filt.nii.gz"
             oxford_asl_call.append(f"--t1im={str(est_t1)}")
         logging.info(oxford_asl_call)
-        subprocess_popen(oxford_asl_call)
+        sp_run(oxford_asl_call)
 
     # get data in ASLT1w space
     if not nobandingcorr:
@@ -372,7 +364,7 @@ def process_subject(
         if use_t1:
             est_t1 = aslt1w_dir / "TIs/reg/mean_T1t_filt_aslt1w.nii.gz"
             oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
-        subprocess_popen(oxford_aslt1w_call)
+        sp_run(oxford_aslt1w_call)
 
     mninonlinear_name = subject_dir / "MNINonLinear"
     if 10 in stages:
@@ -431,9 +423,9 @@ def surface_projection_stage(
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path = os.environ["CARET7DIR"]
 
-    if not outdir: 
+    if not outdir:
         outdir = studydir / subid
-    else: 
+    else:
         outdir = studydir / subid / outdir
 
     ASLVariable = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
@@ -477,8 +469,8 @@ def surface_projection_stage(
             str(outdir),
         ]
 
-        subprocess_popen(non_pvcorr_cmd)
-        subprocess_popen(pvcorr_cmd)
+        sp_run(non_pvcorr_cmd)
+        sp_run(pvcorr_cmd)
 
 
 def copy_outputs(studydir, subid, outdir):
@@ -579,7 +571,7 @@ def main():
         nargs="+",
         type=int,
         default=set(range(14)),
-        metavar='N'
+        metavar="N",
     )
     optional.add_argument(
         "--cores",

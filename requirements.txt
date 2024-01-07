@@ -1,6 +1,6 @@
 gradunwarp @ git+https://github.com/Washington-University/gradunwarp
 cython 
-numpy>1.21.5  # addresses a reciprocal error on MacOS, see https://github.com/dask/dask/issues/7189
+numpy>=1.25  # Required for gradunwarp 
 fslpy>=3.1.0
 nibabel
 pyfab

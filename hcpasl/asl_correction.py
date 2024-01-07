@@ -32,7 +32,6 @@ Corrections to be applied include:
 import logging
 import multiprocessing as mp
 import shutil
-import subprocess
 import sys
 
 import nibabel as nb
@@ -43,8 +42,8 @@ from fsl.wrappers import fslmaths
 from fsl.wrappers.flirt import applyxfm, mcflirt
 from scipy.ndimage import binary_dilation
 
-from .m0_correction import generate_asl2struct
 from . import utils
+from .m0_correction import generate_asl2struct
 
 # asl sequence parameters
 NTIS = 5
@@ -208,7 +207,7 @@ def _split_tag_control(asl_name, ntis, iaf, ibf, rpts):
         f"--rpts={rpts[0]},{rpts[1]},{rpts[2]},{rpts[3]},{rpts[4]}",
         f"--out={asl_base}",
     ]
-    utils.subprocess_popen(cmd)
+    utils.sp_run(cmd)
     even_name = asl_name.parent / f"{asl_base}_even.nii.gz"
     odd_name = asl_name.parent / f"{asl_base}_odd.nii.gz"
     return even_name, odd_name
@@ -249,7 +248,7 @@ def _fslmaths_med_filter_wrapper(image_name):
     """
     filtered_name = image_name.parent / f'{image_name.stem.split(".")[0]}_filt.nii.gz'
     cmd = ["fslmaths", image_name, "-fmedian", filtered_name]
-    subprocess.run(cmd, check=True)
+    utils.sp_run(cmd)
     return filtered_name
 
 
@@ -379,10 +378,10 @@ def _register_param(param_name, transform_dir, reffile, param_reg_name):
             str(transform),
             "-singlematrix",
         ]
-        subprocess.run(cmd, check=True)
+        utils.sp_run(cmd)
     # merge registered parameter volumes into one time series
     cmd = ["fslmerge", "-t", str(param_reg_name), *out_names]
-    subprocess.run(cmd, check=True)
+    utils.sp_run(cmd)
     # remove intermediate file names
     for out_n in out_names:
         out_n.unlink()
@@ -1108,11 +1107,11 @@ def single_step_resample_to_aslt1w(
         subcorticallut,
         "--debug",
     ]
-    utils.subprocess_popen(sebased_cmd)
+    utils.sp_run(sebased_cmd)
     bias_name = sebased_dir / "sebased_bias_dil.nii.gz"
     dilall_name = sebased_dir / "sebased_bias_dilall.nii.gz"
     dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
-    subprocess.run(dilall_cmd, check=True)
+    utils.sp_run(dilall_cmd)
 
     # get ASL series in ASL-gridded T1w space along with the scaling factors
     # used to perform banding correction.
