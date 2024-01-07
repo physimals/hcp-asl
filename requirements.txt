@@ -8,12 +8,6 @@ regtricks
 toblerone @ git+https://github.com/tomfrankkirk/toblerone@v0.8.2
 gradunwarp
 requests
-regtricks @ git+https://github.com/tomfrankkirk/regtricks@v0.3.6
+regtricks @ git+https://github.com/tomfrankkirk/regtricks
 scikit-learn
-nilearn
-pandas
-nbformat
-nbclient
-nbparameterise
-ipywidgets
-ipykernel 
+pandas 

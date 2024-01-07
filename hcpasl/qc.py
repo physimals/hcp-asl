@@ -1,15 +1,12 @@
+import logging
 import os
 from pathlib import Path
-import logging
-from string import Template
 from shutil import rmtree
+from string import Template
 
-import nbformat
 import regtricks as rt
-from nbclient import execute
-from nbparameterise import extract_parameters, parameter_values, replace_definitions
 
-from hcpasl.utils import get_package_data_name, subprocess_popen, get_roi_stats_script
+from hcpasl.utils import get_package_data_name, get_roi_stats_script, sp_run
 
 
 def create_qc_report(subject_dir, outdir, regname="MSMAll"):
@@ -69,29 +66,7 @@ def create_qc_report(subject_dir, outdir, regname="MSMAll"):
             "100",
             "-use-window-size",
         ]
-        subprocess_popen(cmd)
-
-    # get location of this file
-    template_name = get_package_data_name("report_template.ipynb")
-    template_nb = nbformat.read(template_name, as_version=4)
-
-    # extract original parameters from the template notebook
-    orig_parameters = extract_parameters(template_nb)
-
-    # replace with parameters for this subject and execute notebook
-    new_parameters = parameter_values(
-        orig_parameters, subject_dir=str(subject_dir), outdir=str(outdir), regname=regname
-    )
-    new_nb = replace_definitions(template_nb, new_parameters, execute=False)
-    _ = execute(new_nb)
-
-    # save notebook in subject's main output directory
-    new_nb_name = (
-        Path(subject_dir) / outdir / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_report.ipynb"
-    )
-    logging.info(f"Generating jupyter notebook at {new_nb_name}")
-    with open(new_nb_name, "w") as f:
-        nbformat.write(new_nb, f)
+        sp_run(cmd)
 
 
 def roi_stats(

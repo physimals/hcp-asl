@@ -332,7 +332,6 @@ T1w # T1w aligned space
     ├── asl_corr.nii.gz # Fully corrected ASL timeseries 
     ├── asl_corr_subtracted.nii.gz # Fully corrected and subtracted ASL timeseries 
     ├── calib_corr.nii.gz # Fully corrected calibration image 
-    ├── hcp_asl_report.ipynb # Jupyter notebook for QC 
     ├── perfusion_calib.nii.gz
     ├── perfusion_calib_gm_mean.txt
     ├── perfusion_calib_wm_mean.txt
