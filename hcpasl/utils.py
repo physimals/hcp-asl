@@ -336,7 +336,8 @@ def sp_run(cmd, **kwargs):
     env = {**os.environ, **kwargs.pop("env", {})}
     result = subprocess.run(cmd, capture_output=True, text=True, env=env, **kwargs)
     if result.returncode == 0:
-        logging.info(result.stdout)
+        if result.stdout: 
+            logging.info(result.stdout)
     else:
         logging.error(f"Subprocess {cmd} failed with exit code {result.returncode}.")
         logging.error(result.stderr)

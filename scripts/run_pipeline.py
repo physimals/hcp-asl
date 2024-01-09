@@ -394,6 +394,8 @@ def process_subject(
         logging.info("Stage 13: Creating QC report.")
         create_qc_report(subject_dir, outdir)
 
+    logging.info("DONE")
+
 
 def surface_projection_stage(
     studydir,
