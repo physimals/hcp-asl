@@ -7,6 +7,7 @@ from importlib.resources import path as resource_path
 from pathlib import Path
 
 import numpy as np
+import nibabel as nb
 from fsl.data import atlases
 from fsl.data.image import Image
 from fsl.wrappers import LOAD, fslmaths, fslroi
@@ -17,6 +18,23 @@ from . import resources
 
 ASL_SHAPE = (86, 86, 60, 86)
 
+class ImagePath:
+    """ Keep track of the name and path to an image as corrections are applied to it"""
+    def __init__(self, path):
+        self.path = path.resolve(strict=True)
+        self.stem = self.path.stem.split(".")[0]
+        self.img = nb.load(self.path)
+
+    def correct_from_image(self, dir, suffix, newimg):
+        dir.mkdir(exist_ok=True, parents=True)
+        stem = f"{self.stem}_{suffix}"
+        path = dir / f"{stem}.nii.gz"
+        nb.save(newimg, path)
+        return ImagePath(path)
+
+    def correct_from_data(self, dir, suffix, newdata):
+        newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine)
+        return self.correct_from_image(dir, suffix, newimg)
 
 def create_dirs(dir_list, parents=True, exist_ok=True):
     """
