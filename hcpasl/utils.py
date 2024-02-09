@@ -239,14 +239,14 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     return vent_t1_img
 
 
-def split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name):
+def split_asl(asl, tis_name, calib0_name, calib1_name):
     """
-    Split mbPCASLhr sequence into its constituent ASL series and
-    calibration images.
+    Split ASL sequence into its constituent label-control series and
+    calibration images (final 2 vols).
     """
-    fslroi(str(mbpcasl), str(tis_name), 0, 86)
-    fslroi(str(mbpcasl), str(calib0_name), 88, 1)
-    fslroi(str(mbpcasl), str(calib1_name), 89, 1)
+    fslroi(str(asl), str(tis_name), 0, 86)
+    fslroi(str(asl), str(calib0_name), 88, 1)
+    fslroi(str(asl), str(calib1_name), 89, 1)
 
 
 def setup_logger(file_path):

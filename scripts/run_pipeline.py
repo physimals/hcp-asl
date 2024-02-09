@@ -31,7 +31,7 @@ from hcpasl.utils import (
     get_roi_stats_script,
     setup_logger,
     sp_run,
-    split_mbpcasl,
+    split_asl,
 )
 
 
@@ -129,14 +129,14 @@ def process_subject(
         d / name
         for d, name in zip(
             (tis_dir, calib0_dir, calib1_dir),
-            ("tis.nii.gz", "calib0.nii.gz", "calib1.nii.gz"),
+            ("asl_tis.nii.gz", "calib0.nii.gz", "calib1.nii.gz"),
         )
     ]
     if 0 in stages:
         logging.info(
-            "Stage 0: splitting mbPCASL sequence into ASL and calibration images."
+            "Stage 0: splitting ASL sequence into label-control pairs and calibration images."
         )
-        split_mbpcasl(mbpcasl, tis_name, calib0_name, calib1_name)
+        split_asl(mbpcasl, tis_name, calib0_name, calib1_name)
 
     # run gradient_unwarp and topup, storing results
     # in gradunwarp_dir and topup_dir respectively
