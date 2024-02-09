@@ -500,13 +500,13 @@ def single_step_resample_to_asl0(
     moco_dir = tis_dir / "MoCo"
     asln2m0_name = moco_dir / "asln2m0.mat"
     satrecov_dir = tis_dir / "SatRecov"
-    utils.create_dirs(
-        [tis_dir, bcorr_dir, distcorr_dir, moco_dir, asln2m0_name, satrecov_dir]
-    )
+    for d in [tis_dir, bcorr_dir, distcorr_dir, moco_dir, asln2m0_name, satrecov_dir]:
+        d.mkdir(parents=True, exist_ok=True)
     if not nobandingcorr:
         mtcorr_dir = tis_dir / "MTCorr"
         stcorr_dir = tis_dir / "STCorr"
-        utils.create_dirs([mtcorr_dir, stcorr_dir])
+        for d in [mtcorr_dir, stcorr_dir]:
+            d.mkdir(parents=True, exist_ok=True)
 
     # apply gradient distortion correction to the ASL series
     # load gdc warp
@@ -712,7 +712,8 @@ def single_step_resample_to_asl0(
     logging.info("Re-fitting the satrecov model since data has been motion-corrected.")
     satrecov_dir = tis_dir / "SatRecov2"
     stcorr_dir = tis_dir / "STCorr2"
-    utils.create_dirs([satrecov_dir, stcorr_dir])
+    for d in [satrecov_dir, stcorr_dir]:
+        d.mkdir(parents=True, exist_ok=True)
     t1_name = _saturation_recovery(asl_corr, satrecov_dir, NTIS, IAF, IBF, TIS, RPTS)
     t1_filt_name = _fslmaths_med_filter_wrapper(t1_name)
 

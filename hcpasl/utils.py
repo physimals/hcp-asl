@@ -18,8 +18,10 @@ from . import resources
 
 ASL_SHAPE = (86, 86, 60, 86)
 
+
 class ImagePath:
-    """ Keep track of the name and path to an image as corrections are applied to it"""
+    """Keep track of the name and path to an image as corrections are applied to it"""
+
     def __init__(self, path):
         self.path = path.resolve(strict=True)
         self.stem = self.path.stem.split(".")[0]
@@ -35,30 +37,6 @@ class ImagePath:
     def correct_from_data(self, dir, suffix, newdata):
         newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine)
         return self.correct_from_image(dir, suffix, newimg)
-
-def create_dirs(dir_list, parents=True, exist_ok=True):
-    """
-    Creates directories in a list.
-
-    Default behaviour is to create parent directories if these
-    don't yet exist and not throw an error if a directory
-    already exists.
-
-    Parameters
-    ----------
-    dir_list : list of pathlib.Path objects
-        The directories to be created.
-    parents : bool
-        Create parent directories if they do not yet exist.
-        See pathlib.Path.mkdir() for more details. Default
-        here is `True`.
-    exist_ok : bool
-        Don't throw an error if the directory already exists.
-        See pathlib.Path.mkdir() for more details. Default
-        here is `True`.
-    """
-    for directory in dir_list:
-        directory.mkdir(parents=parents, exist_ok=exist_ok)
 
 
 def load_json(subject_dir):
@@ -137,7 +115,8 @@ def setup(subject_dir):
 
     # create directories
     calib_dirs = [subject_dir / f"ASL/Calib/{c}" for c in ("Calib0", "Calib1")]
-    create_dirs(calib_dirs)
+    for d in calib_dirs:
+        d.mkdir(exist_ok=True, parents=True)
 
     # mbPCASLhr_unproc and Structural_preproc directories
     mbpcasl_dir = subject_dir / f"{subid}_V1_MR/resources/mbPCASLhr_unproc/files"
@@ -156,7 +135,8 @@ def setup(subject_dir):
 
     # create directories
     calib_dirs = [subject_dir / f"ASL/Calib/{c}" for c in ("Calib0", "Calib1")]
-    create_dirs(calib_dirs)
+    for d in calib_dirs:
+        d.mkdir(exist_ok=True, parents=True)
     aslt1_dir = subject_dir / "T1wASL"
     aslt1_dir.mkdir(exist_ok=True, parents=True)
 

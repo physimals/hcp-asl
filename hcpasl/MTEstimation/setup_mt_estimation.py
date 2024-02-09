@@ -13,7 +13,7 @@ from fsl.wrappers import bet, fslmaths
 from hcpasl import distortion_correction
 from hcpasl.bias_estimation import bias_estimation
 from hcpasl.tissue_masks import generate_tissue_mask, generate_tissue_mask_in_ref_space
-from hcpasl.utils import create_dirs, linear_asl_reg, setup
+from hcpasl.utils import linear_asl_reg, setup
 
 
 def setup_mtestimation(
@@ -37,7 +37,8 @@ def setup_mtestimation(
         results_dirs = [
             names_dict[f"calib{n}_dir"] / f"SEbased_MT_t1mask{suf}" for n in (0, 1)
         ]
-        create_dirs(results_dirs)
+        for d in results_dirs:
+            d.mkdir(exist_ok=True, parents=True)
 
         t1_name, t1_brain_name = [
             names_dict[name] for name in ("t1_name", "t1_brain_name")
@@ -53,7 +54,8 @@ def setup_mtestimation(
         gdc_dir = distcorr_dir / "gradient_unwarp"
         topup_dir = distcorr_dir / "topup"
         calib_distcorr_dirs = [r / "DistCorr" for r in results_dirs]
-        create_dirs((distcorr_dir, gdc_dir, topup_dir, *calib_distcorr_dirs))
+        for d in [distcorr_dir, gdc_dir, topup_dir, *calib_distcorr_dirs]:
+            d.mkdir(exist_ok=True, parents=True)
 
         # gradient distortion correction
         gdc_warp = gdc_dir / "fullWarp_abs.nii.gz"
@@ -192,7 +194,8 @@ def setup_mtestimation(
 
             # create mask directories
             roi_dirs = [results_dir / "masks" / roi for roi in rois]
-            create_dirs(roi_dirs)
+            for d in roi_dirs:
+                d.mkdir(exist_ok=True, parents=True)
             # load Dropouts
             dropouts_inv = nb.load(sebased_dir / "Dropouts_inv.nii.gz")
             for roi, roi_dir in zip(rois, roi_dirs):

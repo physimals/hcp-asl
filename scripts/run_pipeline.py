@@ -15,17 +15,24 @@ from pathlib import Path
 from shutil import copy, rmtree
 
 from hcpasl import __sha1__, __timestamp__, __version__
-from hcpasl.asl_correction import (single_step_resample_to_asl0,
-                                   single_step_resample_to_aslt1w)
+from hcpasl.asl_correction import (
+    single_step_resample_to_asl0,
+    single_step_resample_to_aslt1w,
+)
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.distortion_correction import gradunwarp_and_topup
 from hcpasl.key_outputs import copy_key_outputs
 from hcpasl.m0_correction import correct_M0
 from hcpasl.pv_estimation import run_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
-from hcpasl.utils import (copy_oxford_asl_inputs, create_dirs,
-                          get_package_data_name, get_roi_stats_script,
-                          setup_logger, sp_run, split_mbpcasl)
+from hcpasl.utils import (
+    copy_oxford_asl_inputs,
+    get_package_data_name,
+    get_roi_stats_script,
+    setup_logger,
+    sp_run,
+    split_mbpcasl,
+)
 
 
 def process_subject(
@@ -108,15 +115,16 @@ def process_subject(
 
     subject_dir = (studydir / subid).resolve(strict=True)
 
-    # initial set-up for the pipeline: create results directories
+    # create results directories
     logging.info("Creating main results directories.")
     asl_dir, aslt1w_dir = [subject_dir / outdir / name for name in ("ASL", "T1w/ASL")]
     tis_dir, calib0_dir, calib1_dir = [
         asl_dir / name for name in ("TIs", "Calib/Calib0", "Calib/Calib1")
     ]
-    create_dirs([asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir])
+    for d in [asl_dir, aslt1w_dir, tis_dir, calib0_dir, calib1_dir]:
+        d.mkdir(exist_ok=True, parents=True)
 
-    # split mbPCASL sequence into TIs and calibration images
+    # split ASL sequence into label-control TIs and calibration images
     tis_name, calib0_name, calib1_name = [
         d / name
         for d, name in zip(
