@@ -20,25 +20,27 @@ ROIS = {
 
 def main():
     # argument handling
-    parser = argparse.ArgumentParser(description="Run the MT estimation pipeline.")
+    parser = argparse.ArgumentParser(
+        description="Run the empirical banding estimation pipeline."
+    )
     parser.add_argument(
         "--studydir", help="Path to the study's base directory.", required=True
     )
     parser.add_argument(
         "--subjectlist",
         help="A .txt file of subject names from whom we "
-        + "wish to estimate the MT scaling factors.",
+        + "wish to estimate the empirical banding scaling factors.",
         required=True,
     )
     parser.add_argument(
         "--roi",
-        help="Tissue in which to estimate the MT scaling factors.",
+        help="Tissue in which to estimate the empirical banding scaling factors.",
         default="combined",
         choices=("combined", "wm", "gm", "csf", "all"),
     )
     parser.add_argument(
         "--method",
-        help="Whether to estimate the MT scaling factors for the central "
+        help="Whether to estimate the empirical banding scaling factors for the central "
         + "4 bands separately or together.",
         default="separate",
         choices=("separate", "together"),
@@ -53,14 +55,14 @@ def main():
     parser.add_argument(
         "-o",
         "--out",
-        help="Directory in which to save MT estimates. By default "
+        help="Directory in which to save empirical banding estimates. By default "
         + "they will be saved in the current working directory.",
         default=Path.cwd(),
     )
     parser.add_argument(
         "--ignore_dropouts",
         help="Whether to ignore Dropout voxels (as estimated by the "
-        + "SE-based approach) when estimating the MT scaling "
+        + "SE-based approach) when estimating the empirical banding scaling "
         + "factors.",
         action="store_true",
     )

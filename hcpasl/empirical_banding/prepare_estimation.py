@@ -5,6 +5,8 @@ and running fsl_anat on the structural image.
 """
 
 from functools import partial
+import subprocess as sp
+import os.path as op
 
 import nibabel as nb
 import regtricks as rt
@@ -14,6 +16,76 @@ from hcpasl import distortion_correction
 from hcpasl.bias_estimation import bias_estimation
 from hcpasl.tissue_masks import generate_tissue_mask, generate_tissue_mask_in_ref_space
 from hcpasl.utils import linear_asl_reg, setup
+
+
+def generate_sdc_warp(
+    asl_vol0_brain,
+    struct,
+    struct_brain,
+    asl_mask,
+    wmmask,
+    asl2struct,
+    fmap,
+    fmapmag,
+    fmapmagbrain,
+    distcorr_dir,
+    interpolation=3,
+):
+    """
+    Generate susceptibility distortion correction warp via asl_reg.
+
+    Args:
+        asl_vol0_brain: path to first volume of ASL series, brain-extracted
+        struct: path to T1 image, ac_dc_restore
+        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
+        asl_mask: path to brain mask in ASL space
+        wmmask: path to WM mask in T1 space
+        asl2struct: regtricks.Registration for asl to structural
+        fmap: path to topup's field map in rad/s
+        fmapmag: path to topup's field map magnitude
+        fmapmagbrain: path to topup's field map magnitude, brain only
+        distcorr_dir: path to directory in which to place output
+
+    Returns:
+        n/a, file 'asl2struct_warp.nii.gz' is created in output directory
+    """
+
+    a2s_fsl = op.join(distcorr_dir, "asl2struct.mat")
+    asl2struct.save_fsl(a2s_fsl, asl_vol0_brain, struct)
+
+    # get linear registration from fieldmaps to structural
+    fmap_struct_dir = op.join(distcorr_dir, "fmap_struct_reg")
+    bbr_fmap2struct = register_fmap(
+        fmapmag, fmapmagbrain, struct, struct_brain, fmap_struct_dir, wmmask
+    )
+
+    # apply linear registration to fmap, fmapmag and fmapmagbrain
+    bbr_fmap2struct = rt.Registration.from_flirt(
+        bbr_fmap2struct, src=fmapmag, ref=struct
+    )
+    fmap_struct, fmapmag_struct, fmapmagbrain_struct = [
+        op.join(fmap_struct_dir, f"fmap{ext}_struct.nii.gz")
+        for ext in ("", "mag", "magbrain")
+    ]
+    for fmap_name, fmapstruct_name in zip(
+        (fmap, fmapmag, fmapmagbrain),
+        (fmap_struct, fmapmag_struct, fmapmagbrain_struct),
+    ):
+        fmapstruct_img = bbr_fmap2struct.apply_to_image(
+            fmap_name, struct, order=interpolation
+        )
+        nb.save(fmapstruct_img, fmapstruct_name)
+
+    # run asl_reg using pre-registered fieldmap images
+    cmd = (
+        "asl_reg -i {} -o {} ".format(asl_vol0_brain, distcorr_dir)
+        + "-s {} --sbet={} -m {} ".format(struct, struct_brain, asl_mask)
+        + "--tissseg={} --imat={} --finalonly ".format(wmmask, a2s_fsl)
+        + "--fmap={} --fmapmag={} ".format(fmap_struct, fmapmag_struct)
+        + "--fmapmagbrain={} --nofmapreg ".format(fmapmagbrain_struct)
+        + "--echospacing=0.00057 --pedir=y"
+    )
+    sp.run(cmd)
 
 
 def setup_mtestimation(
@@ -123,7 +195,7 @@ def setup_mtestimation(
                     str(gdc_calib_name), str(bet_results), g=0.2, f=0.2, m=True
                 )
 
-            # get epi distortion correction warps
+            # get susceptibility distortion correction warps
             asl_nonlin_reg = results_dir / "asl_reg_nonlinear"
             asl_nonlin_reg.mkdir(exist_ok=True, parents=True)
             struct2asl, asl2struct_warp = [
@@ -133,7 +205,7 @@ def setup_mtestimation(
                 not all([f.exists() for f in (asl2struct_warp, struct2asl)])
                 or force_refresh
             ):
-                distortion_correction.generate_epidc_warp(
+                distortion_correction.generate_sdc_warp(
                     str(gdc_calib_name),
                     str(t1_name),
                     t1_brain_name,
@@ -146,7 +218,7 @@ def setup_mtestimation(
                     str(asl_nonlin_reg),
                 )
 
-            # chain gradient and epi distortion correction warps together
+            # chain gradient and susceptibility distortion correction warps together
             asl2struct_warp_reg = rt.NonLinearRegistration.from_fnirt(
                 coefficients=asl2struct_warp,
                 src=calib_name,
