@@ -20,7 +20,7 @@ from hcpasl.asl_correction import (
     single_step_resample_to_aslt1w,
 )
 from hcpasl.asl_differencing import tag_control_differencing
-from hcpasl.distortion_correction import gradunwarp_and_topup
+from hcpasl.distortion_correction import derive_gdc_sdc
 from hcpasl.key_outputs import copy_key_outputs
 from hcpasl.m0_correction import correct_M0
 from hcpasl.pv_estimation import run_pv_estimation
@@ -138,21 +138,21 @@ def process_subject(
         )
         split_asl(mbpcasl, tis_name, calib0_name, calib1_name)
 
-    # run gradient_unwarp and topup, storing results
-    # in gradunwarp_dir and topup_dir respectively
+    # Run gradient_unwarp and topup on the calibration images
+    # results stored in gradunwarp_dir and topup_dir respectively
     gradunwarp_dir = asl_dir / "gradient_unwarp"
     topup_dir = asl_dir / "topup"
     gd_corr = gradients is not None
     if 1 in stages:
-        logging.info("Stage 1: derive gradient and EPI distortion corrections")
+        logging.info(
+            "Stage 1: derive gradient and susceptibility distortion correction."
+        )
         if not gd_corr:
             logging.info(
-                "Gradient coefficient file not provided. Gradient distortion correction steps will be skipped."
+                "Gradient coefficient file not provided, derivation will be skipped."
             )
-            logging.info("Running EPI distortion estimation steps.")
-        else:
-            logging.info("Running gradient and EPI distortion correction.")
-        gradunwarp_and_topup(
+            logging.info("Deriving susceptibility distortion correction only.")
+        derive_gdc_sdc(
             vol=str(calib0_name),
             coeffs_path=gradients,
             gradunwarp_dir=gradunwarp_dir,
