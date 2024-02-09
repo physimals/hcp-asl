@@ -4,7 +4,7 @@ for the Human Connectome Project (HCP) ASL data.
 
 This currently requires that the script is called followed by 
 the directories of the subjects of interest and finally the 
-name of the MT correction scaling factors image.
+name of the empirical banding correction scaling factors image.
 """
 
 import argparse
@@ -22,7 +22,7 @@ from hcpasl.asl_correction import (
 from hcpasl.asl_differencing import tag_control_differencing
 from hcpasl.distortion_correction import derive_gdc_sdc
 from hcpasl.key_outputs import copy_key_outputs
-from hcpasl.m0_correction import correct_M0
+from hcpasl.m0_correction import initial_corrections_m0
 from hcpasl.pv_estimation import run_pv_estimation
 from hcpasl.qc import create_qc_report, roi_stats
 from hcpasl.utils import (
@@ -64,7 +64,7 @@ def process_subject(
     subid : str
         Subject id for the subject of interest.
     mt_factors : pathlib.Path
-        Path to a .txt file of pre-calculated MT correction
+        Path to a .txt file of pre-calculated empirical banding correction
         factors.
     mbpcasl : pathlib.Path
         Path to the subject's mbPCASL sequence.
@@ -163,14 +163,11 @@ def process_subject(
             gd_corr=gd_corr,
         )
 
-    # apply corrections to the calibration images
-    hcppipedir = Path(os.environ["HCPPIPEDIR"])
-    corticallut = hcppipedir / "global/config/FreeSurferCorticalLabelTableLut.txt"
-    subcorticallut = hcppipedir / "global/config/FreeSurferSubcorticalLabelTableLut.txt"
+    # Apply corrections derived thus far to M0 image
     t1w_dir = structural["struct"].parent
     if 2 in stages:
-        logging.info("Stage 2: correct M0 image.")
-        correct_M0(
+        logging.info("Stage 2: derive and apply initial corrections to M0 image.")
+        initial_corrections_m0(
             subject_dir=subject_dir,
             calib_dir=calib0_dir.parent,
             mt_factors=mt_factors,
@@ -181,11 +178,8 @@ def process_subject(
             topup_dir=topup_dir,
             wmparc=wmparc,
             ribbon=ribbon,
-            corticallut=corticallut,
-            subcorticallut=subcorticallut,
             interpolation=interpolation,
             nobandingcorr=nobandingcorr,
-            outdir=outdir,
         )
 
     # correct ASL series for distortion, bias, motion and banding

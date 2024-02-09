@@ -132,7 +132,7 @@ def generate_topup_fmaps(
     to the raw fieldmaps. The average of the corrected fmaps is taken
     to create fmapmag, and then BET is run to give fmapmagbrain.
 
-    fmpamagbrain is required later on for SE-BASED bias estimation.
+    fmpamagbrain is required later on for SE-based bias estimation.
 
     Args:
         asl_vol0: path to image of stacked blipped images (ie, PEdir as vol0,
