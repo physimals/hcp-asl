@@ -11,8 +11,7 @@ import numpy as np
 import regtricks as rt
 
 from .tissue_masks import generate_tissue_mask
-from .utils import sp_run
-
+from .utils import sp_run, ImagePath
 
 def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
     """
@@ -76,7 +75,7 @@ def generate_asl2struct(asl_vol0, struct, fsdir, reg_dir):
 
     # Return to original working directory, and flip the FSL matrix to target
     # asl -> T1, not orig.mgz. Save output.
-    logging.info("Converting .mat to target T1w.nii.gz rather than orig.mgz.")
+    logging.info("Converting .mat to target T1w.nii.gz rather than orig.mgz")
     asl2struct_fsl = asl2orig_fsl.to_flirt(asl_vol0, struct)
     np.savetxt(op.join(reg_dir, "asl2struct.mat"), asl2struct_fsl)
 
@@ -168,7 +167,7 @@ def correct_M0(
     ]
 
     # generate white matter mask in T1w space for use in registration
-    logging.info("Generating white matter mask in T1w space.")
+    logging.info("Generating white matter mask in T1w space")
     t1reg_dir = aslt1w_dir / "reg"
     t1reg_dir.mkdir(exist_ok=True, parents=True)
     aparc_aseg = (t1w_dir / "aparc+aseg.nii.gz").resolve(strict=True)
@@ -177,9 +176,9 @@ def correct_M0(
     nb.save(wmmask_img, wmmask_name)
 
     # load gradient distortion correction warp, fieldmaps and PA epidc warp
-    logging.info("Loading gradient and EPI distortion correction warps.")
-    gdc_name = (gradunwarp_dir / "fullWarp_abs.nii.gz").resolve()
+    logging.info("Loading gradient and EPI distortion correction warps")
     if gd_corr:
+        gdc_name = (gradunwarp_dir / "fullWarp_abs.nii.gz").resolve()
         logging.info(f"gradient_unwarp.py was run, loading {gdc_name}")
         gdc_warp = rt.NonLinearRegistration.from_fnirt(
             coefficients=gdc_name,
@@ -189,12 +188,12 @@ def correct_M0(
         )
     else:
         logging.info(
-            f"gradient_unwarp.py was not run, not applying gradient distortion correction."
+            f"gradient_unwarp.py was not run, not applying gradient distortion correction"
         )
     fmap, fmapmag, fmapmagbrain = [
         topup_dir / f"fmap{ext}.nii.gz" for ext in ("", "mag", "magbrain")
     ]
-    epi_dc_warp = rt.NonLinearRegistration.from_fnirt(
+    epidc_warp = rt.NonLinearRegistration.from_fnirt(
         coefficients=topup_dir / "WarpField_01.nii.gz",
         src=fmap,
         ref=fmap,
@@ -202,119 +201,101 @@ def correct_M0(
     )
 
     # register fieldmapmag to structural image for use in SE-based later
-    logging.info("Getting registration from fmapmag image to structural image.")
+    logging.info("Getting registration from fmapmag image to structural image")
     fmap_struct_dir = topup_dir / "fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True, parents=True)
     fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
     generate_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
-    logging.info("Loading registration from fieldmap to struct.")
+    logging.info("Loading registration from fieldmap to struct")
     bbr_fmap2struct = rt.Registration.from_flirt(
         fmap_struct_dir / "asl2struct.mat", src=fmapmag, ref=struct_name
     )
 
-    # iterate over the two calibration images, applying the corrections to both
-    logging.info("Iterating over subject's calibration images.")
-    for calib_name in (calib0, calib1):
-        # get calib_dir and other info
-        calib_dir = calib_name.parent
-        calib_name_stem = calib_name.stem.split(".")[0]
-        logging.info(f"Processing {calib_name_stem}.")
-        distcorr_dir = calib_dir / "DistCorr"
-        distcorr_dir.mkdir(exist_ok=True, parents=True)
+    logging.info("Iterating over subject's calibration images applying corrections")
+    for calib_path in (calib0, calib1):
+        calib_dir = calib_path.parent
+        calib = ImagePath(calib_path)
+        logging.info(f"Processing {calib}")
 
-        # apply gdc to the calibration image
+        # Corrected calibration image - updated as corrections are applied
+        calib_corr = calib
+
+        # Do initial corrections for GDC and MT and register to structural
         if gd_corr:
-            logging.info(
-                f"Applying gradient distortion correction to {calib_name_stem}."
+            logging.info(f"Applying gradient distortion correction to {calib_corr.stem}")
+            calib_corr = calib_corr.correct_from_image(
+                calib_dir / "GDC", "gdc", 
+                gdc_warp.apply_to_image(calib_path, calib_path, order=interpolation)
             )
-            calib_img = gdc_warp.apply_to_image(
-                calib_name, calib_name, order=interpolation
-            )
-            calib_name_stem = "gdc_" + calib_name_stem
-            calib_corr_name = distcorr_dir / f"{calib_name_stem}.nii.gz"
-            nb.save(calib_img, calib_corr_name)
-        else:
-            calib_corr_name = calib_name
-            calib_img = nb.load(calib_corr_name)
 
-        # apply mt scaling factors to the (potentially) gradient distortion-corrected calibration image
         if not nobandingcorr:
-            logging.info(f"Applying MT scaling factors to {calib_name_stem}.")
+            logging.info(f"Applying MT scaling factors to {calib_corr.stem}")
             mt_sfs = np.loadtxt(mt_factors)
-            assert len(mt_sfs) == calib_img.shape[2]
-            mt_gdc_calib_img = nb.nifti1.Nifti1Image(
-                calib_img.get_fdata() * mt_sfs, calib_img.affine
+            assert len(mt_sfs) == calib_corr.img.shape[2]
+            calib_corr = calib_corr.correct_from_data(
+                calib_dir / "MTCorr", "mtcorr",
+                calib_corr.img.get_fdata() * mt_sfs
             )
-            mtcorr_dir = calib_dir / "MTCorr"
-            mtcorr_dir.mkdir(exist_ok=True, parents=True)
-            calib_name_stem = "mtcorr_" + calib_name_stem
-            calib_corr_name = mtcorr_dir / f"{calib_name_stem}.nii.gz"
-            nb.save(mt_gdc_calib_img, calib_corr_name)
 
-        # get registration to structural
-        logging.info("Generate registration to structural.")
-        generate_asl2struct(calib_corr_name, struct_name, fsdir, distcorr_dir)
+        logging.info(f"Getting registration of {calib_corr.stem} to structural")
+        reg_dir = calib_dir / "StrucReg"
+        reg_dir.mkdir(exist_ok=True, parents=True)
+        generate_asl2struct(calib_corr.path, struct_name, fsdir, reg_dir)
         asl2struct_reg = rt.Registration.from_flirt(
-            src2ref=distcorr_dir / "asl2struct.mat",
-            src=calib_corr_name,
+            src2ref=reg_dir / "asl2struct.mat",
+            src=calib_corr.path,
             ref=struct_name,
         )
-        # invert for struct2calib registration
         struct2calib_reg = asl2struct_reg.inverse()
-        struct2calib_name = distcorr_dir / "struct2asl.mat"
+        struct2calib_name = reg_dir / "struct2asl.mat"
         np.savetxt(
             struct2calib_name,
-            struct2calib_reg.to_flirt(struct_name, calib_corr_name),
+            struct2calib_reg.to_flirt(struct_name, calib_corr.path),
         )
 
-        # now that we have registrations from calib2str and fmap2str, use
-        # this to apply gdc, epidc and MT correction to the calibration image
-        # apply distortion corrections
-        calib_name_stem = calib_name_stem.split("_")[-1]
-        logging.info(f"Applying distortion corrections to {calib_name_stem}.")
+        # Now that we have registrations from calib2str and fmap2str, use
+        # this to apply gdc and epidc to the original calibration image in a single step
+        logging.info(f"Applying combined distortion corrections to {calib.stem}")
         fmap2calib_reg = rt.chain(bbr_fmap2struct, struct2calib_reg)
         dc_calibspc_warp = rt.chain(
-            fmap2calib_reg.inverse(), epi_dc_warp, fmap2calib_reg
+            fmap2calib_reg.inverse(), epidc_warp, fmap2calib_reg
         )
         if gd_corr:
             dc_calibspc_warp = rt.chain(gdc_warp, dc_calibspc_warp)
-            calib_name_stem = "gdc_dc_" + calib_name_stem
+            suffix = "gdc_edc"
         else:
-            calib_name_stem = "dc_" + calib_name_stem
-        dc_calib_name = distcorr_dir / f"{calib_name_stem}.nii.gz"
-        dc_calib = dc_calibspc_warp.apply_to_image(
-            src=calib_name, ref=calib_name, order=interpolation
+            suffix = "edc"
+        calib_corr = calib.correct_from_image(
+            calib_dir / "DistCorr", suffix,
+            dc_calibspc_warp.apply_to_image(src=calib_path, ref=calib_path, order=interpolation)
         )
-        nb.save(dc_calib, dc_calib_name)
 
-        # register fmapmag to calibration image space to perform SE-based bias estimation
-        logging.info(f"Registering {fmapmag.stem} to {calib_name_stem}")
+        logging.info(f"Registering {fmapmag.stem} to {calib.stem} for SEbased bias estimation")
         fmapmag_calibspc = fmap2calib_reg.apply_to_image(
-            fmapmag, calib_name, order=interpolation
+            fmapmag, calib.path, order=interpolation
         )
         biascorr_dir = calib_dir / "BiasCorr"
         sebased_dir = biascorr_dir / "SEbased"
         sebased_dir.mkdir(parents=True, exist_ok=True)
-        fmapmag_cspc_name = sebased_dir / f"fmapmag_{calib_name_stem}spc.nii.gz"
+        fmapmag_cspc_name = sebased_dir / f"fmapmag_{calib.stem}spc.nii.gz"
         nb.save(fmapmag_calibspc, fmapmag_cspc_name)
 
-        # get brain mask in calibration image space
-        logging.info("Getting brain mask in calibration image space.")
+        logging.info("Getting brain mask in calibration image space")
         fs_brainmask = (t1w_dir / "brainmask_fs.nii.gz").resolve(strict=True)
         aslfs_mask_name = calib_dir / "aslfs_mask.nii.gz"
         aslfs_mask = struct2calib_reg.apply_to_image(
-            src=fs_brainmask, ref=calib_name, order=1
+            src=fs_brainmask, ref=calib.path, order=1
         )
         aslfs_mask = nb.nifti1.Nifti1Image(
-            (aslfs_mask.get_fdata() > 0.5).astype(np.float32), affine=dc_calib.affine
+            (aslfs_mask.get_fdata() > 0.5).astype(np.float32), affine=calib.img.affine
         )
         nb.save(aslfs_mask, aslfs_mask_name)
 
-        # get sebased bias estimate
+        logging.info(f"Running SE-based bias estimation on {calib_corr.stem}")
         sebased_cmd = [
             "get_sebased_bias_asl",
             "-i",
-            dc_calib_name,
+            calib_corr.path,
             "-f",
             fmapmag_cspc_name,
             "-m",
@@ -335,28 +316,24 @@ def correct_M0(
             struct_name,
             "--debug",
         ]
-        logging.info(f"Running SE-based bias estimation on {calib_name_stem}.")
         sp_run(sebased_cmd)
 
-        # apply dilall to bias estimate
+        logging.info(f"Applying dilall to bias correction")
         bias_name = sebased_dir / "sebased_bias_dil.nii.gz"
-        dilall_name = biascorr_dir / f"{calib_name_stem}_bias.nii.gz"
+        dilall_name = biascorr_dir / f"{calib.stem}_bias.nii.gz"
         dilall_cmd = ["fslmaths", bias_name, "-dilall", dilall_name]
         sp_run(dilall_cmd)
 
-        # bias correct and mt correct the distortion corrected calib image
-        logging.info(f"Performing bias correction.")
+        logging.info(f"Performing bias correction on {calib_corr.stem}")
         bias_img = nb.load(dilall_name)
-        bc_calib = nb.nifti1.Nifti1Image(
-            dc_calib.get_fdata() / bias_img.get_fdata(), dc_calib.affine
+        calib_corr = calib_corr.correct_from_data(
+            biascorr_dir, "bc", 
+            calib_corr.img.get_fdata() / bias_img.get_fdata()
         )
-        biascorr_name = biascorr_dir / f"{calib_name_stem}_restore.nii.gz"
-        nb.save(bc_calib, biascorr_name)
 
         if not nobandingcorr:
-            logging.info(f"Performing MT correction.")
-            mt_bc_calib = nb.nifti1.Nifti1Image(
-                bc_calib.get_fdata() * mt_sfs, bc_calib.affine
+            logging.info(f"Performing MT correction to {calib_corr.stem}")
+            calib_corr = calib_corr.correct_from_data(
+                biascorr_dir, "mt", 
+                calib_corr.img.get_fdata() * mt_sfs
             )
-            mtcorr_name = mtcorr_dir / f"mtcorr_{calib_name_stem}_restore.nii.gz"
-            nb.save(mt_bc_calib, mtcorr_name)
