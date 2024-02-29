@@ -25,9 +25,11 @@ def bias_estimation_calib(calib_name):
     bias_field: Nifti1Image
     """
     # perform brain extraction using BET
-    betted_m0 = bet(str(calib_name), LOAD, g=0.2, f=0.2, m=True)
+    betted_calibration = bet(str(calib_name), LOAD, g=0.2, f=0.2, m=True)
     # run FAST on BET-ed calibration image
-    fast_results = fast(betted_m0["output"], out=LOAD, type=3, b=True, nopve=True)
+    fast_results = fast(
+        betted_calibration["output"], out=LOAD, type=3, b=True, nopve=True
+    )
     # extract and return bias field
     bias_field = fast_results["out_bias"]
     return bias_field
@@ -56,7 +58,7 @@ def bias_estimation_t1(calib_name, fslanatdir, struct2asl, interpolation=3):
     bias_field: Nifti1Image
     """
     # get t1 and bias field
-    t1_name = fslanatdir / "T1_biascorr.nii.gz"
+    t1_name = fslanatdir / "T1_restore.nii.gz"
     t1_bias = fslanatdir / "T1_fast_bias.nii.gz"
     # load struct2asl registration
     struct2asl_reg = rt.Registration.from_flirt(struct2asl, src=t1_name, ref=calib_name)

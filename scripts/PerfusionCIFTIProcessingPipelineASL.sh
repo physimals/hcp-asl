@@ -33,11 +33,11 @@ T1wFolder="${Path}/${Subject}/${T1wFolder}"
 ASLT1wFolder="${Outdir}/T1w/ASL"
 
 if [ "$pvcorr" = false ] ; then
-    InitialASLResults="${ASLT1wFolder}/OxfordASL/native_space"
+    InitialASLResults="${ASLT1wFolder}/perfusion_estimation/native_space"
     T1wSpcResultsFolder="${Outdir}/T1w/ASL/${ResultsFolder}"
     AtlasResultsFolder="${Outdir}/MNINonLinear/ASL/${ResultsFolder}"
 else
-    InitialASLResults="${ASLT1wFolder}/OxfordASL/native_space/pvcorr"
+    InitialASLResults="${ASLT1wFolder}/perfusion_estimation/native_space/pvcorr"
     T1wSpcResultsFolder="${Outdir}/T1w/ASL/${ResultsFolder}/pvcorr"
     AtlasResultsFolder="${Outdir}/MNINonLinear/ASL/${ResultsFolder}/pvcorr"
 fi

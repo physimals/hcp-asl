@@ -14,7 +14,7 @@ import nibabel as nb
 import numpy as np
 
 
-def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
+def tag_control_differencing(series, scaling_factors, outdir, mask=None):
     """
     Perform tag-control differencing of a scaled ASL sequence.
 
@@ -26,7 +26,7 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
         Path to the ASL series we wish to difference.
     scaling_factors : pathlib.Path
         Path to the scaling factors used to de-band the ASL series.
-    betas_dir : pathlib.Path
+    outdir : pathlib.Path
         Path to the directory in which to save the results.
     mask : pathlib.Path:
         operate only within mask
@@ -38,7 +38,7 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
        1553-1565.
     """
     # create output directory
-    betas_dir.mkdir(exist_ok=True, parents=True)
+    outdir.mkdir(exist_ok=True, parents=True)
 
     # load motion- and distortion- corrected data, Y_moco
     Y_moco = nb.load(series)
@@ -59,7 +59,7 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
 
     # ignore voxels where below would lead to dividing by zero
     nonzero_mask = np.abs(X_odd - X_even) > 1e-6
-    mask_name = betas_dir / "difference_mask.nii.gz"
+    mask_name = outdir / "difference_mask.nii.gz"
     nb.save(
         nb.Nifti1Image(nonzero_mask.astype(np.int32), affine=Y_moco.affine), mask_name
     )
@@ -70,7 +70,7 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
         if mask.ndim == 3:
             mask = mask[..., np.newaxis]
         nonzero_mask = np.logical_and(nonzero_mask, mask)
-        mask_name = betas_dir / "combined_mask.nii.gz"
+        mask_name = outdir / "combined_mask.nii.gz"
         nb.save(
             nb.Nifti1Image(nonzero_mask.astype(np.int32), affine=Y_moco.affine),
             mask_name,
@@ -87,9 +87,9 @@ def tag_control_differencing(series, scaling_factors, betas_dir, mask=None):
     ) / (X_odd[nonzero_mask] - X_even[nonzero_mask])
 
     # save both images
-    B_perf_name = betas_dir / "beta_perf.nii.gz"
+    B_perf_name = outdir / "beta_perf.nii.gz"
     B_perf_img = nb.nifti1.Nifti1Image(B_perf, affine=Y_moco.affine)
     nb.save(B_perf_img, B_perf_name)
-    B_baseline_name = betas_dir / "beta_baseline.nii.gz"
+    B_baseline_name = outdir / "beta_baseline.nii.gz"
     B_baseline_img = nb.nifti1.Nifti1Image(B_baseline, affine=Y_moco.affine)
     nb.save(B_baseline_img, B_baseline_name)

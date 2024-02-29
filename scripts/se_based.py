@@ -115,7 +115,7 @@ def se_based_bias_estimation():
 
     args = parser.parse_args()
 
-    m0_name = args.input
+    calibration_name = args.input
     asl_name = args.asl
     sem_name = args.fmapmag
     mask_name = args.mask
@@ -131,21 +131,28 @@ def se_based_bias_estimation():
     outdir.mkdir(exist_ok=True, parents=True)
 
     # load images
-    m0_img, sem_img, mask_img = [Image(name) for name in (m0_name, sem_name, mask_name)]
+    calibration_img, sem_img, mask_img = [
+        Image(name) for name in (calibration_name, sem_name, mask_name)
+    ]
 
     # find ratio between SpinEchoMean and M0
     SEdivM0 = np.zeros_like(sem_img.data)
-    np.divide(sem_img.data, m0_img.data, out=SEdivM0, where=(m0_img.data != 0))
+    np.divide(
+        sem_img.data,
+        calibration_img.data,
+        out=SEdivM0,
+        where=(calibration_img.data != 0),
+    )
     if debug:
         SEdivM0_name = str(outdir / "SEdivM0.nii.gz")
-        SEdivM0_img = Image(SEdivM0, header=m0_img.header)
+        SEdivM0_img = Image(SEdivM0, header=calibration_img.header)
         SEdivM0_img.save(SEdivM0_name)
 
     # apply mask to ratio
     SEdivM0_brain = SEdivM0 * mask_img.data
     if debug:
         SEdivM0_brain_name = str(outdir / "SEdivM0_brain.nii.gz")
-        SEdivM0_brain_img = Image(SEdivM0_brain, header=m0_img.header)
+        SEdivM0_brain_img = Image(SEdivM0_brain, header=calibration_img.header)
         SEdivM0_brain_img.save(SEdivM0_brain_name)
 
     # get summary stats for thresholding
@@ -163,7 +170,7 @@ def se_based_bias_estimation():
     )
     if debug:
         SEdivM0_brain_thr_name = str(outdir / "SEdivM0_brain_thr.nii.gz")
-        SEdivM0_brain_thr_img = Image(SEdivM0_brain_thr, header=m0_img.header)
+        SEdivM0_brain_thr_img = Image(SEdivM0_brain_thr, header=calibration_img.header)
         SEdivM0_brain_thr_img.save(SEdivM0_brain_thr_name)
 
     ### HCP pipeline does median dilation here but isn't used - skip for now ###
@@ -191,7 +198,7 @@ def se_based_bias_estimation():
             for name in ("thr_roi", "thr_s5", "thr_roi_s5", "bias")
         ]
         images = [
-            Image(array, header=m0_img.header)
+            Image(array, header=calibration_img.header)
             for array in (
                 SEdivM0_brain_thr_roi,
                 SEdivM0_brain_thr_s5,
@@ -209,16 +216,20 @@ def se_based_bias_estimation():
     np.divide(sem_img.data, SEdivM0_brain_bias, out=SpinEchoMean_brain_BC, where=fltr)
     if debug:
         SpinEchoMean_brain_BC_name = str(outdir / "SpinEchoMean_brain_BC.nii.gz")
-        SpinEchoMean_brain_BC_img = Image(SpinEchoMean_brain_BC, header=m0_img.header)
+        SpinEchoMean_brain_BC_img = Image(
+            SpinEchoMean_brain_BC, header=calibration_img.header
+        )
         SpinEchoMean_brain_BC_img.save(SpinEchoMean_brain_BC_name)
 
     # get ratio between bias-corrected FM and M0 image
     SEBCdivM0_brain = np.zeros_like(SpinEchoMean_brain_BC)
     fltr = (mask_img.data == 1) & (SpinEchoMean_brain_BC != 0)
-    np.divide(m0_img.data, SpinEchoMean_brain_BC, out=SEBCdivM0_brain, where=fltr)
+    np.divide(
+        calibration_img.data, SpinEchoMean_brain_BC, out=SEBCdivM0_brain, where=fltr
+    )
     if debug:
         SEBCdivM0_brain_name = str(outdir / "SEBCdivM0_brain.nii.gz")
-        SEBCdivM0_brain_img = Image(SEBCdivM0_brain, header=m0_img.header)
+        SEBCdivM0_brain_img = Image(SEBCdivM0_brain, header=calibration_img.header)
         SEBCdivM0_brain_img.save(SEBCdivM0_brain_name)
 
     # find dropouts
@@ -231,30 +242,31 @@ def se_based_bias_estimation():
             str(outdir / f"{name}.nii.gz") for name in ("Dropouts", "Dropouts_inv")
         ]
         images = [
-            Image(array, header=m0_img.header) for array in (Dropouts, Dropouts_inv)
+            Image(array, header=calibration_img.header)
+            for array in (Dropouts, Dropouts_inv)
         ]
         [image.save(savename) for image, savename in zip(images, savenames)]
 
     if tissue_mask:
         tissue_mask = (
             rt.Registration.identity()
-            .apply_to_image(tissue_mask, m0_name, order=0, cores=1)
+            .apply_to_image(tissue_mask, calibration_name, order=0, cores=1)
             .get_fdata()
         )
         if debug:
             savename = str(outdir / "TissueMask.nii.gz")
-            image = Image(tissue_mask, header=m0_img.header)
+            image = Image(tissue_mask, header=calibration_img.header)
             image.save(savename)
     else:
         # downsample wmparc and ribbon to ASL-gridded T1 resolution
         if args.struct2calib:
             registration = rt.Registration.from_flirt(
-                args.struct2calib, args.structural, m0_name
+                args.struct2calib, args.structural, calibration_name
             )
         else:
             registration = rt.Registration.identity()
         wmparc_aslt1, ribbon_aslt1 = [
-            registration.apply_to_image(name, m0_name, order=0, cores=1)
+            registration.apply_to_image(name, calibration_name, order=0, cores=1)
             for name in (wmparc_name, ribbon_name)
         ]
         # parse LUTs
@@ -270,19 +282,21 @@ def se_based_bias_estimation():
                 str(outdir / f"{pre}GreyMatter.nii.gz")
                 for pre in ("Cortical", "Subcortical")
             ]
-            images = [Image(array, header=m0_img.header) for array in (cgm, scgm)]
+            images = [
+                Image(array, header=calibration_img.header) for array in (cgm, scgm)
+            ]
             [image.save(savename) for image, savename in zip(images, savenames)]
 
         # combine masks
         tissue_mask = np.where(np.logical_or(cgm == 1, scgm == 1), 1, 0)
         if debug:
             savename = str(outdir / "AllGreyMatter.nii.gz")
-            image = Image(tissue_mask, header=m0_img.header)
+            image = Image(tissue_mask, header=calibration_img.header)
             image.save(savename)
 
     # mask M0 image with both the tissue mask and Dropouts_inv mask
     M0_grey = np.where(
-        np.logical_and(tissue_mask == 1, Dropouts_inv == 1), m0_img.data, 0
+        np.logical_and(tissue_mask == 1, Dropouts_inv == 1), calibration_img.data, 0
     ).astype(np.float32)
     M0_greyroi = np.where(M0_grey != 0, 1, 0).astype(np.float32)
     M0_grey_s5, M0_greyroi_s5 = [
@@ -294,7 +308,7 @@ def se_based_bias_estimation():
             for part in ("", "roi", "_s5", "roi_s5")
         ]
         images = [
-            Image(array, header=m0_img.header)
+            Image(array, header=calibration_img.header)
             for array in (M0_grey, M0_greyroi, M0_grey_s5, M0_greyroi_s5)
         ]
         [image.save(savename) for image, savename in zip(images, savenames)]
@@ -304,7 +318,7 @@ def se_based_bias_estimation():
     fltr = (tissue_mask != 0) & (M0_greyroi_s5 != 0)
     np.divide(M0_grey_s5, M0_greyroi_s5, out=M0_bias_raw, where=fltr)
     M0_bias_raw_name = str(outdir / "M0_bias_raw.nii.gz")
-    M0_bias_raw_img = Image(M0_bias_raw, header=m0_img.header)
+    M0_bias_raw_img = Image(M0_bias_raw, header=calibration_img.header)
     M0_bias_raw_img.save(M0_bias_raw_name)
     dilall_cmd = [
         "fslmaths",
@@ -335,7 +349,7 @@ def se_based_bias_estimation():
             for part in ("roi", "raw_s5", "roi_s5", "")
         ]
         images = [
-            Image(array, header=m0_img.header)
+            Image(array, header=calibration_img.header)
             for array in (M0_bias_roi, M0_bias_raw_s5, M0_bias_roi_s5, M0_bias)
         ]
         [image.save(savename) for image, savename in zip(images, savenames)]
@@ -347,7 +361,7 @@ def se_based_bias_estimation():
     # get sebased bias - should get ref also but leaving for now
     sebased_bias = M0_bias / mean
     sebased_bias_name = str(outdir / "sebased_bias.nii.gz")
-    sebased_bias_img = Image(sebased_bias, header=m0_img.header)
+    sebased_bias_img = Image(sebased_bias, header=calibration_img.header)
     sebased_bias_img.save(sebased_bias_name)
 
     # apply 2 rounds of dilation to sebased_bias
@@ -363,18 +377,25 @@ def se_based_bias_estimation():
 
     # apply bias field to calibration and ASL images
     sebased_bias = Image(sebased_bias_dil_name)
-    calib_bc = m0_img.data.copy()
+    calib_restore = calibration_img.data.copy()
     np.divide(
-        m0_img.data, sebased_bias.data, out=calib_bc, where=(sebased_bias.data > 0)
+        calibration_img.data,
+        sebased_bias.data,
+        out=calib_restore,
+        where=(sebased_bias.data > 0),
     )
-    Image(calib_bc, header=m0_img.header).save(str(outdir / "calib0_secorr.nii.gz"))
+    Image(calib_restore, header=calibration_img.header).save(
+        str(outdir / "calib0_secorr.nii.gz")
+    )
     if asl_name:
         asl_img = Image(asl_name)
-        asl_bc = asl_img.data.copy()
+        asl_restore = asl_img.data.copy()
         np.divide(
             asl_img.data,
             sebased_bias.data[..., np.newaxis],
-            out=asl_bc,
+            out=asl_restore,
             where=(sebased_bias.data[..., np.newaxis] != 0),
         )
-        Image(asl_bc, header=asl_img.header).save(str(outdir / "tis_secorr.nii.gz"))
+        Image(asl_restore, header=asl_img.header).save(
+            str(outdir / "tis_secorr.nii.gz")
+        )

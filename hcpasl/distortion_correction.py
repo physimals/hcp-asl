@@ -97,7 +97,7 @@ def apply_gdc_and_sdc(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3, gd_corr
     else:
         gdc_warp = rt.Registration.identity()
 
-    # chain gdc, epidc and moco together to apply all together
+    # chain gdc, sdc and moco together to apply all together
     topup_gdc_sdc_moco = [
         rt.chain(gdc_warp, topup_moco[n], topup_warps[n]) for n in range(0, 2)
     ]

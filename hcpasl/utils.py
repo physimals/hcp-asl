@@ -16,7 +16,17 @@ from fsl.wrappers.misc import fslroi
 
 from . import resources
 
+# ASL sequence parameters
 ASL_SHAPE = (86, 86, 60, 86)
+NTIS = 5
+IBF = "tis"
+TIS = [1.7, 2.2, 2.7, 3.2, 3.7]  # s
+RPTS = [6, 6, 6, 10, 15]
+SLICEDT = 0.059  # s
+SLICEBAND = 10
+NSLICES = 60
+BOLUS = 1.5  # s
+TE = 19  # ms
 
 
 class ImagePath:
@@ -37,6 +47,15 @@ class ImagePath:
     def correct_from_data(self, dir, suffix, newdata):
         newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine)
         return self.correct_from_image(dir, suffix, newimg)
+
+    def save(self):
+        self.img.to_filename(self.path)
+
+    def get_fdata(self):
+        return self.img.get_fdata().astype(np.float32)
+
+    def __str__(self):
+        return str(self.path)
 
 
 def load_json(subject_dir):
@@ -91,7 +110,7 @@ def update_json(new_dict, old_dict):
 
 def setup(subject_dir):
     """
-    Perform the initial set up for the MT Estimation pipeline.
+    Perform the initial set up for the empirical banding estimation pipeline.
 
     The setup includes finding necessary files (mbPCASL sequence,
     T1 structural image, spin echo field map images), creating
@@ -109,12 +128,15 @@ def setup(subject_dir):
         Dictionary of important filenames which will be used in the
         rest of the pipeline.
     """
+
+    # FIXME
+    raise RuntimeError("Is this function required?")
     # make sure subject_dir exists
     subject_dir.resolve(strict=True)
     subid = subject_dir.parts[-1]
 
     # create directories
-    calib_dirs = [subject_dir / f"ASL/Calib/{c}" for c in ("Calib0", "Calib1")]
+    calib_dirs = [subject_dir / f"ASL/calibration/{c}" for c in ("Calib0", "Calib1")]
     for d in calib_dirs:
         d.mkdir(exist_ok=True, parents=True)
 
@@ -134,7 +156,7 @@ def setup(subject_dir):
     ]
 
     # create directories
-    calib_dirs = [subject_dir / f"ASL/Calib/{c}" for c in ("Calib0", "Calib1")]
+    calib_dirs = [subject_dir / f"ASL/calibration/{c}" for c in ("Calib0", "Calib1")]
     for d in calib_dirs:
         d.mkdir(exist_ok=True, parents=True)
     aslt1_dir = subject_dir / "T1wASL"
@@ -231,12 +253,12 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     vent_img = fslmaths(vent_img).thr(0.1).bin().ero().run(LOAD)
 
     # apply inv(T1->MNI) registration
-    t1_brain = (fslanatdir / "T1_biascorr_brain.nii.gz").resolve(strict=True)
+    t1_brain = (fslanatdir / "T1_restore_brain.nii.gz").resolve(strict=True)
     struct2mni = (fslanatdir / "T1_to_MNI_nonlin_coeff.nii.gz").resolve(strict=True)
     mni2struct = invwarp(str(struct2mni), str(t1_brain), LOAD)["out"]
-    vent_t1_img = applywarp(vent_img, str(t1_brain), LOAD, warp=mni2struct)["out"]
-    vent_t1_img = fslmaths(vent_t1_img).thr(0.9).bin().run(LOAD)
-    return vent_t1_img
+    vent_t1_nii = applywarp(vent_img, str(t1_brain), LOAD, warp=mni2struct)["out"]
+    vent_t1_nii = fslmaths(vent_t1_nii).thr(0.9).bin().run(LOAD)
+    return vent_t1_nii
 
 
 def split_asl(asl, tis_name, calib0_name, calib1_name):
@@ -292,9 +314,6 @@ def get_package_data_name(name):
     """
     This function returns the filepath to a given file which are
     included as part of the pipeline.
-
-    The choices are:
-    * scaling_factors.txt
     """
     p = resource_path(resources, name)
     with p as filename:

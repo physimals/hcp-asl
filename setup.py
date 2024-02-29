@@ -132,7 +132,7 @@ setup(
     ],
     package_data={
         "hcpasl": [
-            "resources/scaling_factors.txt",
+            "resources/empirical_banding_factors.txt",
             "resources/vascular_territories_atlas.nii.gz",
             "resources/vascular_territories_atlas_labels.txt",
             "resources/ASLQC_template.scene",
