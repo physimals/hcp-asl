@@ -7,7 +7,7 @@ from hcpasl.utils import sp_run
 
 
 def copy_key_outputs(path, t1w_preproc, mni_raw):
-    source_path_T1 = path + "/T1w/ASL/OxfordASL/native_space/"
+    source_path_T1 = path + "/T1w/ASL/perfusion_estimation/native_space/"
     destination_path_T1 = path + "/T1w/ASL/"
 
     source_path_MNI = path + "/MNINonLinear/ASL/CIFTIPrepare/"
@@ -23,7 +23,9 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     fsldir = Path(os.environ["FSLDIR"])
     mni_img = fsldir / "data/standard/MNI152_T1_2mm.nii.gz"
     asl_grid_mni = path + "/MNINonLinear/ASL/CIFTIPrepare/asl_grid_mni.nii.gz"
-    destination_path_MNI_voxel = path + "/MNINonLinear/ASL/OxfordASL/std_space/"
+    destination_path_MNI_voxel = (
+        path + "/MNINonLinear/ASL/perfusion_estimation/std_space/"
+    )
 
     t1_out_dir = Path(destination_path_T1)
     t1_out_dir.mkdir(exist_ok=True, parents=True)
@@ -175,12 +177,18 @@ def copy_key_outputs(path, t1w_preproc, mni_raw):
     ]
     for c in key_volume_non_pvec:
         copy(
-            (destination_path_MNI + "OxfordASL/std_space/" + c),
+            (destination_path_MNI + "perfusion_estimation/std_space/" + c),
             (destination_path_MNI + c),
         )
     for d in key_volume_pvec:
         copy(
-            (destination_path_MNI + "OxfordASL/std_space/" + pv_prefix + "/" + d),
+            (
+                destination_path_MNI
+                + "perfusion_estimation/std_space/"
+                + pv_prefix
+                + "/"
+                + d
+            ),
             (destination_path_MNI + pv_prefix + "_" + d),
         )
 

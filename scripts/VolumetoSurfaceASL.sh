@@ -3,7 +3,7 @@ set -e -u
 echo -e "\n START: RibbonVolumeToSurfaceMapping"
 
 Subject="$1" #"${SubjectID}_V1_MR" 
-ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/OxfordASL/native_space"
+ASLFolder="$2" #"$StudyFolder/$SubjectID/T1w/ASL/perfusion_estimation/native_space"
 ASLVariable="$3" #"perfusion_calib"
 ASLVariableVar="$4" # e.g. perfusion_var_calib
 T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL" #

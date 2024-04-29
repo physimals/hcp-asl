@@ -53,6 +53,8 @@ def generate_topup_params(pars_filepath):
 
 
 def stack_fmaps(pa_sefm, ap_sefm, savename):
+    """Stack two SEFMs into a single 4D image."""
+
     rt.ImageSpace.save_like(
         ref=pa_sefm,
         data=np.stack(
@@ -62,10 +64,10 @@ def stack_fmaps(pa_sefm, ap_sefm, savename):
     )
 
 
-def apply_gdc_and_topup(
-    pa_ap_sefms, topup_dir, gdc_warp, interpolation=3, gd_corr=True
-):
-    # load topup EPI distortion correction warps and motion correction
+def apply_gdc_and_sdc(pa_ap_sefms, topup_dir, gdc_warp, interpolation=3, gd_corr=True):
+    """Apply both GDC and SDC to the stacked SEFMs."""
+
+    # load topup susceptibility distortion correction warps and motion correction
     topup_warps = [
         rt.NonLinearRegistration.from_fnirt(
             coefficients=warp_name,
@@ -95,8 +97,8 @@ def apply_gdc_and_topup(
     else:
         gdc_warp = rt.Registration.identity()
 
-    # chain gdc, epidc and moco together to apply all together
-    topup_gdc_dc_moco = [
+    # chain gdc, sdc and moco together to apply all together
+    topup_gdc_sdc_moco = [
         rt.chain(gdc_warp, topup_moco[n], topup_warps[n]) for n in range(0, 2)
     ]
 
@@ -104,8 +106,8 @@ def apply_gdc_and_topup(
     pa_ap_sefms = nb.load(pa_ap_sefms)
 
     # apply corrections and save in stacked image
-    pa_ap_sefms_gdc_dc = [
-        topup_gdc_dc_moco[n].apply_to_array(
+    pa_ap_sefms_gdc_sdc = [
+        topup_gdc_sdc_moco[n].apply_to_array(
             data=pa_ap_sefms.get_fdata()[:, :, :, n],
             src=pa_ap_sefms,
             ref=pa_ap_sefms,
@@ -113,25 +115,29 @@ def apply_gdc_and_topup(
         )
         for n in range(0, 2)
     ]
-    pa_ap_sefms_gdc_dc = nb.nifti1.Nifti1Image(
-        np.concatenate([arr[..., np.newaxis] for arr in pa_ap_sefms_gdc_dc], axis=-1),
+    pa_ap_sefms_gdc_sdc = nb.nifti1.Nifti1Image(
+        np.concatenate([arr[..., np.newaxis] for arr in pa_ap_sefms_gdc_sdc], axis=-1),
         affine=pa_ap_sefms.affine,
     )
-    return pa_ap_sefms_gdc_dc
+
+    return pa_ap_sefms_gdc_sdc
 
 
-def generate_fmaps(
-    pa_ap_sefms, params, config, distcorr_dir, gdc_warp, interpolation=3, gd_corr=True
+def generate_topup_fmaps(
+    pa_ap_sefms, topup_dir, gdc_warp, interpolation=3, gd_corr=True
 ):
     """
-    Generate fieldmaps via topup for use with asl_reg.
+    Generate fieldmaps via topup for use with asl_reg. Applies GDC,
+    then topup to derive SDC, then applies both in a single step
+    to the raw fieldmaps. The average of the corrected fmaps is taken
+    to create fmapmag, and then BET is run to give fmapmagbrain.
+
+    fmpamagbrain is required later on for SE-based bias estimation.
 
     Args:
         asl_vol0: path to image of stacked blipped images (ie, PEdir as vol0,
             (oPEdir as vol1), in this case stacked as pa then ap)
-        params: path to text file for topup --datain, PE directions/times
-        config: path to text file for topup --config, other args
-        distcorr_dir: directory in which to put output
+        topup_dir: directory in which to put output
         gdc_warp: path to gradient_unwarp's gradient distortion correction warp
         interpolation: order of interpolation to be used when applying registrations,
             default=3
@@ -140,16 +146,23 @@ def generate_fmaps(
     Returns:
         n/a, files 'fmap, fmapmag, fmapmagbrain.nii.gz' will be created in output dir
     """
-    logging.info("Running generate_fmaps()")
     logging.info(f"Spin Echo Field Maps: {pa_ap_sefms}")
-    logging.info(f"Topup param file: {params}")
-    logging.info(f"Topup config file: {config}")
-    logging.info(f"Topup output directory: {distcorr_dir}")
+    logging.info(f"Topup output directory: {topup_dir}")
     logging.info(f"Gradient distortion correction warp: {gdc_warp}")
     logging.info(f"Perform gradient distortion correction: {gd_corr}")
     logging.info(f"Interpolation order: {interpolation}")
 
-    # apply gradient distortion correction to stacked SEFMs
+    # generate topup params
+    params = topup_dir / "topup_params.txt"
+    logging.info(f"Generating topup parameter file: {params}")
+    generate_topup_params(params)
+
+    config = "b02b0.cnf"
+    fmap, fmapmag, fmapmagbrain = [
+        topup_dir / f"fmap{ext}.nii.gz" for ext in ("", "mag", "magbrain")
+    ]
+
+    # apply gradient distortion correction to stacked SEFMs prior to topup
     if gd_corr:
         gdc = rt.NonLinearRegistration.from_fnirt(
             coefficients=gdc_warp,
@@ -162,27 +175,27 @@ def generate_fmaps(
         )
     else:
         topup_input_pa_ap_sefms = nb.load(pa_ap_sefms)
-    topup_input_pa_ap_sefms_name = distcorr_dir / "merged_sefms_topup_input.nii.gz"
+    topup_input_pa_ap_sefms_name = topup_dir / "stacked_sefms_gdc_topup_input.nii.gz"
     nb.save(topup_input_pa_ap_sefms, topup_input_pa_ap_sefms_name)
 
     # Run topup to get fmap in Hz
-    topup_fmap = op.join(distcorr_dir, "topup_fmap_hz.nii.gz")
+    topup_fmap = op.join(topup_dir, "topup_fmap_hz.nii.gz")
     topup_cmd = [
         "topup",
         f"--imain={topup_input_pa_ap_sefms_name}",
         f"--datain={params}",
         f"--config={config}",
-        f"--out={op.join(distcorr_dir, 'topup')}",
-        f"--iout={op.join(distcorr_dir, 'corrected_sefms.nii.gz')}",
+        f"--out={op.join(topup_dir, 'topup')}",
+        f"--iout={op.join(topup_dir, 'corrected_sefms.nii.gz')}",
         f"--fout={topup_fmap}",
-        f"--dfout={op.join(distcorr_dir, 'WarpField')}",
-        f"--rbmout={op.join(distcorr_dir, 'MotionMatrix')}",
-        f"--jacout={op.join(distcorr_dir, 'Jacobian')}",
+        f"--dfout={op.join(topup_dir, 'WarpField')}",
+        f"--rbmout={op.join(topup_dir, 'MotionMatrix')}",
+        f"--jacout={op.join(topup_dir, 'Jacobian')}",
         "--verbose",
     ]
     sp_run(topup_cmd)
     fmap, fmapmag, fmapmagbrain = [
-        op.join(distcorr_dir, "{}.nii.gz".format(s))
+        op.join(topup_dir, "{}.nii.gz".format(s))
         for s in ["fmap", "fmapmag", "fmapmagbrain"]
     ]
 
@@ -193,14 +206,14 @@ def generate_fmaps(
     fmap_arr = fmap_arr_hz * 2 * np.pi
     fmap_spc.save_image(fmap_arr, fmap)
 
-    # Apply gdc warp from gradient_unwarp and topup's EPI-DC
+    # Apply GDC warp from gradient_unwarp and topup's SDC
     # warp (just generated) in one interpolation step
     logging.info(
         "Applying distortion correction to fieldmap images in one interpolation step."
     )
-    pa_ap_sefms_gdc_dc = apply_gdc_and_topup(
+    pa_ap_sefms_gdc_sdc = apply_gdc_and_sdc(
         pa_ap_sefms,
-        distcorr_dir,
+        topup_dir,
         gdc_warp,
         interpolation=interpolation,
         gd_corr=gd_corr,
@@ -209,7 +222,7 @@ def generate_fmaps(
     # Mean across volumes of corrected sefms to get fmapmag
     logging.info("Taking mean of corrected fieldmap images to get fmapmag.nii.gz")
     fmapmag_img = nb.nifti1.Nifti1Image(
-        pa_ap_sefms_gdc_dc.get_fdata().mean(-1), affine=pa_ap_sefms_gdc_dc.affine
+        pa_ap_sefms_gdc_sdc.get_fdata().mean(-1), affine=pa_ap_sefms_gdc_sdc.affine
     )
     nb.save(fmapmag_img, fmapmag)
 
@@ -219,6 +232,8 @@ def generate_fmaps(
 
 
 def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
+    """Register fmap to structural image using BBR."""
+
     # create output directory
     out_dir = Path(out_dir)
     out_dir.mkdir(exist_ok=True, parents=True)
@@ -280,7 +295,7 @@ def register_fmap(fmapmag, fmapmagbrain, s, sbet, out_dir, wm_tissseg):
     return str(bbr_xform)
 
 
-def gradunwarp_and_topup(
+def derive_gdc_sdc(
     vol,
     coeffs_path,
     gradunwarp_dir,
@@ -312,7 +327,7 @@ def gradunwarp_and_topup(
         ${output_dir}/topup.
     """
 
-    # run gradient_unwarp
+    # run gradient_unwarp on input vol
     if gd_corr:
         gradunwarp_dir.mkdir(exist_ok=True, parents=True)
         gdc_warp_name = gradunwarp_dir / "fullWarp_abs.nii.gz"
@@ -331,94 +346,11 @@ def gradunwarp_and_topup(
         logging.info("Concatenating Spin Echo fieldmap images.")
         stack_fmaps(pa_sefm, ap_sefm, pa_ap_sefms)
 
-    # generate topup params
-    topup_params = topup_dir / "topup_params.txt"
-    if not topup_params.exists() or force_refresh:
-        logging.info(f"Generating topup parameter file: {topup_params}")
-        generate_topup_params(topup_params)
-
-    # run topup
-    topup_config = "b02b0.cnf"
-    fmap, fmapmag, fmapmagbrain = [
-        topup_dir / f"fmap{ext}.nii.gz" for ext in ("", "mag", "magbrain")
-    ]
-    if not all([f.exists() for f in (fmap, fmapmag, fmapmagbrain)]) or force_refresh:
-        generate_fmaps(
-            pa_ap_sefms,
-            topup_params,
-            topup_config,
-            topup_dir,
-            gdc_warp_name,
-            interpolation=interpolation,
-            gd_corr=gd_corr,
-        )
-
-
-def generate_epidc_warp(
-    asl_vol0_brain,
-    struct,
-    struct_brain,
-    asl_mask,
-    wmmask,
-    asl2struct,
-    fmap,
-    fmapmag,
-    fmapmagbrain,
-    distcorr_dir,
-    interpolation=3,
-):
-    """
-    Generate EPI distortion correction warp via asl_reg.
-
-    Args:
-        asl_vol0_brain: path to first volume of ASL series, brain-extracted
-        struct: path to T1 image, ac_dc_restore
-        struct_brain: path to brain-extracted T1 image, ac_dc_restore_brain
-        asl_mask: path to brain mask in ASL space
-        wmmask: path to WM mask in T1 space
-        asl2struct: regtricks.Registration for asl to structural
-        fmap: path to topup's field map in rad/s
-        fmapmag: path to topup's field map magnitude
-        fmapmagbrain: path to topup's field map magnitude, brain only
-        distcorr_dir: path to directory in which to place output
-
-    Returns:
-        n/a, file 'asl2struct_warp.nii.gz' is created in output directory
-    """
-
-    a2s_fsl = op.join(distcorr_dir, "asl2struct.mat")
-    asl2struct.save_fsl(a2s_fsl, asl_vol0_brain, struct)
-
-    # get linear registration from fieldmaps to structural
-    fmap_struct_dir = op.join(distcorr_dir, "fmap_struct_reg")
-    bbr_fmap2struct = register_fmap(
-        fmapmag, fmapmagbrain, struct, struct_brain, fmap_struct_dir, wmmask
+    # Generate susceptibility distortion correction warp via topup
+    generate_topup_fmaps(
+        pa_ap_sefms,
+        topup_dir,
+        gdc_warp_name,
+        interpolation=interpolation,
+        gd_corr=gd_corr,
     )
-
-    # apply linear registration to fmap, fmapmag and fmapmagbrain
-    bbr_fmap2struct = rt.Registration.from_flirt(
-        bbr_fmap2struct, src=fmapmag, ref=struct
-    )
-    fmap_struct, fmapmag_struct, fmapmagbrain_struct = [
-        op.join(fmap_struct_dir, f"fmap{ext}_struct.nii.gz")
-        for ext in ("", "mag", "magbrain")
-    ]
-    for fmap_name, fmapstruct_name in zip(
-        (fmap, fmapmag, fmapmagbrain),
-        (fmap_struct, fmapmag_struct, fmapmagbrain_struct),
-    ):
-        fmapstruct_img = bbr_fmap2struct.apply_to_image(
-            fmap_name, struct, order=interpolation
-        )
-        nb.save(fmapstruct_img, fmapstruct_name)
-
-    # run asl_reg using pre-registered fieldmap images
-    cmd = (
-        "asl_reg -i {} -o {} ".format(asl_vol0_brain, distcorr_dir)
-        + "-s {} --sbet={} -m {} ".format(struct, struct_brain, asl_mask)
-        + "--tissseg={} --imat={} --finalonly ".format(wmmask, a2s_fsl)
-        + "--fmap={} --fmapmag={} ".format(fmap_struct, fmapmag_struct)
-        + "--fmapmagbrain={} --nofmapreg ".format(fmapmagbrain_struct)
-        + "--echospacing=0.00057 --pedir=y"
-    )
-    sp.run(cmd)

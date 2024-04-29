@@ -168,11 +168,13 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     sub_base = op.abspath(op.join(study_dir, sub_id))
     t1_dir = op.join(sub_base, "T1w")
     t1_asl_dir = op.join(sub_base, outdir, "T1w", "ASL")
-    asl = op.join(sub_base, outdir, "ASL", "TIs", "tis.nii.gz")
+    asl = op.join(sub_base, outdir, "ASL/label_control/label_control.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
 
     # Create ASL-gridded version of T1 image
-    t1_asl_grid = op.join(t1_asl_dir, "reg", "ASL_grid_T1w_acpc_dc_restore.nii.gz")
+    t1_asl_grid = op.join(
+        t1_asl_dir, "registration", "ASL_grid_T1w_acpc_dc_restore.nii.gz"
+    )
     asl_spc = rt.ImageSpace(asl)
     t1_spc = rt.ImageSpace(struct)
     t1_asl_grid_spc = t1_spc.resize_voxels(asl_spc.vox_size / t1_spc.vox_size)
@@ -182,7 +184,7 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     )
 
     # Create PVEs directory
-    pve_dir = op.join(sub_base, outdir, "T1w", "ASL", "PVEs")
+    pve_dir = op.join(sub_base, outdir, "T1w", "ASL", "pvs")
     os.makedirs(pve_dir, exist_ok=True)
 
     # Create a ventricle CSF mask in T1 ASL space
@@ -194,7 +196,7 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     # Estimate PVs in ASL0 space then register them to ASLT1w space
     # Yes this seems stupid but theres a good reason for it
     # aka double-resampling (ask TK)
-    asl2struct = op.join(t1_asl_dir, "TIs", "reg", "asl2struct.mat")
+    asl2struct = op.join(t1_asl_dir, "registration/asl2struct.mat")
     pvs_stacked = pvs_from_freesurfer(t1_dir, asl, ref2struct=asl2struct, cores=cores)
 
     # register the PVEs from ASL0 space to ASLT1w space with the
@@ -205,7 +207,7 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     )
 
     # Save output with tissue suffix
-    fileroot = op.join(pve_dir, "pve")
+    fileroot = op.join(pve_dir, "pv")
     for idx, suffix in enumerate(["GM", "WM"]):
         p = "{}_{}.nii.gz".format(fileroot, suffix)
         rt.ImageSpace.save_like(t1_asl_grid, pvs_stacked.dataobj[..., idx], p)

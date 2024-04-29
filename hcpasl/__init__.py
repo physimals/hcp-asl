@@ -3,6 +3,7 @@ HCP-ASL pipeline
 
 Copyright 2020-21 University of Nottingham
 """
+
 try:
     from ._version import __version__, __timestamp__, __sha1__
 except ImportError:
