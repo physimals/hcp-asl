@@ -5,9 +5,9 @@ fslpy>=3.1.0
 nibabel
 pyfab
 regtricks
-toblerone @ git+https://github.com/tomfrankkirk/toblerone@v0.8.2
+toblerone @ git+ssh://git@bitbucket.org/quantified-imaging/toblerone
 gradunwarp
 requests
-regtricks @ git+https://github.com/tomfrankkirk/regtricks
+regtricks @ git+ssh://git@bitbucket.org/quantified-imaging/regtricks
 scikit-learn
 pandas 
