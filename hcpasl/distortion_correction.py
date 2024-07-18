@@ -59,7 +59,7 @@ def stack_fmaps(pa_sefm, ap_sefm, savename):
         ref=pa_sefm,
         data=np.stack(
             (nb.load(pa_sefm).get_fdata(), nb.load(ap_sefm).get_fdata()), axis=-1
-        ),
+        ).astype(np.float32),
         path=savename,
     )
 
@@ -204,7 +204,7 @@ def generate_topup_fmaps(
     fmap_spc = rt.ImageSpace(topup_fmap)
     fmap_arr_hz = nb.load(topup_fmap).get_fdata()
     fmap_arr = fmap_arr_hz * 2 * np.pi
-    fmap_spc.save_image(fmap_arr, fmap)
+    fmap_spc.save_image(fmap_arr.astype(np.float32), fmap)
 
     # Apply GDC warp from gradient_unwarp and topup's SDC
     # warp (just generated) in one interpolation step

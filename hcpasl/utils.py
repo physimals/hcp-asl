@@ -41,10 +41,20 @@ class ImagePath:
         dir.mkdir(exist_ok=True, parents=True)
         stem = f"{self.stem}_{suffix}"
         path = dir / f"{stem}.nii.gz"
+        data = newimg.get_fdata()
+        if data.dtype.kind == "f":
+            data = data.astype(np.float32)
+        else:
+            data = data.astype(np.int32)
+        newimg = nb.nifti1.Nifti1Image(data, self.img.affine, header=newimg.header)
         nb.save(newimg, path)
         return ImagePath(path)
 
     def correct_from_data(self, dir, suffix, newdata):
+        if newdata.dtype.kind == "f":
+            newdata = newdata.astype(np.float32)
+        else:
+            newdata = newdata.astype(np.int32)
         newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine)
         return self.correct_from_image(dir, suffix, newimg)
 

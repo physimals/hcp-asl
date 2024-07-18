@@ -90,7 +90,7 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname, repeats=None):
             axis=-1,
         )
 
-    rt.ImageSpace.save_like(asl, ti_array, outname)
+    rt.ImageSpace.e(asl, ti_array, outname)
 
 
 def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):

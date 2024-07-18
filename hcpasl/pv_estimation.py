@@ -11,7 +11,7 @@ import nibabel as nib
 import numpy as np
 import regtricks as rt
 import scipy
-from toblerone.pvestimation import cortex as estimate_cortex
+from toblerone.scripts import pvs_cortex_freesurfer
 
 # Map from FS aparc+aseg labels to tissue types
 # NB cortex is ignored
@@ -59,7 +59,7 @@ FS_LUT = {
 def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
     """
     Extract and layer PVs according to tissue type, taken from a FS aparc+aseg.
-    Results are stored in ASL-gridded T1 space.
+    Results are stored in ASL0 space
     Args:
         aparcseg: path to aparc+aseg file
         surf_dict: dict with LWS/LPS/RWS/RPS keys, paths to those surfaces
@@ -72,20 +72,23 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
 
     # Load the t1 image, aparc+aseg and surfaces from their expected
     # names and locations within t1w_dir
-    surf_dict = {}
-    for k, n in zip(
-        ["LWS", "LPS", "RPS", "RWS"],
-        [
-            "L.white.32k_fs_LR.surf.gii",
-            "L.pial.32k_fs_LR.surf.gii",
-            "R.pial.32k_fs_LR.surf.gii",
-            "R.white.32k_fs_LR.surf.gii",
-        ],
-    ):
-        paths = glob.glob(op.join(t1_dir, f"fsaverage_LR32k/*{n}"))
-        if len(paths) > 1:
-            raise RuntimeError(f"Found multiple surfaces for {k}")
-        surf_dict[k] = paths[0]
+    surf_dict = {
+        "LWS": op.join(t1_dir, "fsaverage_LR32k", "*L.white.32k_fs_LR.surf.gii"),
+        "LPS": op.join(t1_dir, "fsaverage_LR32k", "*L.pial.32k_fs_LR.surf.gii"),
+        "LSS": op.join(
+            t1_dir, "../MNINonLinear/fsaverage_LR32k", "*L.sphere.32k_fs_LR.surf.gii"
+        ),
+        "RPS": op.join(t1_dir, "fsaverage_LR32k", "*R.pial.32k_fs_LR.surf.gii"),
+        "RWS": op.join(t1_dir, "fsaverage_LR32k", "*R.white.32k_fs_LR.surf.gii"),
+        "RSS": op.join(
+            t1_dir, "../MNINonLinear/fsaverage_LR32k", "*R.sphere.32k_fs_LR.surf.gii"
+        ),
+    }
+    for k in surf_dict.keys():
+        try:
+            surf_dict[k] = glob.glob(surf_dict[k])[0]
+        except:
+            raise RuntimeError(f"Could not find {k} at {surf_dict[k]}")
 
     ref_spc = rt.ImageSpace(ref_spc)
     aseg_spc = nib.load(op.join(t1_dir, "aparc+aseg.nii.gz"))
@@ -114,10 +117,11 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
     )
 
     # Estimate cortical PVs
-    cortex = estimate_cortex(
+    cortex = pvs_cortex_freesurfer(
         ref=ref_spc,
         struct2ref=struct2ref_reg.src2ref,
         cores=cores,
+        resample=False,
         **surf_dict,
     )
 
@@ -191,7 +195,7 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     ventricle_mask = op.join(pve_dir, "vent_csf_mask.nii.gz")
     aparc_aseg = op.join(t1_dir, "aparc+aseg.nii.gz")
     vmask = generate_ventricle_mask(aparc_aseg, t1_asl_grid)
-    rt.ImageSpace.save_like(t1_asl_grid, vmask, ventricle_mask)
+    rt.ImageSpace.save_like(t1_asl_grid, vmask.astype(np.int32), ventricle_mask)
 
     # Estimate PVs in ASL0 space then register them to ASLT1w space
     # Yes this seems stupid but theres a good reason for it
@@ -204,7 +208,7 @@ def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
     asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
     pvs_stacked = asl2struct.apply_to_image(
         src=pvs_stacked, ref=t1_asl_grid, order=interpolation, cores=cores
-    )
+    ).astype(np.float32)
 
     # Save output with tissue suffix
     fileroot = op.join(pve_dir, "pv")
@@ -244,7 +248,7 @@ def main():
     else:
         opath = pathlib.Path(args.out)
         spc = rt.ImageSpace(pvs)
-        pvs = pvs.dataobj
+        pvs = pvs.get_fdata().astype(np.float32)
         for idx, tiss in enumerate(["GM", "WM", "CSF"]):
             n = opath.parent.joinpath(
                 opath.stem.rsplit(".", 1)[0] + f"_{tiss}" + "".join(opath.suffixes)

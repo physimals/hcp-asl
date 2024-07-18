@@ -151,10 +151,10 @@ def fully_correct_asl_calibration_aslt1w(
     )
     fov_valid_aslt1w = fov_valid_aslt1w.get_fdata() > 0.9
     fov_valid_aslt1w_path = reg_dir / "fov_mask.nii.gz"
-    aslt1w_spc.save_image(fov_valid_aslt1w, fov_valid_aslt1w_path)
+    aslt1w_spc.save_image(fov_valid_aslt1w.astype(np.int32), fov_valid_aslt1w_path)
     fov_brain_mask = fov_valid_aslt1w & (aslt1_brain_mask.get_fdata() > 0)
     fov_brainmask_name = reg_dir / "brain_fov_mask.nii.gz"
-    aslt1w_spc.save_image(fov_brain_mask, fov_brainmask_name)
+    aslt1w_spc.save_image(fov_brain_mask.astype(np.int32), fov_brainmask_name)
 
     # register fieldmap magnitude image to ASL-gridded T1w space
     logging.info("Registering fmapmag to ASLT1w space.")
@@ -343,7 +343,7 @@ def fully_correct_asl_calibration_aslt1w(
             ref=aslt1_spc,
             order=interpolation,
         )
-        eb_img = aslt1_spc.make_nifti(eb_img)
+        eb_img = aslt1_spc.make_nifti(eb_img.astype(np.float32))
         eb_img.to_filename(calib_dir / "eb_scaling_factors.nii.gz")
 
         # perform slicetime correction on the calibration image
