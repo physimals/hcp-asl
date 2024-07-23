@@ -726,7 +726,7 @@ def main():
 if __name__ == "__main__":
     env_var = ["HCPPIPEDIR", "FREESURFER_HOME", "FSLDIR", "CARET7DIR"]
     for ev in env_var:
-        if not os.environ.get(ev):
+        if not bool(os.environ.get(ev)):
             raise RuntimeError(
                 f"Environment variable {ev} must be set (see installation instructions)"
             )
