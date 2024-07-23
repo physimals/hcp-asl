@@ -168,11 +168,10 @@ def generate_ventricle_mask(aparc_aseg, t1_asl):
     return output
 
 
-def run_pv_estimation(study_dir, sub_id, cores, outdir, interpolation):
-    sub_base = op.abspath(op.join(study_dir, sub_id))
-    t1_dir = op.join(sub_base, "T1w")
-    t1_asl_dir = op.join(sub_base, outdir, "T1w", "ASL")
-    asl = op.join(sub_base, outdir, "ASL/label_control/label_control.nii.gz")
+def run_pv_estimation(subject_dir, cores, outdir, interpolation):
+    t1_dir = op.join(subject_dir, "T1w")
+    t1_asl_dir = op.join(subject_dir, outdir, "T1w", "ASL")
+    asl = op.join(subject_dir, outdir, "ASL/label_control/label_control.nii.gz")
     struct = op.join(t1_dir, "T1w_acpc_dc_restore.nii.gz")
 
     # Create ASL-gridded version of T1 image

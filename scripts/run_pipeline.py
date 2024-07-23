@@ -41,8 +41,7 @@ from hcpasl.utils import (
 
 
 def process_subject(
-    studydir,
-    subid,
+    subject_dir,
     eb_factors,
     mbpcasl,
     structural,
@@ -64,10 +63,8 @@ def process_subject(
 
     Parameters
     ----------
-    studydir : pathlib.Path
-        Path to the study's base directory.
-    subid : str
-        Subject id for the subject of interest.
+    subject_dir : str
+        Subject's data directory.
     eb_factors : pathlib.Path
         Path to a .txt file of pre-calculated empirical banding correction
         factors.
@@ -117,8 +114,6 @@ def process_subject(
 
     if not isinstance(stages, (list, set)):
         raise RuntimeError("stages must either be a set or list of ints")
-
-    subject_dir = (studydir / subid).resolve(strict=True)
 
     # create results directories
     logging.info("Creating main results directories.")
@@ -311,7 +306,7 @@ def process_subject(
     # perform partial volume estimation
     if 7 in stages:
         logging.info("Stage 7: Partial volume estimation in ASLT1w space.")
-        run_pv_estimation(studydir, subid, cores, outdir, interpolation)
+        run_pv_estimation(subject_dir, cores, outdir, interpolation)
 
     # perform tag-control subtraction in ASLT1w space
     aslt1w_dir = aslt1w_dir
@@ -391,13 +386,13 @@ def process_subject(
 
     if 11 in stages:
         logging.info("Stage 11: Volume to surface projection.")
-        surface_projection_stage(studydir, subid, outdir=outdir)
+        surface_projection_stage(subject_dir, outdir=outdir)
 
     if 12 in stages:
         logging.info(
             "Stage 12: Copy key results into $outdir/T1w/ASL and $outdir/MNINonLinear/ASL"
         )
-        copy_outputs(studydir, subid, outdir)
+        copy_outputs(subject_dir, outdir)
 
     if 13 in stages:
         logging.info("Stage 13: Create QC workbench scene.")
@@ -405,8 +400,7 @@ def process_subject(
 
 
 def surface_projection_stage(
-    studydir,
-    subid,
+    subject_dir,
     outdir,
     lowresmesh="32",
     FinalASLRes="2.5",
@@ -422,20 +416,20 @@ def surface_projection_stage(
 
     Parameters
     ----------
-    studydir : pathlib.Path
-        Path to the study's base directory.
-    subid : str
-        Subject id for the subject of interest.
+    subject_dir : pathlib.Path
+        Subject's data directory
     """
 
     # Projection scripts path:
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path = os.environ["CARET7DIR"]
 
+    studydir = subject_dir.parent
+    subid = subject_dir.name
     if not outdir:
-        outdir = studydir / subid
+        outdir = subject_dir
     else:
-        outdir = studydir / subid / outdir
+        outdir = subject_dir / outdir
 
     ASLVariable = ["perfusion_calib", "arrival", "perfusion_var_calib", "arrival_var"]
     ASLVariableVar = [
@@ -482,21 +476,19 @@ def surface_projection_stage(
         sp_run(pvcorr_cmd)
 
 
-def copy_outputs(studydir, subid, outdir):
+def copy_outputs(subject_dir, outdir):
     """
     Copy key pipeline outputs to the T1w and MNI aligned high level ASL directory
 
     Parameters
     ----------
-    studydir : pathlib.Path
-        Path to the study's base directory.
-    subid : str
-        Subject id for the subject of interest.
+    subject_dir : pathlib.Path
+        Path to the subject data directory
     """
 
-    path_to_outs = str(studydir / subid / outdir)
-    mni_raw = str(studydir / subid / "MNINonLinear")
-    t1w_preproc = str(studydir / subid / "T1w")
+    path_to_outs = str(subject_dir / outdir)
+    mni_raw = str(subject_dir / "MNINonLinear")
+    t1w_preproc = str(subject_dir / "T1w")
     copy_key_outputs(path_to_outs, t1w_preproc, mni_raw)
 
 
@@ -534,6 +526,11 @@ def main():
     optional = parser.add_argument_group(
         "optional arguments",
         description="(will attempt to load from default locations in $studydir/$subid)",
+    )
+    optional.add_argument(
+        "--subdir",
+        help="Subject's data directory (default $studydir/$subid)",
+        required=False,
     )
     optional.add_argument(
         "--grads",
@@ -630,8 +627,11 @@ def main():
 
     # set up logging
     # create file handler
-    subdir = studydir / subid
-    base_dir = subdir / args.outdir
+    if not args.subdir:
+        subject_dir = (studydir / subid).resolve(strict=True)
+    else:
+        subject_dir = Path(args.subdir).resolve(strict=True)
+    base_dir = Path(subject_dir) / Path(args.outdir)
 
     if args.clean:
         for d in ["ASL", "T1w/ASL", "MNINonLinear/ASL"]:
@@ -650,25 +650,25 @@ def main():
 
     # Look for required files in default paths if not provided.
     if args.struct is None:
-        args.struct = subdir / "T1w/T1w_acpc_dc_restore.nii.gz"
+        args.struct = subject_dir / "T1w/T1w_acpc_dc_restore.nii.gz"
         logging.info(f"Using default for struct: {args.struct}")
     if not os.path.exists(args.struct):
         raise ValueError(f"Path to struct does not exist: {args.struct}")
 
     if args.sbrain is None:
-        args.sbrain = subdir / "T1w/T1w_acpc_dc_restore_brain.nii.gz"
+        args.sbrain = subject_dir / "T1w/T1w_acpc_dc_restore_brain.nii.gz"
         logging.info(f"Using default for sbrain: {args.sbrain}")
     if not os.path.exists(args.sbrain):
         raise ValueError(f"Path to sbrain does not exist: {args.sbrain}")
 
     if args.wmparc is None:
-        args.wmparc = subdir / "T1w/wmparc.nii.gz"
+        args.wmparc = subject_dir / "T1w/wmparc.nii.gz"
         logging.info(f"Using default for wmparc: {args.wmparc}")
     if not os.path.exists(args.wmparc):
         raise ValueError(f"Path to wmparc does not exist: {args.wmparc}")
 
     if args.ribbon is None:
-        args.ribbon = subdir / "T1w/ribbon.nii.gz"
+        args.ribbon = subject_dir / "T1w/ribbon.nii.gz"
         logging.info(f"Using default for ribbon: {args.ribbon}")
     if not os.path.exists(args.ribbon):
         raise ValueError(f"Path to ribbon does not exist: {args.ribbon}")
@@ -702,10 +702,9 @@ def main():
         logging.info(f"{k}: {v}")
 
     # process subject
-    logging.info(f"Processing subject {studydir / subid}.")
+    logging.info(f"Processing subject {subject_dir}.")
     process_subject(
-        studydir=studydir,
-        subid=subid,
+        subject_dir=subject_dir,
         eb_factors=mtname,
         cores=args.cores,
         interpolation=args.interpolation,
