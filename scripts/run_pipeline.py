@@ -41,6 +41,7 @@ from hcpasl.utils import (
 
 
 def process_subject(
+    subid,
     subject_dir,
     eb_factors,
     mbpcasl,
@@ -170,6 +171,7 @@ def process_subject(
     if 2 in stages:
         logging.info("Stage 2: Derive and apply initial corrections to M0 image.")
         initial_corrections_calibration(
+            subject_id=subid,
             subject_dir=subject_dir,
             calib_dir=calib0_dir.parent,
             eb_factors=eb_factors,
@@ -276,6 +278,7 @@ def process_subject(
         fully_correct_asl_calibration_aslt1w(
             asl_name=tis_name,
             calib_name=calib0_name,
+            subid=subid,
             subject_dir=subject_dir,
             t1w_dir=t1w_dir,
             aslt1w_dir=aslt1w_dir,
@@ -386,7 +389,9 @@ def process_subject(
 
     if 11 in stages:
         logging.info("Stage 11: Volume to surface projection.")
-        surface_projection_stage(subject_dir, outdir=outdir)
+        surface_projection_stage(
+            subject_dir=subject_dir, subject_id=subid, outdir=outdir
+        )
 
     if 12 in stages:
         logging.info(
@@ -396,10 +401,11 @@ def process_subject(
 
     if 13 in stages:
         logging.info("Stage 13: Create QC workbench scene.")
-        create_qc_report(subject_dir, outdir)
+        create_qc_report(subject_id=subid, subject_dir=subject_dir, outdir=outdir)
 
 
 def surface_projection_stage(
+    subject_id,
     subject_dir,
     outdir,
     lowresmesh="32",
@@ -424,8 +430,6 @@ def surface_projection_stage(
     script = "PerfusionCIFTIProcessingPipelineASL.sh"
     wb_path = os.environ["CARET7DIR"]
 
-    studydir = subject_dir.parent
-    subid = subject_dir.name
     if not outdir:
         outdir = subject_dir
     else:
@@ -442,8 +446,8 @@ def surface_projection_stage(
     for idx in range(4):
         non_pvcorr_cmd = [
             script,
-            str(studydir),
-            subid,
+            str(subject_dir),
+            subject_id,
             ASLVariable[idx],
             ASLVariableVar[idx],
             lowresmesh,
@@ -458,8 +462,8 @@ def surface_projection_stage(
 
         pvcorr_cmd = [
             script,
-            str(studydir),
-            subid,
+            str(subject_dir),
+            subject_id,
             ASLVariable[idx],
             ASLVariableVar[idx],
             lowresmesh,
@@ -496,6 +500,17 @@ def main():
     """
     Main entry point for the hcp-asl pipeline.
     """
+
+    env_var = ["HCPPIPEDIR", "FREESURFER_HOME", "FSLDIR", "CARET7DIR"]
+    for ev in env_var:
+        if not bool(os.environ.get(ev)):
+            raise RuntimeError(
+                f"Environment variable {ev} must be set (see installation instructions)"
+            )
+
+    # Try and load the ROI stats script now - func will raise exception if not found.
+    get_roi_stats_script()
+
     # argument handling
     parser = argparse.ArgumentParser(
         description="Minimal processing pipeline for HCP Lifespan ASL data."
@@ -503,10 +518,12 @@ def main():
 
     required = parser.add_argument_group("required arguments")
     required.add_argument(
-        "--studydir", help="Path to the study's base directory.", required=True
+        "--subid", help="Subject ID, including '_V1_MR'", required=True
     )
     required.add_argument(
-        "--subid", help="Subject ID to process within the studydir.", required=True
+        "--subdir",
+        help="Subject's structural pre-processed data directory",
+        required=True,
     )
     required.add_argument(
         "--mbpcasl",
@@ -525,12 +542,7 @@ def main():
     )
     optional = parser.add_argument_group(
         "optional arguments",
-        description="(will attempt to load from default locations in $studydir/$subid)",
-    )
-    optional.add_argument(
-        "--subdir",
-        help="Subject's data directory (default $studydir/$subid)",
-        required=False,
+        description="(will attempt to load from default locations in $subdir)",
     )
     optional.add_argument(
         "--grads",
@@ -622,16 +634,9 @@ def main():
 
     # assign arguments to variables
     args = parser.parse_args()
-    studydir = Path(args.studydir).resolve(strict=True)
     subid = args.subid
-
-    # set up logging
-    # create file handler
-    if not args.subdir:
-        subject_dir = (studydir / subid).resolve(strict=True)
-    else:
-        subject_dir = Path(args.subdir).resolve(strict=True)
-    base_dir = Path(subject_dir) / Path(args.outdir)
+    subject_dir = Path(args.subdir).resolve(strict=True)
+    base_dir = subject_dir / Path(args.outdir)
 
     if args.clean:
         for d in ["ASL", "T1w/ASL", "MNINonLinear/ASL"]:
@@ -704,6 +709,7 @@ def main():
     # process subject
     logging.info(f"Processing subject {subject_dir}.")
     process_subject(
+        subid=subid,
         subject_dir=subject_dir,
         eb_factors=mtname,
         cores=args.cores,
@@ -724,14 +730,4 @@ def main():
 
 
 if __name__ == "__main__":
-    env_var = ["HCPPIPEDIR", "FREESURFER_HOME", "FSLDIR", "CARET7DIR"]
-    for ev in env_var:
-        if not bool(os.environ.get(ev)):
-            raise RuntimeError(
-                f"Environment variable {ev} must be set (see installation instructions)"
-            )
-
-    # Try and load the ROI stats script now - func will raise exception if not found.
-    get_roi_stats_script()
-
     main()

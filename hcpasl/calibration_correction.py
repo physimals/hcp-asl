@@ -17,6 +17,7 @@ from .registration import register_asl2struct
 
 
 def initial_corrections_calibration(
+    subject_id,
     subject_dir,
     calib_dir,
     eb_factors,
@@ -131,7 +132,7 @@ def initial_corrections_calibration(
     logging.info("Getting registration from fmapmag image to structural image")
     fmap_struct_dir = topup_dir / "fmap_struct_reg"
     Path(fmap_struct_dir).mkdir(exist_ok=True, parents=True)
-    fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
+    fsdir = (t1w_dir / subject_id).resolve(strict=True)
     register_asl2struct(fmapmag, struct_name, fsdir, fmap_struct_dir)
     logging.info("Loading registration from fieldmap to struct")
     bbr_fmap2struct = rt.Registration.from_flirt(

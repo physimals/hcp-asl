@@ -9,7 +9,7 @@ import regtricks as rt
 from hcpasl.utils import get_package_data_name, get_roi_stats_script, sp_run
 
 
-def create_qc_report(subject_dir, outdir, regname="MSMAll"):
+def create_qc_report(subject_id, subject_dir, outdir, regname="MSMAll"):
     if not outdir:
         outdir = subject_dir
     else:
@@ -18,7 +18,6 @@ def create_qc_report(subject_dir, outdir, regname="MSMAll"):
     # Sneaky redirection of paths.
     # The template scene file is referenced to T1w/ASL/ASLQC
     # So we generate the scene file there, template in subject-specific data
-    subject_id = subject_dir.stem
     scene_initial = (
         Path(subject_dir) / f"T1w/ASL/ASLQC/{subject_id}_hcp_asl_qc.wb_scene"
     )

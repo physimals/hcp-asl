@@ -2,8 +2,8 @@
 set -e -u
 
 # parse arguments
-Path="$1"
-Subject="$2"
+SubjectDir="$1" # /path/to/subject      
+Subject="$2"  # subject ID 
 ASLVariable="$3" 
 ASLVariableVar="$4"
 LowResMesh="$5" # 32
@@ -28,8 +28,8 @@ then
     RegString="_$RegName"
 fi
 
-AtlasSpaceFolder="${Path}/${Subject}/${AtlasSpaceFolder}"
-T1wFolder="${Path}/${Subject}/${T1wFolder}"
+AtlasSpaceFolder="${SubjectDir}/${AtlasSpaceFolder}"
+T1wFolder="${SubjectDir}/${T1wFolder}"
 ASLT1wFolder="${Outdir}/T1w/ASL"
 
 if [ "$pvcorr" = false ] ; then

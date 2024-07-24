@@ -14,6 +14,7 @@ from .asl_correction import create_ti_image
 def fully_correct_asl_calibration_aslt1w(
     asl_name,
     calib_name,
+    subid,
     subject_dir,
     t1w_dir,
     moco_dir,
@@ -115,7 +116,7 @@ def fully_correct_asl_calibration_aslt1w(
     reg_dir = aslt1w_dir / "registration"
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir / "T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
-    fsdir = (t1w_dir / subject_dir.stem).resolve(strict=True)
+    fsdir = (t1w_dir / subid).resolve(strict=True)
     register_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
     asl2struct_reg = rt.Registration.from_flirt(
         src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name

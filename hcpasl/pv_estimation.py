@@ -187,7 +187,7 @@ def run_pv_estimation(subject_dir, cores, outdir, interpolation):
     )
 
     # Create PVEs directory
-    pve_dir = op.join(sub_base, outdir, "T1w", "ASL", "pvs")
+    pve_dir = op.join(subject_dir, outdir, "T1w", "ASL", "pvs")
     os.makedirs(pve_dir, exist_ok=True)
 
     # Create a ventricle CSF mask in T1 ASL space
@@ -207,7 +207,7 @@ def run_pv_estimation(subject_dir, cores, outdir, interpolation):
     asl2struct = rt.Registration.from_flirt(asl2struct, asl, struct)
     pvs_stacked = asl2struct.apply_to_image(
         src=pvs_stacked, ref=t1_asl_grid, order=interpolation, cores=cores
-    ).astype(np.float32)
+    )
 
     # Save output with tissue suffix
     fileroot = op.join(pve_dir, "pv")
