@@ -18,7 +18,6 @@ from .registration import register_asl2struct
 
 def initial_corrections_calibration(
     subject_id,
-    subject_dir,
     calib_dir,
     eb_factors,
     t1w_dir,

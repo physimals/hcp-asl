@@ -41,6 +41,8 @@ def fully_correct_asl_calibration_aslt1w(
         Path to the ASL series.
     calib_name: pathlib.Path
         Path to the calibration image.
+    subid : str
+        Subject ID.
     subject_dir : pathlib.Path
         Path to the subject's base directory.
     t1w_dir : pathlib.Path

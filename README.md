@@ -35,7 +35,7 @@ pip install git+https://github.com/physimals/hcp-asl.git
 Once installed, the pipeline may be run as a command-line script as follows:
 
 ```
-process_hcp_asl --studydir ${StudyDir} --subid ${Subjectid} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} -g ${GradientCoeffs}
+process_hcp_asl --subid ${Subjectid} --subdir ${SubDir} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} --grads ${GradientCoeffs}
 ```
 
 The filepaths passed to the script may be relative or absolute. A more detailed explanation of the arguments, including optionals, can be found by running:

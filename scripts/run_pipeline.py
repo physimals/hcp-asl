@@ -10,7 +10,6 @@ name of the empirical banding correction scaling factors image.
 import argparse
 import logging
 import os
-from multiprocessing import cpu_count
 from pathlib import Path
 from shutil import copy, rmtree
 
@@ -64,6 +63,8 @@ def process_subject(
 
     Parameters
     ----------
+    subid : str
+        Subject ID.
     subject_dir : str
         Subject's data directory.
     eb_factors : pathlib.Path
@@ -172,7 +173,6 @@ def process_subject(
         logging.info("Stage 2: Derive and apply initial corrections to M0 image.")
         initial_corrections_calibration(
             subject_id=subid,
-            subject_dir=subject_dir,
             calib_dir=calib0_dir.parent,
             eb_factors=eb_factors,
             t1w_dir=t1w_dir,
@@ -595,7 +595,6 @@ def main():
         help="Number of cores to use for multi-core operations. Default is 1.",
         default=1,
         type=int,
-        choices=range(1, cpu_count() + 1),
     )
     optional.add_argument(
         "--interpolation",
