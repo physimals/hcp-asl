@@ -46,7 +46,7 @@ class ImagePath:
             data = data.astype(np.float32)
         else:
             data = data.astype(np.int32)
-        newimg = nb.nifti1.Nifti1Image(data, self.img.affine, header=newimg.header)
+        newimg = nb.nifti1.Nifti1Image(data, affine=newimg.affine, header=newimg.header)
         nb.save(newimg, path)
         return ImagePath(path)
 
@@ -55,7 +55,7 @@ class ImagePath:
             newdata = newdata.astype(np.float32)
         else:
             newdata = newdata.astype(np.int32)
-        newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine)
+        newimg = nb.nifti1.Nifti1Image(newdata, self.img.affine, header=self.img.header)
         return self.correct_from_image(dir, suffix, newimg)
 
     def save(self):
