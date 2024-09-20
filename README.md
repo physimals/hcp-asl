@@ -23,7 +23,7 @@ The HCP Pipelines must be installed and the environment variable `HCPPIPEDIR` se
 FreeSurfer must be installed to enable boundary-based registration (BBR). The environment variable `FREESURFER_HOME` must be set. 
 
 ## Installation
-It is advised that the pipeline is installed in a conda environment. Python >= 3.9 is required. Note that some dependencies require cython and numpy to be installed prior to installing the hcp-asl package, for example following the steps below. 
+It is advised that the pipeline is installed in a conda environment. Python >= 3.9 is required (version 0.1.2 can be installed on Python >= 3.6, but this will require emulation on M1 Macs). Note that dependencies require cython and numpy to be installed **prior** to installing the hcp-asl package, for example following the steps below. 
 
 ```
 conda create -n hcpasl python=3.11 cython 'numpy>=1.25'
@@ -35,7 +35,7 @@ pip install git+https://github.com/physimals/hcp-asl.git
 Once installed, the pipeline may be run as a command-line script as follows:
 
 ```
-process_hcp_asl --subid ${Subjectid} --subdir ${SubDir} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} --grads ${GradientCoeffs}
+process_hcp_asl --studydir ${StudyDir} --subid ${SubjectID} --mbpcasl ${mbpcasl} --fmap_ap ${SEFM_AP} --fmap_pa ${SEFM_PA} -g ${GradientCoeffs}
 ```
 
 The filepaths passed to the script may be relative or absolute. A more detailed explanation of the arguments, including optionals, can be found by running:
@@ -44,12 +44,35 @@ The filepaths passed to the script may be relative or absolute. A more detailed 
 process_hcp_asl --help
 ```
 
+## Custom perfusion quantification 
+
+To generate fully-corrected ASL data to use with other quantification tools besides `oxford_asl`, the pipeline can be run up to stage 8 as follows: 
+
+```
+process_hcp_asl \
+--subid ${SubjectID} \
+--studydir /path/to/study/dir \
+--grads /path/to/coeff_AS82_Prisma.grad \
+--mbpcasl /path/to/mbPCASLhr_PA.nii.gz \
+--fmap_ap /path/to/PCASLhr_SpinEchoFieldMap_AP.nii.gz \
+--fmap_pa /path/to/PCASLhr_SpinEchoFieldMap_PA.nii.gz \
+--stages 0 1 2 3 4 5 6 7 8 
+```
+
+The following outputs will be produced in `/path/to/study/dir/${SubjectID}/T1w/ASL`: 
+- `asl_corr.nii.gz` fully corrected ASL timeseries 
+- `asl_corr_subtracted.nii.gz` motion-and-banding-aware subtracted ASL timeseries
+- `TIs/timing_img_aslt1w.nii.gz` effective TI (including slice-time) for ASL timeseries 
+- `calib_corr.nii.gz` fully corrected calibration image 
+- `Calib/Calib0/calib_aslt1w_timing.nii.gz` effective TI (including slice-time) for calibration image 
+- `PVEs/` partial volume estimates for ASL timeseries 
+
 ## Pipeline stages
 
 The pipeline can be run in stages via the `--stages a b c` argument. The stages are numbered 0 to 13 inclusive and perform the following operations. Note, each stage assumes the previous stages have run successfully, and will raise various errors if the outputs of those stages cannot be found. 
 
 0. Split mbPCASL sequence into ASL series and M0 images.
-1. Derive gradient and susceptibility distortion correction 
+1. Derive gradient and EPI distortion correction 
 2. Correct M0 image 
 3. Correct ASL image 
 4. Label-control subtraction in ASL space 
@@ -72,41 +95,41 @@ SUBJECTID_V1_MR
 ASL # Native acquisition space processing 
 ├── Calib # Intermediate calibration image processing 
 │   ├── Calib0
-│   │   ├── bias_correction
+│   │   ├── BiasCorr
 │   │   │   ├── SEbased
 │   │   │   │   ├── AllGreyMatter.nii.gz
 │   │   │   │   ├── [ .... ]
 │   │   │   │   └── sebased_bias_dil.nii.gz
-│   │   │   ├── gdc_sdc_calib0_bias.nii.gz
-│   │   │   └── gdc_sdc_calib0_restore.nii.gz
-│   │   ├── distortion_correction
+│   │   │   ├── gdc_dc_calib0_bias.nii.gz
+│   │   │   └── gdc_dc_calib0_restore.nii.gz
+│   │   ├── DistCorr
 │   │   │   ├── asl2orig_mgz_initial_bbr.dat
 │   │   │   ├── [ .... ]
 │   │   │   └── struct2asl.mat
-│   │   ├── empirical_banding_correction
-│   │   │   ├── eb_gdc_calib0.nii.gz
-│   │   │   └── eb_gdc_sdc_calib0_restore.nii.gz
+│   │   ├── MTCorr
+│   │   │   ├── mtcorr_gdc_calib0.nii.gz
+│   │   │   └── mtcorr_gdc_dc_calib0_restore.nii.gz
 │   │   ├── aslfs_mask.nii.gz
 │   │   ├── calib0.nii.gz
 │   │   └── calib_timing.nii.gz
 │   └── Calib1
-│       ├── bias_correction
+│       ├── BiasCorr
 │       │   ├── SEbased
 │       │   │   ├── AllGreyMatter.nii.gz
 │       │   │   ├── [ .... ]
 │       │   │   └── sebased_bias_dil.nii.gz
-│       │   ├── gdc_sdc_calib1_bias.nii.gz
-│       │   └── gdc_sdc_calib1_restore.nii.gz
-│       ├── distortion_correction
+│       │   ├── gdc_dc_calib1_bias.nii.gz
+│       │   └── gdc_dc_calib1_restore.nii.gz
+│       ├── DistCorr
 │       │   ├── asl2orig_mgz_initial_bbr.dat
 │       │   ├── [ .... ]
 │       │   └── struct2asl.mat
-│       ├── empirical_banding_correction
-│       │   ├── eb_gdc_calib1.nii.gz
-│       │   └── eb_gdc_sdc_calib1_restore.nii.gz
+│       ├── MTCorr
+│       │   ├── mtcorr_gdc_calib1.nii.gz
+│       │   └── mtcorr_gdc_dc_calib1_restore.nii.gz
 │       ├── aslfs_mask.nii.gz
 │       └── calib1.nii.gz
-├── perfusion_estimation # Basic perfusion estimates for BBR registration 
+├── OxfordASL # Basic perfusion estimates for BBR registration 
 │   ├── logfile
 │   ├── native_space
 │   │   ├── aCBV.nii.gz
@@ -119,25 +142,25 @@ ASL # Native acquisition space processing
 │       ├── beta_perf.nii.gz
 │       └── brain_fov_mask.nii.gz
 ├── TIs # Intermediate ASL timeseries processing 
-│   ├── bias_correction
-│   │   ├── tis_restore.nii.gz
+│   ├── BiasCorr
+│   │   ├── tis_biascorr.nii.gz
 │   │   └── tis_dc_restore.nii.gz
-│   ├── distortion_correction
+│   ├── DistCorr
 │   │   └── FirstPass
 │   │       ├── dc_tis.nii.gz
 │   │       ├── temp_reg_dc_tis.nii.gz
 │   │       └── tis_gdc.nii.gz
-│   ├── empirical_banding_correction
-│   │   ├── tis_dc_restore_eb.nii.gz
-│   │   ├── tis_eb.nii.gz
-│   │   ├── tis_eb_even.nii.gz
-│   │   └── tis_eb_odd.nii.gz
+│   ├── MTCorr
+│   │   ├── tis_dc_restore_mtcorr.nii.gz
+│   │   ├── tis_mtcorr.nii.gz
+│   │   ├── tis_mtcorr_even.nii.gz
+│   │   └── tis_mtcorr_odd.nii.gz
 │   ├── MoCo
 │   │   ├── asln2m0.mat
 │   │   │   ├── MAT_0000
 │   │   │   ├── [ .... ]
 │   │   │   └── MAT_0085
-│   │   ├── asln2calibration_final.mat
+│   │   ├── asln2m0_final.mat
 │   │   │   ├── MAT_0000
 │   │   │   ├── [ .... ]
 │   │   │   └── MAT_0085
@@ -145,21 +168,21 @@ ASL # Native acquisition space processing
 │   │   ├── final_registration_TIs.nii.gz.par
 │   │   ├── fov_mask.nii.gz # Final motion-FoV mask 
 │   │   ├── fov_mask_initial.nii.gz
-│   │   ├── temp_reg_dc_tis_eb_odd.nii.gz
+│   │   ├── temp_reg_dc_tis_mtcorr_odd.nii.gz
 │   │   └── tis_dc_moco.nii.gz
 │   ├── MotionSubtraction
 │   │   ├── beta_baseline.nii.gz
 │   │   ├── beta_perf.nii.gz
 │   │   ├── combined_mask.nii.gz
 │   │   └── difference_mask.nii.gz
-│   ├── slicetime_correction
+│   ├── STCorr
 │   │   ├── st_scaling_factors.nii.gz
 │   │   └── tis_stcorr.nii.gz
-│   ├── slicetime_correction2
+│   ├── STCorr2
 │   │   ├── combined_scaling_factors_asln.nii.gz
 │   │   ├── st_scaling_factors.nii.gz
-│   │   └── tis_dc_restore_eb_stcorr.nii.gz
-│   ├── saturation_recovery
+│   │   └── tis_dc_restore_mtcorr_stcorr.nii.gz
+│   ├── SatRecov
 │   │   ├── nospatial
 │   │   │   ├── finalMVN.nii.gz
 │   │   │   ├── logfile
@@ -172,7 +195,7 @@ ASL # Native acquisition space processing
 │   │       ├── mean_M0t.nii.gz
 │   │       ├── mean_T1t.nii.gz
 │   │       └── mean_T1t_filt.nii.gz
-│   ├── saturation_recovery2
+│   ├── SatRecov2
 │   │   ├── nospatial
 │   │   │   ├── finalMVN.nii.gz
 │   │   │   ├── logfile
@@ -214,7 +237,7 @@ MNINonLinear # MNI space results
 │   │       ├── arrival_Atlas.dscalar.nii
 │   │       ├── [ .... ]
 │   │       └── perfusion_var_calib_MNI.nii.gz
-│   ├── perfusion_estimation # Oxford ASL outputs (in MNI)
+│   ├── OxfordASL # Oxford ASL outputs (in MNI)
 │   │   └── std_space
 │   │       ├── arrival.nii.gz
 │   │       ├── arrival_var.nii.gz
@@ -265,19 +288,19 @@ T1w # T1w aligned space
     │       └── perfusion_var_calib_s2.atlasroi.R.32k_fs_LR.func.gii
     ├── Calib
     │   └── Calib0
-    │       ├── distortion_correction
+    │       ├── DistCorr
     │       │   ├── calib0_dc.nii.gz
     │       │   └── calib_mt_scaling_factors.nii.gz
     │       ├── SEbased
     │       │   ├── AllGreyMatter.nii.gz
     │       │   ├── [ .... ]
     │       │   └── sebased_bias_dilall.nii.gz
-    │       ├── calib0_corrected.nii.gz
+    │       ├── calib0_corr.nii.gz
     │       ├── calib0_noncorr.nii.gz
     │       ├── calib_aslt1w_stcorr_factors.nii.gz
     │       └── calib_aslt1w_timing.nii.gz
     ├── HCD0378150_V1_MR_hcp_asl.log # HCP-ASL pipeline logfile 
-    ├── perfusion_estimation
+    ├── OxfordASL
     │   ├── calib
     │   │   ├── M0.txt
     │   │   ├── logfile
@@ -295,7 +318,7 @@ T1w # T1w aligned space
     │   └── oxford_asl_inputs
     │       ├── beta_perf.nii.gz
     │       ├── brain_fov_mask.nii.gz
-    │       ├── calib0_corrected.nii.gz
+    │       ├── calib0_corr.nii.gz
     │       ├── pve_GM.nii.gz
     │       ├── pve_WM.nii.gz
     │       ├── timing_img_aslt1w.nii.gz
@@ -305,14 +328,14 @@ T1w # T1w aligned space
     │   ├── pve_WM.nii.gz
     │   └── vent_csf_mask.nii.gz
     ├── TIs
-    │   ├── distortion_correction
+    │   ├── DistCorr
     │   │   └── tis_dc_moco.nii.gz
     │   ├── MotionSubtraction
     │   │   ├── beta_baseline.nii.gz
     │   │   ├── beta_perf.nii.gz
     │   │   ├── combined_mask.nii.gz
     │   │   └── difference_mask.nii.gz
-    │   ├── asl_corrected.nii.gz
+    │   ├── asl_corr.nii.gz
     │   ├── asl_noncorr.nii.gz
     │   ├── combined_scaling_factors.nii.gz
     │   ├── reg
@@ -329,9 +352,9 @@ T1w # T1w aligned space
     ├── arrival_gm_mean.txt # ROI calculation 
     ├── arrival_var.nii.gz
     ├── arrival_wm_mean.txt # ROI calculation 
-    ├── asl_corrected.nii.gz # Fully corrected ASL timeseries 
+    ├── asl_corr.nii.gz # Fully corrected ASL timeseries 
     ├── asl_corr_subtracted.nii.gz # Fully corrected and subtracted ASL timeseries 
-    ├── calib_corrected.nii.gz # Fully corrected calibration image 
+    ├── calib_corr.nii.gz # Fully corrected calibration image 
     ├── perfusion_calib.nii.gz
     ├── perfusion_calib_gm_mean.txt
     ├── perfusion_calib_wm_mean.txt
