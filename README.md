@@ -44,6 +44,29 @@ The filepaths passed to the script may be relative or absolute. A more detailed 
 process_hcp_asl --help
 ```
 
+## Custom perfusion quantification 
+
+To generate fully-corrected ASL data to use with other quantification tools besides `oxford_asl`, the pipeline can be run up to stage 8 as follows: 
+
+```
+process_hcp_asl \
+--subid ${SubjectID} \
+--subdir /path/to/study/dir/${SubjectID} \
+--grads /path/to/coeff_AS82_Prisma.grad \
+--mbpcasl /path/to/mbPCASLhr_PA.nii.gz \
+--fmap_ap /path/to/PCASLhr_SpinEchoFieldMap_AP.nii.gz \
+--fmap_pa /path/to/PCASLhr_SpinEchoFieldMap_PA.nii.gz \
+--stages 0 1 2 3 4 5 6 7 8 
+```
+
+The following outputs will be produced in `/path/to/study/dir/${SubjectID}/T1w/ASL`: 
+- `asl_corr.nii.gz` fully corrected ASL timeseries 
+- `asl_corr_subtracted.nii.gz` motion-and-banding-aware subtracted ASL timeseries
+- `TIs/timing_img_aslt1w.nii.gz` effective TI (including slice-time) for ASL timeseries 
+- `calib_corr.nii.gz` fully corrected calibration image 
+- `Calib/Calib0/calib_aslt1w_timing.nii.gz` effective TI (including slice-time) for calibration image 
+- `PVEs/` partial volume estimates for ASL timeseries 
+
 ## Pipeline stages
 
 The pipeline can be run in stages via the `--stages a b c` argument. The stages are numbered 0 to 13 inclusive and perform the following operations. Note, each stage assumes the previous stages have run successfully, and will raise various errors if the outputs of those stages cannot be found. 

@@ -3,10 +3,9 @@ numpy>=1.25  # Required for gradunwarp
 fslpy>=3.1.0
 nibabel
 pyfab
-regtricks
-toblerone @ git+ssh://git@bitbucket.org/quantified-imaging/toblerone
+toblerone @ git+https://github.com/tomfrankkirk/toblerone
 gradunwarp
 requests
-regtricks @ git+ssh://git@bitbucket.org/quantified-imaging/regtricks
+regtricks @ git+https://github.com/tomfrankkirk/regtricks
 scikit-learn
 pandas 
