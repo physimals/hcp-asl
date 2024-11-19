@@ -606,6 +606,8 @@ def initial_corrections_asl(
     sdc_asln2asl0 = rt.chain(asln2asl0, asl02fmap, sdc_warp, asl02fmap.inverse())
     if gd_corr:
         dc_asln2asl0 = rt.chain(gdc_warp, sdc_asln2asl0)
+    else:
+        dc_asln2asl0 = sdc_asln2asl0
 
     asl_mc_sdc = asl_name.correct_from_image(
         sdc_dir,

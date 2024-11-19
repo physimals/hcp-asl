@@ -707,25 +707,29 @@ def main():
 
     # process subject
     logging.info(f"Processing subject {subject_dir}.")
-    process_subject(
-        subid=subid,
-        subject_dir=subject_dir,
-        eb_factors=mtname,
-        cores=args.cores,
-        interpolation=args.interpolation,
-        gradients=grads,
-        mbpcasl=mbpcasl,
-        territories_atlas=args.territories_atlas,
-        territories_labels=args.territories_labels,
-        structural=structural,
-        fmaps=fmaps,
-        use_t1=args.use_t1,
-        wmparc=args.wmparc,
-        ribbon=args.ribbon,
-        nobandingcorr=args.nobandingcorr,
-        outdir=args.outdir,
-        stages=args.stages,
-    )
+    try:
+        process_subject(
+            subid=subid,
+            subject_dir=subject_dir,
+            eb_factors=mtname,
+            cores=args.cores,
+            interpolation=args.interpolation,
+            gradients=grads,
+            mbpcasl=mbpcasl,
+            territories_atlas=args.territories_atlas,
+            territories_labels=args.territories_labels,
+            structural=structural,
+            fmaps=fmaps,
+            use_t1=args.use_t1,
+            wmparc=args.wmparc,
+            ribbon=args.ribbon,
+            nobandingcorr=args.nobandingcorr,
+            outdir=args.outdir,
+            stages=args.stages,
+        )
+    except Exception as e:
+        logging.error(f"Error processing subject {subject_dir}:\n {e}")
+        raise e
 
 
 if __name__ == "__main__":
