@@ -11,7 +11,6 @@ import nibabel as nib
 import numpy as np
 import regtricks as rt
 import scipy
-from toblerone.scripts import pvs_cortex_freesurfer
 
 # Map from FS aparc+aseg labels to tissue types
 # NB cortex is ignored
@@ -30,6 +29,7 @@ FS_LUT = {
     28: "WM",  # Left ventral DC
     30: "WM",  # Left vessel
     31: "GM",  # Left choroid plexus
+    **{idx: "GM" for idx in range(1000, 1036)},  # Right cortex
     # Right hemisphere
     41: "WM",  # Cerebral WM
     46: "WM",  # Cerebellum
@@ -44,6 +44,7 @@ FS_LUT = {
     60: "WM",  # Right ventral DC
     62: "WM",  # Right vessel
     63: "GM",  # Right choroid plexus
+    **{idx: "GM" for idx in range(2000, 2036)},  # Right cortex
     # Shared both sides
     16: "WM",  # Brainstem
     85: "WM",  # Optic chiasm
@@ -70,26 +71,6 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
         nibabel Nifti object
     """
 
-    # Load the t1 image, aparc+aseg and surfaces from their expected
-    # names and locations within t1w_dir
-    surf_dict = {
-        "LWS": op.join(t1_dir, "fsaverage_LR32k", "*L.white.32k_fs_LR.surf.gii"),
-        "LPS": op.join(t1_dir, "fsaverage_LR32k", "*L.pial.32k_fs_LR.surf.gii"),
-        "LSS": op.join(
-            t1_dir, "../MNINonLinear/fsaverage_LR32k", "*L.sphere.32k_fs_LR.surf.gii"
-        ),
-        "RPS": op.join(t1_dir, "fsaverage_LR32k", "*R.pial.32k_fs_LR.surf.gii"),
-        "RWS": op.join(t1_dir, "fsaverage_LR32k", "*R.white.32k_fs_LR.surf.gii"),
-        "RSS": op.join(
-            t1_dir, "../MNINonLinear/fsaverage_LR32k", "*R.sphere.32k_fs_LR.surf.gii"
-        ),
-    }
-    for k in surf_dict.keys():
-        try:
-            surf_dict[k] = glob.glob(surf_dict[k])[0]
-        except:
-            raise RuntimeError(f"Could not find {k} at {surf_dict[k]}")
-
     ref_spc = rt.ImageSpace(ref_spc)
     aseg_spc = nib.load(op.join(t1_dir, "aparc+aseg.nii.gz"))
     aseg = aseg_spc.get_fdata().astype(np.int32)
@@ -104,48 +85,24 @@ def pvs_from_freesurfer(t1_dir, ref_spc, ref2struct=None, cores=1):
         struct2ref_reg = rt.Registration.identity()
 
     # Extract PVs from aparcseg segmentation, ignoring cortex.
-    non_cortex_pvs = np.zeros((*aseg_spc.size, 2), dtype=np.float32)
+    aseg_pvs = np.zeros((*aseg_spc.size, 2), dtype=np.float32)
     for k, t in FS_LUT.items():
         m = aseg == k
         idx = ["GM", "WM"].index(t)
-        non_cortex_pvs[m, idx] = 1
+        aseg_pvs[m, idx] = 1
 
     # Super-resolution resampling for the vol_pvs, a la applywarp.
     # 0: GM, 1: WM, always in the LAST dimension of an array
-    non_cortex_pvs = struct2ref_reg.apply_to_array(
-        non_cortex_pvs, aseg_spc, ref_spc, order=1, cores=cores
+    pvs = struct2ref_reg.apply_to_array(
+        aseg_pvs, aseg_spc, ref_spc, order=1, cores=cores
     )
-
-    # Estimate cortical PVs
-    cortex = pvs_cortex_freesurfer(
-        ref=ref_spc,
-        struct2ref=struct2ref_reg.src2ref,
-        cores=cores,
-        resample=False,
-        **surf_dict,
-    )
-
-    out = non_cortex_pvs[..., :2].copy()
-
-    # Voxels where toblerone has identified the cortex
-    ctx = cortex[..., 0] > 0.01
-
-    # total brain PV in these voxels (GM or WM)
-    ctx_brain_pv = np.maximum(cortex[ctx, :2].sum(-1), non_cortex_pvs[ctx, :2].sum(-1))
-
-    # Layer in cortical GM (sum on top of existing GM)
-    out[ctx, 0] = np.minimum(cortex[ctx, 0] + out[ctx, 0], 1)
-
-    # In those voxels, the total brain PV be as predicted by Toblerone,
-    # so update the WM value based on this
-    out[ctx, 1] = np.maximum(ctx_brain_pv - out[ctx, 0], 0)
 
     # Sanity checks
-    assert (out >= 0).all(), "Negative PV"
-    assert (out <= 1).all(), "PV > 1"
-    assert out.sum(-1).max() <= 1.001, "PV sum > 1"
+    assert (pvs >= 0).all(), "Negative PV"
+    assert (pvs <= 1).all(), "PV > 1"
+    assert pvs.sum(-1).max() <= 1.001, "PV sum > 1"
 
-    return ref_spc.make_nifti(out)
+    return ref_spc.make_nifti(pvs)
 
 
 def generate_ventricle_mask(aparc_aseg, t1_asl):
@@ -219,8 +176,7 @@ def run_pv_estimation(subject_dir, cores, outdir, interpolation):
 def main():
     desc = """
     Generate PV estimates for a reference voxel grid. FS' volumetric 
-    segmentation is used for the subcortex and a surface-based method
-    is used for the cortex (toblerone). 
+    segmentation is used . 
     """
 
     parser = argparse.ArgumentParser(description=desc)

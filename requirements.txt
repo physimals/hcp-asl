@@ -3,7 +3,6 @@ numpy>=1.25  # Required for gradunwarp
 fslpy>=3.1.0
 nibabel
 pyfab
-toblerone @ git+https://github.com/tomfrankkirk/toblerone
 gradunwarp
 requests
 regtricks @ git+https://github.com/tomfrankkirk/regtricks
