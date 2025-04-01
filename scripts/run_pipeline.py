@@ -412,7 +412,7 @@ def surface_projection_stage(
     FinalASLRes="2.5",
     SmoothingFWHM="2",
     GreyOrdsRes="2",
-    RegName="MSMAll",
+    RegName="", #If using MSMAll, put MSMAll here
 ):
     """
     Project perfusion results to the cortical surface and generate
