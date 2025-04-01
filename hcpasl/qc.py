@@ -8,8 +8,8 @@ import regtricks as rt
 
 from hcpasl.utils import get_package_data_name, get_roi_stats_script, sp_run
 
-
-def create_qc_report(subject_id, subject_dir, outdir, regname="MSMAll"):
+#Set regname to "MSMAll" if used
+def create_qc_report(subject_id, subject_dir, outdir, regname="None"):
     if not outdir:
         outdir = subject_dir
     else:
