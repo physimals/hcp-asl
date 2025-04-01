@@ -23,7 +23,7 @@ fi
 for Hemisphere in L R ; do
 
   ${CARET7DIR}/wb_command -metric-smoothing \
-  "$T1DownSampleFolder"/"$Subject"."$Hemisphere".midthickness_${RegName}."$LowResMesh"k_fs_LR.surf.gii \
+  "$T1DownSampleFolder"/"$Subject"."$Hemisphere".midthickness${RegName}."$LowResMesh"k_fs_LR.surf.gii \
   "$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
   "$Sigma" \
   "$ASLVariable""$RegString"_s"$SmoothingFWHM".atlasroi."$Hemisphere"."$LowResMesh"k_fs_LR.func.gii \
