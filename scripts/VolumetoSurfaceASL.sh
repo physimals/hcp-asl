@@ -10,7 +10,7 @@ T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL" #
 T1wNativeFolder="$6" #"$StudyFolder/$SubjectID/T1w/Native"
 AtlasSpaceNativeFolder="$7" #"$StudyFolder/$SubjectID/MNINonLinear/Native" 
 LowResMesh="$8" #32
-RegName="$9" #"MSMAll" 
+RegName="$9" #This would be MSMAll if set previously
 T1DownsampleFolder="${10}" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" 
 AtlasDownSampleFolder="${11}" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
 CARET7DIR="${12}"
@@ -66,7 +66,7 @@ for Hemisphere in L R ; do
   # Resample the surface to the 32k atlas space.
   ${CARET7DIR}/wb_command -metric-resample \
                             "$T1WorkingDirectory"/"$ASLVariable"."$Hemisphere".native.func.gii \
-                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".sphere.${RegName}.native.surf.gii \
+                            "$AtlasSpaceNativeFolder"/"$Subject"."$Hemisphere".sphere.${RegName}native.surf.gii \
                             "$AtlasDownSampleFolder"/"$Subject"."$Hemisphere".sphere."$LowResMesh"k_fs_LR.surf.gii \
                             ADAP_BARY_AREA \
                             "$T1WorkingDirectory"/"$ASLVariable""$RegString"."$Hemisphere".atlasroi."$LowResMesh"k_fs_LR.func.gii \
@@ -90,4 +90,3 @@ for Hemisphere in L R ; do
 done
 
 echo " END: RibbonVolumeToSurfaceMapping"
-
