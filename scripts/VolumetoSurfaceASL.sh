@@ -10,18 +10,18 @@ T1WorkingDirectory="$5" #"$StudyFolder/$SubjectID/T1w/ASL" #
 T1wNativeFolder="$6" #"$StudyFolder/$SubjectID/T1w/Native"
 AtlasSpaceNativeFolder="$7" #"$StudyFolder/$SubjectID/MNINonLinear/Native" 
 LowResMesh="$8" #32
-RegName="$9" #"MSMAll" 
+RegName="$9" #"MSMAll" or "MSMSulc"
 T1DownsampleFolder="${10}" #"$StudyFolder/$SubjectID/T1w/fsaverage_LR32k" 
 AtlasDownSampleFolder="${11}" #"$StudyFolder/$SubjectID/MNINonLinear/fsaverage_LR32k"
 CARET7DIR="${12}"
 
 # Add leading underscore to regname for use in paths 
 RegString=""
-if [[ "$RegName" != "" ]]
+if [[ "$RegName" != "MSMSulc" ]]
 then
     RegString="_$RegName"
 fi
-             
+           
 
 # Reciprocal of the ASLVariable variance is the precision
 # This is required for precision-weighting of the volume to

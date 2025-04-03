@@ -9,7 +9,7 @@ import regtricks as rt
 from hcpasl.utils import get_package_data_name, get_roi_stats_script, sp_run
 
 
-def create_qc_report(subject_id, subject_dir, outdir, regname="MSMAll"):
+def create_qc_report(subject_id, subject_dir, outdir, reg_name):
     if not outdir:
         outdir = subject_dir
     else:
@@ -29,8 +29,18 @@ def create_qc_report(subject_id, subject_dir, outdir, regname="MSMAll"):
     with open(template_name, "r") as f:
         scene_template = Template(f.read())
 
+    # Only MSMAll needs to be inserted into filenames
+    if reg_name == "MSMAll":
+        reg_string = f"_{reg_name}"
+    else:
+        reg_string = ""
+
     # Write in subject variables
-    data = {"SUBID": subject_id, "REL_PATH_TO_OUT_T1wASL": rel_path_outdir}
+    data = {
+        "SUBID": subject_id,
+        "REL_PATH_TO_OUT_T1wASL": rel_path_outdir,
+        "REGSTRING": reg_string,
+    }
     with open(scene_initial, "w") as f:
         scene_file = scene_template.substitute(data)
         f.write(scene_file)

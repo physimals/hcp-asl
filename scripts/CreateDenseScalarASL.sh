@@ -17,7 +17,7 @@ CARET7DIR="${12}" #"/Applications/workbench/bin_macosx64"
 
 # Add leading underscore to regname for use in paths 
 RegString=""
-if [[ "$RegName" != "" ]]
+if [[ "$RegName" != "MSMSulc" ]]
 then
     RegString="_${RegName}"
 fi

@@ -10,7 +10,7 @@ LowResMesh="$5" # 32
 FinalASLResolution="$6" #2.5
 SmoothingFWHM="$7" # "2"
 GrayordinatesResolution="$8" # "2"
-RegName="$9" # "MSMAll" 
+RegName="$9" # "MSMAll" or "MSMSulc"
 CARET7DIR="${10}" #"workbench/bin_macosx64 directory" 
 pvcorr="${11}"
 Outdir="${12}"
@@ -22,8 +22,9 @@ NativeFolder="Native"
 ResultsFolder="CIFTIPrepare"
 DownSampleFolder="fsaverage_LR${LowResMesh}k"
 ROIFolder="ROIs"
+
 RegString=""
-if [[ "$RegName" != "" ]]
+if [[ "$RegName" != "MSMSulc" ]]
 then
     RegString="_$RegName"
 fi
