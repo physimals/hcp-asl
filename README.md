@@ -60,12 +60,12 @@ process_hcp_asl \
 ```
 
 The following outputs will be produced in `/path/to/study/dir/${SubjectID}/T1w/ASL`: 
-- `asl_corr.nii.gz` fully corrected ASL timeseries 
-- `asl_corr_subtracted.nii.gz` motion-and-banding-aware subtracted ASL timeseries
-- `TIs/timing_img_aslt1w.nii.gz` effective TI (including slice-time) for ASL timeseries 
-- `calib_corr.nii.gz` fully corrected calibration image 
-- `Calib/Calib0/calib_aslt1w_timing.nii.gz` effective TI (including slice-time) for calibration image 
-- `PVEs/` partial volume estimates for ASL timeseries 
+- `label_control_corrected.nii.gz` fully corrected ASL timeseries 
+- `label_control_corrected_subtracted.nii.gz` motion-and-banding-aware subtracted ASL timeseries
+- `label_control/timing_img.nii.gz` effective TI (including slice-time) for ASL timeseries 
+- `calib_corrected.nii.gz` fully corrected calibration image 
+- `calibration/calib0/calib_timing.nii.gz` effective TI (including slice-time) for calibration image 
+- `pvs/` partial volume estimates for ASL timeseries 
 
 ## Pipeline stages
 
@@ -93,10 +93,10 @@ Below is a directory tree within a subject's `{SUBJID}_V1_MR` folder showing the
 ```python
 SUBJECTID_V1_MR
 ASL # Native acquisition space processing 
-├── Calib # Intermediate calibration image processing 
-│   ├── Calib0
+├── calibration # Intermediate calibration image processing 
+│   ├── calib0
 │   │   ├── bias_correction
-│   │   │   ├── SEbased
+│   │   │   ├── sebased
 │   │   │   │   ├── AllGreyMatter.nii.gz
 │   │   │   │   ├── [ .... ]
 │   │   │   │   └── sebased_bias_dil.nii.gz
@@ -112,9 +112,9 @@ ASL # Native acquisition space processing
 │   │   ├── aslfs_mask.nii.gz
 │   │   ├── calib0.nii.gz
 │   │   └── calib_timing.nii.gz
-│   └── Calib1
+│   └── calib1
 │       ├── bias_correction
-│       │   ├── SEbased
+│       │   ├── sebased
 │       │   │   ├── AllGreyMatter.nii.gz
 │       │   │   ├── [ .... ]
 │       │   │   └── sebased_bias_dil.nii.gz
@@ -141,12 +141,12 @@ ASL # Native acquisition space processing
 │   └── oxford_asl_inputs
 │       ├── beta_perf.nii.gz
 │       └── brain_fov_mask.nii.gz
-├── TIs # Intermediate ASL timeseries processing 
+├── label_control # Intermediate ASL timeseries processing 
 │   ├── bias_correction
 │   │   ├── tis_restore.nii.gz
 │   │   └── tis_dc_restore.nii.gz
-│   ├── distortion_correction
-│   │   └── FirstPass
+│   ├── susceptibility_distortion_correction
+│   │   └── first
 │   │       ├── dc_tis.nii.gz
 │   │       ├── temp_reg_dc_tis.nii.gz
 │   │       └── tis_gdc.nii.gz
@@ -155,7 +155,7 @@ ASL # Native acquisition space processing
 │   │   ├── tis_eb.nii.gz
 │   │   ├── tis_eb_even.nii.gz
 │   │   └── tis_eb_odd.nii.gz
-│   ├── MoCo
+│   ├── motion_correction
 │   │   ├── asln2m0.mat
 │   │   │   ├── MAT_0000
 │   │   │   ├── [ .... ]
@@ -170,45 +170,47 @@ ASL # Native acquisition space processing
 │   │   ├── fov_mask_initial.nii.gz
 │   │   ├── temp_reg_dc_tis_eb_odd.nii.gz
 │   │   └── tis_dc_moco.nii.gz
-│   ├── MotionSubtraction
+│   ├── motion_subtraction
 │   │   ├── beta_baseline.nii.gz
 │   │   ├── beta_perf.nii.gz
 │   │   ├── combined_mask.nii.gz
 │   │   └── difference_mask.nii.gz
 │   ├── slicetime_correction
-│   │   ├── st_scaling_factors.nii.gz
-│   │   └── tis_stcorr.nii.gz
-│   ├── slicetime_correction2
-│   │   ├── combined_scaling_factors_asln.nii.gz
-│   │   ├── st_scaling_factors.nii.gz
-│   │   └── tis_dc_restore_eb_stcorr.nii.gz
+│   │   ├── first 
+│   │   │   ├── st_scaling_factors.nii.gz
+│   │   │   └── tis_stcorr.nii.gz
+│   │   ├── second 
+│   │   │   ├── combined_scaling_factors_asln.nii.gz
+│   │   │   ├── st_scaling_factors.nii.gz
+│   │   │   └── tis_stcorr.nii.gz
 │   ├── saturation_recovery
-│   │   ├── nospatial
-│   │   │   ├── finalMVN.nii.gz
-│   │   │   ├── logfile
-│   │   │   ├── mean_A.nii.gz
-│   │   │   ├── mean_M0t.nii.gz
-│   │   │   └── mean_T1t.nii.gz
-│   │   └── spatial
-│   │       ├── logfile
-│   │       ├── mean_A.nii.gz
-│   │       ├── mean_M0t.nii.gz
-│   │       ├── mean_T1t.nii.gz
-│   │       └── mean_T1t_filt.nii.gz
-│   ├── saturation_recovery2
-│   │   ├── nospatial
-│   │   │   ├── finalMVN.nii.gz
-│   │   │   ├── logfile
-│   │   │   ├── mean_A.nii.gz
-│   │   │   ├── mean_M0t.nii.gz
-│   │   │   └── mean_T1t.nii.gz
-│   │   └── spatial
-│   │       ├── logfile
-│   │       ├── mean_A.nii.gz
-│   │       ├── mean_M0t.nii.gz
-│   │       ├── mean_T1t.nii.gz
-│   │       ├── mean_T1t_filt.nii.gz
-│   │       └── mean_T1t_filt_asln.nii.gz
+│   │   ├── first
+│   │   │   ├── nospatial
+│   │   │   │   ├── finalMVN.nii.gz
+│   │   │   │   ├── logfile
+│   │   │   │   ├── mean_A.nii.gz
+│   │   │   │   ├── mean_M0t.nii.gz
+│   │   │   │   └── mean_T1t.nii.gz
+│   │   │   └── spatial
+│   │   │       ├── logfile
+│   │   │       ├── mean_A.nii.gz
+│   │   │       ├── mean_M0t.nii.gz
+│   │   │       ├── mean_T1t.nii.gz
+│   │   │       └── mean_T1t_filt.nii.gz
+│   │   └── second
+│   │       ├── nospatial
+│   │       │   ├── finalMVN.nii.gz
+│   │       │   ├── logfile
+│   │       │   ├── mean_A.nii.gz
+│   │       │   ├── mean_M0t.nii.gz
+│   │       │   └── mean_T1t.nii.gz
+│   │       └── spatial
+│   │           ├── logfile
+│   │           ├── mean_A.nii.gz
+│   │           ├── mean_M0t.nii.gz
+│   │           ├── mean_T1t.nii.gz
+│   │           ├── mean_T1t_filt.nii.gz
+│   │           └── mean_T1t_filt_asln.nii.gz
 │   ├── brain_fov_mask.nii.gz # Combined brain and motion-FoV mask 
 │   ├── brain_fov_mask_initial.nii.gz
 │   ├── brain_mask.nii.gz
@@ -277,7 +279,6 @@ T1w # T1w aligned space
     │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_5.png
     │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_6.png
     │   ├── HCD0378150_V1_MR_hcp_asl_qc_scene_7.png
-    │   └── HCD0378150_V1_MR_hcp_asl_report.ipynb
     ├── CIFTIPrepare
     │   ├── arrival.L.badvert_ribbonroi.native.func.gii
     │   ├── [ .... ]
@@ -286,17 +287,14 @@ T1w # T1w aligned space
     │       ├── arrival.L.badvert_ribbonroi.native.func.gii
     │       ├── [ .... ]
     │       └── perfusion_var_calib_s2.atlasroi.R.32k_fs_LR.func.gii
-    ├── Calib
-    │   └── Calib0
-    │       ├── distortion_correction
-    │       │   ├── calib0_dc.nii.gz
-    │       │   └── calib_mt_scaling_factors.nii.gz
-    │       ├── SEbased
+    ├── calibration
+    │   └── calib0
+    │       ├── sebased
     │       │   ├── AllGreyMatter.nii.gz
     │       │   ├── [ .... ]
     │       │   └── sebased_bias_dilall.nii.gz
     │       ├── calib0_corrected.nii.gz
-    │       ├── calib0_noncorr.nii.gz
+    │       ├── calib0_uncorrected.nii.gz
     │       ├── calib_aslt1w_stcorr_factors.nii.gz
     │       └── calib_aslt1w_timing.nii.gz
     ├── HCD0378150_V1_MR_hcp_asl.log # HCP-ASL pipeline logfile 
@@ -327,16 +325,16 @@ T1w # T1w aligned space
     │   ├── pve_GM.nii.gz
     │   ├── pve_WM.nii.gz
     │   └── vent_csf_mask.nii.gz
-    ├── TIs
+    ├── label_control
     │   ├── distortion_correction
     │   │   └── tis_dc_moco.nii.gz
-    │   ├── MotionSubtraction
+    │   ├── motion_subtraction
     │   │   ├── beta_baseline.nii.gz
     │   │   ├── beta_perf.nii.gz
     │   │   ├── combined_mask.nii.gz
     │   │   └── difference_mask.nii.gz
-    │   ├── asl_corrected.nii.gz
-    │   ├── asl_noncorr.nii.gz
+    │   ├── label_control_corrected.nii.gz
+    │   ├── asl_uncorrected.nii.gz
     │   ├── combined_scaling_factors.nii.gz
     │   ├── reg
     │   │   ├── ASL_grid_T1w_brain_mask.nii.gz
@@ -352,8 +350,8 @@ T1w # T1w aligned space
     ├── arrival_gm_mean.txt # ROI calculation 
     ├── arrival_var.nii.gz
     ├── arrival_wm_mean.txt # ROI calculation 
-    ├── asl_corrected.nii.gz # Fully corrected ASL timeseries 
-    ├── asl_corr_subtracted.nii.gz # Fully corrected and subtracted ASL timeseries 
+    ├── label_control_corrected.nii.gz # Fully corrected ASL timeseries 
+    ├── label_control_corrected_subtracted.nii.gz # Fully corrected and subtracted ASL timeseries 
     ├── calib_corrected.nii.gz # Fully corrected calibration image 
     ├── perfusion_calib.nii.gz
     ├── perfusion_calib_gm_mean.txt
