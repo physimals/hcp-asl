@@ -89,7 +89,7 @@ def process_subject(
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in
         SE-based bias correction.
     reg_name : str
-        Sphere to use for surface projection, eg MSMAll or MSMSulc.
+        Sphere to use for surface projection, e.g., MSMAll or MSMSulc.
     territories_atlas : pathlib.Path
         Path to vascular territories atlas.
     territories_labels: pathlib.Path
