@@ -29,11 +29,11 @@ def create_qc_report(subject_id, subject_dir, outdir, reg_name):
     with open(template_name, "r") as f:
         scene_template = Template(f.read())
 
-    # Only MSMAll needs to be inserted into filenames
-    if reg_name == "MSMAll":
-        reg_string = f"_{reg_name}"
-    else:
+    # MSMSulc is special case, all others get leading underscore
+    if reg_name == "MSMSulc":
         reg_string = ""
+    else:
+        reg_string = f"_{reg_name}"
 
     # Write in subject variables
     data = {

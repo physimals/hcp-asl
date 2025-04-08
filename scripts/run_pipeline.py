@@ -89,7 +89,7 @@ def process_subject(
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in
         SE-based bias correction.
     reg_name : str
-        Sphere to use for surface projection, MSMAll or MSMSulc
+        Sphere to use for surface projection, eg MSMAll or MSMSulc.
     territories_atlas : pathlib.Path
         Path to vascular territories atlas.
     territories_labels: pathlib.Path
@@ -448,9 +448,6 @@ def surface_projection_stage(
         "arrival_var",
     ]
 
-    if reg_name not in ["MSMAll", "MSMSulc"]:
-        raise RuntimeError("RegName must be one of MSMSulc or MSMAll")
-
     for idx in range(4):
         non_pvcorr_cmd = [
             script,
@@ -579,8 +576,7 @@ def main():
     )
     optional.add_argument(
         "--regname",
-        help="Sphere to use for surface projection stages, default is MSMAll (requires fMRI pre-processing)",
-        choices=["MSMAll", "MSMSulc"],
+        help="Sphere to use for surface projection stages, default is MSMAll (requires fMRI pre-processing), located at ${StudyFolder}/${Subject}/MNINonLinear/Native/${Subject}.${Hemisphere}.sphere.MSMSulc.native.surf.gii",
         default="MSMAll",
         dest="reg_name",
     )
