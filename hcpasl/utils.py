@@ -39,7 +39,10 @@ class ImagePath:
 
     def correct_from_image(self, dir, suffix, newimg):
         dir.mkdir(exist_ok=True, parents=True)
-        stem = f"{self.stem}_{suffix}"
+        if suffix:
+            stem = f"{self.stem}_{suffix}"
+        else:
+            stem = self.stem
         path = dir / f"{stem}.nii.gz"
         data = newimg.get_fdata()
         if data.dtype.kind == "f":
