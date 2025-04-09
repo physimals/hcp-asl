@@ -407,6 +407,7 @@ def process_subject(
         create_qc_report(
             subject_id=subid, subject_dir=subject_dir, outdir=outdir, reg_name=reg_name
         )
+    logging.info("Pipeline complete.")
 
 
 def surface_projection_stage(
