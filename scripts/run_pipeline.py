@@ -1,9 +1,9 @@
 """
-This script performs the full minimal pre-processing ASL pipeline 
+This script performs the full minimal pre-processing ASL pipeline
 for the Human Connectome Project (HCP) ASL data.
 
-This currently requires that the script is called followed by 
-the directories of the subjects of interest and finally the 
+This currently requires that the script is called followed by
+the directories of the subjects of interest and finally the
 name of the empirical banding correction scaling factors image.
 """
 
@@ -49,6 +49,7 @@ def process_subject(
     gradients,
     wmparc,
     ribbon,
+    reg_name,
     territories_atlas,
     territories_labels,
     use_t1=False,
@@ -87,6 +88,8 @@ def process_subject(
     ribbon : str
         pathlib.Path to ribbon.nii.gz from FreeSurfer for use in
         SE-based bias correction.
+    reg_name : str
+        Sphere to use for surface projection, e.g., MSMAll or MSMSulc.
     territories_atlas : pathlib.Path
         Path to vascular territories atlas.
     territories_labels: pathlib.Path
@@ -390,7 +393,7 @@ def process_subject(
     if 11 in stages:
         logging.info("Stage 11: Volume to surface projection.")
         surface_projection_stage(
-            subject_dir=subject_dir, subject_id=subid, outdir=outdir
+            subject_dir=subject_dir, subject_id=subid, outdir=outdir, reg_name=reg_name
         )
 
     if 12 in stages:
@@ -401,7 +404,10 @@ def process_subject(
 
     if 13 in stages:
         logging.info("Stage 13: Create QC workbench scene.")
-        create_qc_report(subject_id=subid, subject_dir=subject_dir, outdir=outdir)
+        create_qc_report(
+            subject_id=subid, subject_dir=subject_dir, outdir=outdir, reg_name=reg_name
+        )
+    logging.info("Pipeline complete.")
 
 
 def surface_projection_stage(
@@ -412,7 +418,7 @@ def surface_projection_stage(
     FinalASLRes="2.5",
     SmoothingFWHM="2",
     GreyOrdsRes="2",
-    RegName="MSMAll",
+    reg_name="MSMAll",
 ):
     """
     Project perfusion results to the cortical surface and generate
@@ -454,7 +460,7 @@ def surface_projection_stage(
             FinalASLRes,
             SmoothingFWHM,
             GreyOrdsRes,
-            RegName,
+            reg_name,
             wb_path,
             "false",
             str(outdir),
@@ -470,7 +476,7 @@ def surface_projection_stage(
             FinalASLRes,
             SmoothingFWHM,
             GreyOrdsRes,
-            RegName,
+            reg_name,
             wb_path,
             "true",
             str(outdir),
@@ -568,6 +574,12 @@ def main():
         "--ribbon",
         help="ribbon.nii.gz from FreeSurfer for use in SE-based bias correction,"
         + " default is within subject's directory",
+    )
+    optional.add_argument(
+        "--regname",
+        help="Sphere to use for surface projection stages, default is MSMAll (requires fMRI pre-processing), located at ${StudyFolder}/${Subject}/MNINonLinear/Native/${Subject}.${Hemisphere}.sphere.MSMSulc.native.surf.gii",
+        default="MSMAll",
+        dest="reg_name",
     )
     optional.add_argument(
         "--use_t1",
@@ -723,6 +735,7 @@ def main():
             use_t1=args.use_t1,
             wmparc=args.wmparc,
             ribbon=args.ribbon,
+            reg_name=args.reg_name,
             nobandingcorr=args.nobandingcorr,
             outdir=args.outdir,
             stages=args.stages,
