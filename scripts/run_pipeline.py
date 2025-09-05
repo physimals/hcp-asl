@@ -11,8 +11,8 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from shutil import copy, rmtree
-from typing import Optional
+from shutil import copy, rmtree, copytree
+from typing import Any
 from dataclasses import dataclass
 
 from hcpasl import __sha1__, __timestamp__, __version__
@@ -133,38 +133,36 @@ def process_subject(
     #copy the cross-sectional results to longitudinal folders
     @dataclass 
     class RuntimeConfig:
-        study_dir: Optional[str]=None
-        subid: Optional[str]=None
-        subject_dir: Optional[str]=None
-        asl_dir: Optional[str]=None
-        aslt1w_dir: Optional[str]=None
-        label_control_dir: Optional[str]=None
-        calib0_dir: Optional[str]=None
-        calib1_dir: Optional[str]=None
-        tis_name: Optional[str]=None
-        calib0_name: Optional[str]=None
-        calib1_name: Optional[str]=None
-        gradunwarp_dir: Optional[str]=None
-        topup_dir: Optional[str]=None
-        gd_corr: Optional[str]=None
-        t1w_dir: Optional[str]=None
-        wmparc: Optional[str]=None
-        ribbon: Optional[str]=None
-        calib_corr: Optional[str]=None
-        bias_field: Optional[str]=None
-        calib2struct: Optional[str]=None
-        asl_lc: Optional[str]=None
-        scaling_factors: Optional[str]=None
-        asl_subtract: Optional[str]=None
-        asl0_brainmask: Optional[str]=None
-        oxford_asl_dir: Optional[str]=None
-        asl_scaling_factors: Optional[str]=None
-        mt_name: Optional[str]=None
-        t1_est: Optional[str]=None
-        series: Optional[str]=None 
-        scaling_factors: Optional[str]=None
-        subtracted_dir: Optional[str]=None
-        brainmask: Optional[str]=None
+        study_dir: Path=None
+        subid: Any=None
+        subject_dir: Path=None
+        asl_dir: Path=None
+        aslt1w_dir: Path=None
+        label_control_dir: Path=None
+        calib0_dir: Path=None
+        calib1_dir: Path=None
+        tis_name: Any=None
+        calib0_name: Any=None
+        calib1_name: Any=None
+        gradunwarp_dir: Path=None
+        topup_dir: Path=None
+        gd_corr: Any=None
+        t1w_dir: Path=None
+        wmparc: Any=None
+        ribbon: Any=None
+        calib_corr: Any=None
+        bias_field: Any=None
+        calib2struct: Any=None
+        asl_lc: Any=None
+        scaling_factors: Any=None
+        asl_subtract: Any=None
+        asl0_brainmask: Any=None
+        oxford_asl_dir: Path=None
+        asl_scaling_factors: Any=None
+        mt_name: Any=None
+        t1_est: Any=None
+        series: Any=None 
+        scaling_factors: Any=None
 
     confCross=RuntimeConfig(subject_dir=subject_dir,
                               subid=subid,
@@ -172,20 +170,20 @@ def process_subject(
     )
     confLong=RuntimeConfig(study_dir=os.path.dirname(subject_dir))
 
-    def assign_vars0(c):
-        c.asl_dir, c.aslt1w_dir = [c.subject_dir / outdir / name for name in ("ASL", "T1w/ASL")]
-        c.label_control_dir, c.calib0_dir, c.calib1_dir = [
-            c.asl_dir / name
+    def assign_vars0(conf):
+        conf.asl_dir, conf.aslt1w_dir = [conf.subject_dir / outdir / name for name in ("ASL", "T1w/ASL")]
+        conf.label_control_dir, conf.calib0_dir, conf.calib1_dir = [
+            conf.asl_dir / name
             for name in ("label_control", "calibration/calib0", "calibration/calib1")
         ]
-        for d in [c.asl_dir, c.aslt1w_dir, c.label_control_dir, c.calib0_dir, c.calib1_dir]:
+        for d in [conf.asl_dir, conf.aslt1w_dir, conf.label_control_dir, conf.calib0_dir, conf.calib1_dir]:
             d.mkdir(exist_ok=True, parents=True)
 
         # split ASL sequence into label-control label_control and calibration images
-        c.tis_name, c.calib0_name, c.calib1_name = [
+        conf.tis_name, conf.calib0_name, conf.calib1_name = [
             d / name
             for d, name in zip(
-                (c.label_control_dir, c.calib0_dir, c.calib1_dir),
+                (conf.label_control_dir, conf.calib0_dir, conf.calib1_dir),
                 ("label_control.nii.gz", "calib0.nii.gz", "calib1.nii.gz"),
             )
         ]
@@ -224,6 +222,10 @@ def process_subject(
     assign_vars1(confCross)
     if is_longitudinal: 
         assign_vars1(confLong)
+        #copy over the results from stage 0.        
+        copy(confCross.tis_name,confLong.tis_name)
+        copy(confCross.calib0_name,confLong.calib0_name)
+        copy(confCross.calib1_name,confLong.calib1_name)
 
     if 1 in stages:
         logging.info(
@@ -259,12 +261,12 @@ def process_subject(
 
     assign_vars2(confCross,True)    
     if is_longitudinal: 
-        assign_vars2(confLong,False)        
+        assign_vars2(confLong,False)
 
     if 2 in stages:
         logging.info("Stage 2: Derive and apply initial corrections to M0 image.")
         initial_corrections_calibration(
-            subject_id=subid,
+            subject_id=conf.subid,
             calib_dir=conf.calib0_dir.parent,
             eb_factors=eb_factors,
             t1w_dir=conf.t1w_dir,
@@ -286,12 +288,13 @@ def process_subject(
     assign_vars3(confCross)
     if is_longitudinal: 
         assign_vars3(confLong)
+        
 
     # Apply corrections derived thus far to ASL timeseries
     if 3 in stages:
         logging.info("Stage 3: Derive and apply initial corrections to ASL timeseries.")
         initial_corrections_asl(
-            subject_dir=subject_dir,
+            subject_dir=conf.subject_dir,
             label_control_dir=conf.label_control_dir,
             eb_factors=eb_factors,
             bias_name=conf.bias_field,
@@ -384,8 +387,11 @@ def process_subject(
     assign_vars6(confCross)
     if is_longitudinal:
         assign_vars6(confLong)
+        #copy over the results of all previous stages.
+        copytree(confCross.asl_dir,confLong.asl_dir.parent)
 
-    #In longitudinal mode, this stage must run first.
+    # In longitudinal mode, this stage must run first. Stages 0-5 are skipped, with 
+    # results copied from corresponding cross-sectional folders.
     if 6 in stages:
         logging.info(
             "Stage 6: Fully-correct ASL and calibration into ASL-gridded T1w space."
@@ -411,6 +417,7 @@ def process_subject(
             nobandingcorr=nobandingcorr,
             interpolation=interpolation,
             cores=cores,
+            aslt1w_cross_dir=confCross.aslt1w_dir,
             is_longitudinal=is_longitudinal,
             longitudinal_template=longitudinal_template
         )
@@ -513,7 +520,7 @@ def process_subject(
     if 11 in stages:
         logging.info("Stage 11: Volume to surface projection.")
         surface_projection_stage(
-            subject_dir=subject_dir, subject_id=subid, outdir=outdir, reg_name=reg_name
+            subject_dir=conf.subject_dir, subject_id=conf.subid, outdir=outdir, reg_name=reg_name
         )
 
     if 12 in stages:
@@ -525,7 +532,7 @@ def process_subject(
     if 13 in stages:
         logging.info("Stage 13: Create QC workbench scene.")
         create_qc_report(
-            subject_id=subid, subject_dir=subject_dir, outdir=outdir, reg_name=reg_name
+            subject_id=conf.subid, subject_dir=conf.subject_dir, outdir=outdir, reg_name=reg_name
         )
     logging.info("Pipeline complete.")
 

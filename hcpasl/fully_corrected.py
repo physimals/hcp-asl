@@ -31,6 +31,9 @@ def fully_correct_asl_calibration_aslt1w(
     nobandingcorr=False,
     cores=1.0,
     gd_corr=True,
+    aslt1w_cross_dir=None,
+    is_longitudinal=False,
+    longitudinal_template=None,
 ):
     """
     Apply all corrections to ASL and calibration images, map into ASLT1w space.
@@ -84,6 +87,15 @@ def fully_correct_asl_calibration_aslt1w(
     gd_corr: bool
         Whether to perform gradient distortion correction or not.
         Default is True
+    aslt1w_cross_dir: pathlib.Path, optional
+        In longitudinal mode, this must point to matching cross-sectional aslt1w_dir. 
+        Default is None
+    is_longitudinal: bool, optional 
+        Whether longitudinal timepoint is processed.
+        Default is False
+    longitudinal_template: str
+        Longitudinal template label.
+        Default is None
     """
 
     tis_aslt1w_dir = aslt1w_dir / "label_control"
@@ -119,10 +131,25 @@ def fully_correct_asl_calibration_aslt1w(
     reg_dir.mkdir(exist_ok=True, parents=True)
     struct_name = (t1w_dir / "T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fsdir = (t1w_dir / subid).resolve(strict=True)
-    register_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
-    asl2struct_reg = rt.Registration.from_flirt(
-        src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name
-    )
+
+    if not is_longitudinal:
+        register_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
+        asl2struct_reg = rt.Registration.from_flirt(
+            src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name
+    )        
+    else:
+        #T1w to longitudinal base template
+        t1w2template_reg=rt.Registration.from_flirt(
+                src2ref=(t1w_dir / "xfms/T1w_cross_to_T1w_long.mat").resolve(strict=True),
+                src=struct_name,ref=struct_name
+        )
+        #ASL to cross-sectional T1w
+        asl2struct_cross_reg = rt.Registration.from_flirt(
+            src2ref=aslt1w_cross_dir / "registration/asl2struct.mat", src=perfusion_name, ref=struct_name
+        )
+        #ASL to longitudinal base template
+        asl2struct_reg=rt.chain(asl2struct_cross_reg,t1w2template_reg)        
+        asl2struct_reg.save_fsl(reg_dir / "asl2struct.mat")
 
     # get brain mask in ASL-gridded T1w space
     logging.info("Obtaining brain mask in ASLT1w space.")
