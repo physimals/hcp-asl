@@ -330,7 +330,6 @@ def process_subject(
     if is_longitudinal:
         assign_vars5(confLong)
 
-    conf.oxford_asl_dir.mkdir(exist_ok=True, parents=True)
     if 5 in stages:
         logging.info("Stage 5: Perfusion estimation in ASL native space.")
         logging.info(
@@ -383,22 +382,17 @@ def process_subject(
     assign_vars6(confCross)
     if is_longitudinal:
         assign_vars6(confLong)
+        copydirs=["calibration","gradient_unwarp","label_control","topup","perfusion_estimation"]        
         #copy over the results of all previous stages.
-        #DEBUG
-        #if confLong.asl_dir.exists: rmtree(confLong.asl_dir)
-        copydirs=["calibration","gradient_unwarp","label_control","topup","perfusion_estimation/native_space","perfusion_estimation"]
-        #copydirs=["perfusion_estimation"]
-        #DEBUG
-        copydirs=[]
         for dir in copydirs:
+            if (confLong.asl_dir / dir).exists: rmtree(confLong.asl_dir / dir)
             subdir=confCross.asl_dir / dir            
             if subdir.exists():
                 copytree(subdir,confLong.asl_dir / dir,True)
         #this will need to be re-generated at stage 6.
         fmap_struct_reg=confLong.topup_dir / "fmap_struct_reg/asl2struct.mat"
-        #DEBUG
-        #if fmap_struct_reg.exists():
-        #    os.remove(fmap_struct_reg)
+        if fmap_struct_reg.exists():
+            os.remove(fmap_struct_reg)
 
     # In longitudinal mode, this stage must run first. Stages 0-5 are skipped, with 
     # results copied from corresponding cross-sectional folders.
@@ -537,7 +531,7 @@ def process_subject(
         logging.info(
             "Stage 12: Copy key results into $outdir/T1w/ASL and $outdir/MNINonLinear/ASL"
         )
-        copy_outputs(subject_dir, outdir)
+        copy_outputs(conf.subject_dir, outdir)
 
     if 13 in stages:
         logging.info("Stage 13: Create QC workbench scene.")
