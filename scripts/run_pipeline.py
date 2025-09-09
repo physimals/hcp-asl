@@ -11,7 +11,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from shutil import copy, rmtree, copytree
+from shutil import copy, rmtree, copytree 
 from typing import Any
 from dataclasses import dataclass
 
@@ -164,7 +164,7 @@ def process_subject(
         series: Any=None 
         scaling_factors: Any=None
 
-    confCross=RuntimeConfig(subject_dir=subject_dir,
+    confCross=RuntimeConfig(subject_dir=Path(subject_dir),
                               subid=subid,
                               study_dir=os.path.dirname(subject_dir)
     )
@@ -196,7 +196,7 @@ def process_subject(
         if 6 not in stages:
             logging.error("Stage 6 is required in longitudinal mode")        
         confLong.subid=f"{subid}.long.{longitudinal_template}"
-        confLong.subject_dir = f"{confLong.study_dir}/{confLong.subid}"
+        confLong.subject_dir = Path(f"{confLong.study_dir}/{confLong.subid}")
         conf=confLong
     else:
         conf=confCross
@@ -222,10 +222,6 @@ def process_subject(
     assign_vars1(confCross)
     if is_longitudinal: 
         assign_vars1(confLong)
-        #copy over the results from stage 0.        
-        copy(confCross.tis_name,confLong.tis_name)
-        copy(confCross.calib0_name,confLong.calib0_name)
-        copy(confCross.calib1_name,confLong.calib1_name)
 
     if 1 in stages:
         logging.info(
@@ -255,9 +251,9 @@ def process_subject(
             conf.wmparc=wmparc
             conf.ribbon=ribbon
         else:
-            conf.t1w_dir=f"{conf.subject_dir}/T1w"
-            conf.wmparc=f"{conf.t1w_dir}/wmparc.nii.gz"
-            conf.ribbon=f"{conf.t1w_dir}/ribbon.nii.gz"
+            conf.t1w_dir=Path(f"{conf.subject_dir}/T1w")
+            conf.wmparc=Path(f"{conf.t1w_dir}/wmparc.nii.gz")
+            conf.ribbon=Path(f"{conf.t1w_dir}/ribbon.nii.gz")
 
     assign_vars2(confCross,True)    
     if is_longitudinal: 
@@ -388,7 +384,21 @@ def process_subject(
     if is_longitudinal:
         assign_vars6(confLong)
         #copy over the results of all previous stages.
-        copytree(confCross.asl_dir,confLong.asl_dir.parent)
+        #DEBUG
+        #if confLong.asl_dir.exists: rmtree(confLong.asl_dir)
+        copydirs=["calibration","gradient_unwarp","label_control","topup","perfusion_estimation/native_space","perfusion_estimation"]
+        #copydirs=["perfusion_estimation"]
+        #DEBUG
+        copydirs=[]
+        for dir in copydirs:
+            subdir=confCross.asl_dir / dir            
+            if subdir.exists():
+                copytree(subdir,confLong.asl_dir / dir,True)
+        #this will need to be re-generated at stage 6.
+        fmap_struct_reg=confLong.topup_dir / "fmap_struct_reg/asl2struct.mat"
+        #DEBUG
+        #if fmap_struct_reg.exists():
+        #    os.remove(fmap_struct_reg)
 
     # In longitudinal mode, this stage must run first. Stages 0-5 are skipped, with 
     # results copied from corresponding cross-sectional folders.
@@ -416,10 +426,10 @@ def process_subject(
             t1_est=conf.t1_est,
             nobandingcorr=nobandingcorr,
             interpolation=interpolation,
-            cores=cores,
-            aslt1w_cross_dir=confCross.aslt1w_dir,
+            cores=cores,            
             is_longitudinal=is_longitudinal,
-            longitudinal_template=longitudinal_template
+            aslt1w_cross_dir=confCross.aslt1w_dir,
+            topup_cross_dir=confCross.topup_dir
         )
         copy(
             conf.aslt1w_dir / "calibration/calib0/calib0_corrected.nii.gz",
@@ -502,7 +512,7 @@ def process_subject(
         sp_run(oxford_aslt1w_call)
 
     mninonlinear_name = conf.subject_dir / "MNINonLinear"
-    struct_name=structural["struct"] if not is_longitudinal else f"{conf.t1w_dir}/T1w/T1w_acpc_dc_restore.nii.gz"
+    struct_name=structural["struct"] if not is_longitudinal else Path(f"{conf.t1w_dir}/T1w_acpc_dc_restore.nii.gz")
 
     if 10 in stages:
         logging.info("Stage 10: Summary statistics within ROIs.")
@@ -726,7 +736,7 @@ def main():
         help="Pipeline stages (zero-indexed, separated by spaces) to run, eg 0 3 5",
         nargs="+",
         type=int,
-        default=set(range(14)),
+        default=None,
         metavar="N",
     )
     optional.add_argument(
@@ -849,6 +859,14 @@ def main():
             "No gradient coefficients provided. Gradient distortion correction won't be performed."
         )
         grads = None
+    
+    if args.stages is None:
+        if args.is_longitudinal:
+            stages=set(range(6,14))
+        else:
+            stages=set(range(14))
+    else:
+        stages=set(args.stages)
 
     logging.info("All pipeline arguments:")
     for k, v in vars(args).items():
@@ -875,7 +893,7 @@ def main():
             reg_name=args.reg_name,
             nobandingcorr=args.nobandingcorr,
             outdir=args.outdir,
-            stages=args.stages,
+            stages=stages,
             is_longitudinal=args.is_longitudinal,
             longitudinal_template=args.longitudinal_template
         )
