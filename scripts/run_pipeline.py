@@ -198,12 +198,11 @@ def process_subject(
         confLong.subid=f"{subid}.long.{longitudinal_template}"
         confLong.subject_dir = Path(f"{confLong.study_dir}/{confLong.subid}")
         conf=confLong
+        assign_vars0(confLong)
     else:
         conf=confCross
 
-    assign_vars0(confCross)
-    if is_longitudinal:
-        assign_vars0(confLong)
+    assign_vars0(confCross)        
     
     if 0 in stages:
         logging.info(
@@ -385,7 +384,7 @@ def process_subject(
         copydirs=["calibration","gradient_unwarp","label_control","topup","perfusion_estimation"]        
         #copy over the results of all previous stages.
         for dir in copydirs:
-            if (confLong.asl_dir / dir).exists: rmtree(confLong.asl_dir / dir)
+            if (confLong.asl_dir / dir).exists(): rmtree(confLong.asl_dir / dir)
             subdir=confCross.asl_dir / dir            
             if subdir.exists():
                 copytree(subdir,confLong.asl_dir / dir,True)
