@@ -193,8 +193,8 @@ def process_subject(
             logging.error("Longitudinal template label may not be empty in longitudinal mode.")
         if {0,1,2,3,4,5} & stages:
             logging.error("Stages 0-5 cannot be run in longitudinal mode")
-        if 6 not in stages:
-            logging.error("Stage 6 is required in longitudinal mode")        
+        #if 6 not in stages:
+        #    logging.error("Stage 6 is required in longitudinal mode")        
         confLong.subid=f"{subid}.long.{longitudinal_template}"
         confLong.subject_dir = Path(f"{confLong.study_dir}/{confLong.subid}")
         conf=confLong
