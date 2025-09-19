@@ -1,12 +1,12 @@
 """
-Functions to perform the tag-control differencing of multi-band 
+Functions to perform the tag-control differencing of multi-band
 ASL data which has been rescaled and motion corrected.
 
-The rescaling is accounted for by using a GLM to perform the 
-tag-control subtraction, similar to the method described in 
+The rescaling is accounted for by using a GLM to perform the
+tag-control subtraction, similar to the method described in
 'A framework for motion correction of background suppressed
 arterial spin labeling perfusion images acquired with
-simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A. 
+simultaneous multi‐slice EPI', Y. Suzuki, T.W. Okell, M.A.
 Chappell, M.J.P. van Osch
 """
 

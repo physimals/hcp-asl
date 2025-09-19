@@ -1,6 +1,6 @@
 """
-Perform the setup necessary for estimating empiricial banding. This 
-includes finding necessary files, creating results directories 
+Perform the setup necessary for estimating empiricial banding. This
+includes finding necessary files, creating results directories
 and running fsl_anat on the structural image.
 """
 

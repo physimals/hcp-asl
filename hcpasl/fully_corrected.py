@@ -88,14 +88,14 @@ def fully_correct_asl_calibration_aslt1w(
     gd_corr: bool
         Whether to perform gradient distortion correction or not.
         Default is True
-    is_longitudinal: bool, optional 
+    is_longitudinal: bool, optional
         Whether longitudinal timepoint is processed.
         Default is False
     aslt1w_cross_dir: pathlib.Path, optional
-        Required in longitudinal mode. Must point to matching cross-sectional aslt1w_dir. 
+        Required in longitudinal mode. Must point to matching cross-sectional aslt1w_dir.
         Default is None
     topup_cross_dir : pathlib.Path
-        Required in longitudinal mode. Path to the cross-sectional session's topup run        
+        Required in longitudinal mode. Path to the cross-sectional session's topup run
     """
 
     tis_aslt1w_dir = aslt1w_dir / "label_control"
@@ -132,25 +132,28 @@ def fully_correct_asl_calibration_aslt1w(
     struct_name = (t1w_dir / "T1w_acpc_dc_restore.nii.gz").resolve(strict=True)
     fsdir = (t1w_dir / subid).resolve(strict=True)
 
-    t1w2template_reg=None
+    t1w2template_reg = None
     if not is_longitudinal:
         register_asl2struct(perfusion_name, struct_name, fsdir, reg_dir)
         asl2struct_reg = rt.Registration.from_flirt(
-            src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name        
-    )        
+            src2ref=reg_dir / "asl2struct.mat", src=perfusion_name, ref=struct_name
+        )
     else:
-        #T1w to longitudinal base template
-        t1w2template_reg=rt.Registration.from_flirt(
-                src2ref=(t1w_dir / "xfms/T1w_cross_to_T1w_long.mat").resolve(strict=True),
-                src=struct_name,ref=struct_name
+        # T1w to longitudinal base template
+        t1w2template_reg = rt.Registration.from_flirt(
+            src2ref=(t1w_dir / "xfms/T1w_cross_to_T1w_long.mat").resolve(strict=True),
+            src=struct_name,
+            ref=struct_name,
         )
-        #ASL to cross-sectional T1w
+        # ASL to cross-sectional T1w
         asl2struct_cross_reg = rt.Registration.from_flirt(
-            src2ref=aslt1w_cross_dir / "registration/asl2struct.mat", src=perfusion_name, ref=struct_name
+            src2ref=aslt1w_cross_dir / "registration/asl2struct.mat",
+            src=perfusion_name,
+            ref=struct_name,
         )
-        #ASL to longitudinal base template
-        asl2struct_reg=rt.chain(asl2struct_cross_reg,t1w2template_reg)
-        asl2struct_reg.save_fsl(reg_dir / "asl2struct.mat", perfusion_name, struct_name)        
+        # ASL to longitudinal base template
+        asl2struct_reg = rt.chain(asl2struct_cross_reg, t1w2template_reg)
+        asl2struct_reg.save_fsl(reg_dir / "asl2struct.mat", perfusion_name, struct_name)
 
     # get brain mask in ASL-gridded T1w space
     logging.info("Obtaining brain mask in ASLT1w space.")
@@ -198,17 +201,19 @@ def fully_correct_asl_calibration_aslt1w(
         fmap2struct_reg = rt.Registration.from_flirt(
             src2ref=fmap2struct_name, src=fmapmag, ref=struct_name
         )
-    else: #update field map->structural transform
-        #Field map to cross-sectional T1w
-        fmap2struct_cross_name=(topup_cross_dir / "fmap_struct_reg/asl2struct.mat").resolve(
-            strict=True
-        )
-        fmap2struct_cross_reg=rt.Registration.from_flirt(
+    else:  # update field map->structural transform
+        # Field map to cross-sectional T1w
+        fmap2struct_cross_name = (
+            topup_cross_dir / "fmap_struct_reg/asl2struct.mat"
+        ).resolve(strict=True)
+        fmap2struct_cross_reg = rt.Registration.from_flirt(
             src2ref=fmap2struct_cross_name, src=perfusion_name, ref=struct_name
         )
-        #Field map to longitudinal base template
-        fmap2struct_reg=rt.chain(fmap2struct_cross_reg,t1w2template_reg)
-        fmap2struct_reg.save_fsl(topup_dir / "fmap_struct_reg/asl2struct.mat", perfusion_name, struct_name)        
+        # Field map to longitudinal base template
+        fmap2struct_reg = rt.chain(fmap2struct_cross_reg, t1w2template_reg)
+        fmap2struct_reg.save_fsl(
+            topup_dir / "fmap_struct_reg/asl2struct.mat", perfusion_name, struct_name
+        )
 
     fmap_aslt1w = fmap2struct_reg.apply_to_image(
         src=fmapmag, ref=aslt1w_spc, order=interpolation
