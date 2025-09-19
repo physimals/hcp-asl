@@ -107,9 +107,9 @@ with open("README.md", "r") as fh:
 setup(
     name=PACKAGE_NAME,
     version=get_version(),
-    author="Flora Kennedy McConnell, Jack Toner, Thomas Kirk",
+    author="Thomas Kirk, Flora Kennedy McConnell, Jack Toner, Mikhail Milchenko",
     author_email="thomas.kirk1@nottingham.ac.uk",
-    description="Minimal ASL processing pipeline for the HCP Lifespan datasets",
+    description="ASL processing pipeline for the HCP Lifespan datasets",
     long_description=long_description,
     url="https://github.com/physimals/hcp-asl",
     packages=find_packages(),
