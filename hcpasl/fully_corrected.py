@@ -1,14 +1,14 @@
 import logging
-from pathlib import Path
 import os
+from pathlib import Path
 
-import regtricks as rt
 import nibabel as nb
 import numpy as np
+import regtricks as rt
 
-from .utils import SLICEBAND, SLICEDT, TIS, sp_run, ASL_SHAPE, ImagePath
-from .registration import register_asl2struct
 from .asl_correction import create_ti_image
+from .registration import register_asl2struct
+from .utils import ASL_SHAPE, SLICEBAND, SLICEDT, TIS, ImagePath, sp_run
 
 
 def fully_correct_asl_calibration_aslt1w(
@@ -29,11 +29,11 @@ def fully_correct_asl_calibration_aslt1w(
     t1_est=None,
     interpolation=3,
     nobandingcorr=False,
-    cores=1.0,
+    cores=1,
     gd_corr=True,
+    is_longitudinal=False,
     aslt1w_cross_dir=None,
     topup_cross_dir=None,
-    is_longitudinal=False,
     longitudinal_template=None,
 ):
     """

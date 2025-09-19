@@ -61,7 +61,7 @@ def create_qc_report(subject_id, subject_dir, outdir, reg_name):
         scene_final = scene_initial
 
     wb_cmd = os.environ["CARET7DIR"] + "/wb_command"
-    snapdir = scene_final.parent / f"snapshots"
+    snapdir = scene_final.parent / "snapshots"
     snapdir.mkdir(exist_ok=True)
     for idx in range(1, 8):
         png = snapdir / f"{subject_id}_hcp_asl_qc.wb_scene{idx}.png"

@@ -61,25 +61,25 @@ def se_based_bias_estimation():
     parser.add_argument(
         "--wmparc",
         help="wmparc.nii.gz from FreeSurfer",
-        required=not "--tissue_mask" in sys.argv,
+        required="--tissue_mask" not in sys.argv,
         default=None,
     )
     parser.add_argument(
         "--ribbon",
         help="ribbon.nii.gz from FreeSurfer",
-        required=not "--tissue_mask" in sys.argv,
+        required="--tissue_mask" not in sys.argv,
         default=None,
     )
     parser.add_argument(
         "--corticallut",
         help="Filename for FreeSurfer's Cortical Lable Table",
-        required=not "--tissue_mask" in sys.argv,
+        required="--tissue_mask" not in sys.argv,
         default=None,
     )
     parser.add_argument(
         "--subcorticallut",
         help="Filename for FreeSurfer's Subcortical Lable Table",
-        required=not "--tissue_mask" in sys.argv,
+        required="--tissue_mask" not in sys.argv,
         default=None,
     )
     parser.add_argument(
@@ -173,7 +173,7 @@ def se_based_bias_estimation():
         SEdivM0_brain_thr_img = Image(SEdivM0_brain_thr, header=calibration_img.header)
         SEdivM0_brain_thr_img.save(SEdivM0_brain_thr_name)
 
-    ### HCP pipeline does median dilation here but isn't used - skip for now ###
+    # HCP pipeline does median dilation here but isn't used - skip for now
 
     # set sigma for smoothing used in HCPPipeline
     fwhm = 5
@@ -208,7 +208,7 @@ def se_based_bias_estimation():
         ]
         [image.save(savename) for image, savename in zip(images, savenames)]
 
-    ### HCP pipeline does median dilation here but isn't used - skip for now ###
+    # HCP pipeline does median dilation here but isn't used - skip for now
 
     # correct the SEFM image
     SpinEchoMean_brain_BC = np.zeros_like(SEdivM0_brain_bias)

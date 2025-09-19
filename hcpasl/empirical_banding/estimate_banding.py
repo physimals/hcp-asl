@@ -4,12 +4,12 @@ Set of functions for estimating the emprical banding effect
 
 from pathlib import Path
 
-from .. import utils
-
 import matplotlib.pyplot as plt
 import numpy as np
 from fsl.data.image import Image
 from sklearn.linear_model import LinearRegression
+
+from .. import utils
 
 T1_VALS = {"wm": 1.0, "gm": 1.3, "csf": 4.3}
 BAND_RANGE = {
@@ -140,7 +140,7 @@ def estimate_empirical_banding(
                     slicewise_mean = np.nanmean(masked_data, axis=(0, 1))
                     mean_array[:, 2 * n1 + n2] = slicewise_mean
                 error_free_subs.append(subject_dir)
-            except:
+            except Exception:
                 errors.append(tissue + " " + str(subject_dir))
         # calculate non-zero slicewise mean of mean_array
         slice_means = np.nanmean(mean_array, axis=1)
