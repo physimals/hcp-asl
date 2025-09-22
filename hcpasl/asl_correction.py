@@ -2,30 +2,30 @@
 Functions for the correction of HCP ASL data.
 
 Corrections to be applied include:
-    - Bias-field correction (using the bias field estimated on the 
-        subject's calibration image - currently the first 
-        calibration image but maybe this should be changed to the 
-        mean of the first and the second? and maybe there should be 
-        some registration from the calibration image to the mean of 
+    - Bias-field correction (using the bias field estimated on the
+        subject's calibration image - currently the first
+        calibration image but maybe this should be changed to the
+        mean of the first and the second? and maybe there should be
+        some registration from the calibration image to the mean of
         the ASL series to register the bias field to the series?)
-    - Empirical banding correction (correction of the Magnetisation Transfer effect 
-        visible in HCP ASL data using empirically estimated scaling 
+    - Empirical banding correction (correction of the Magnetisation Transfer effect
+        visible in HCP ASL data using empirically estimated scaling
         coefficients)
-    - Saturation recovery (post-empirical banding correction, the saturation 
-        recovery expected in ASL is much more visible, giving a 
+    - Saturation recovery (post-empirical banding correction, the saturation
+        recovery expected in ASL is much more visible, giving a
         residual banding effect)
-    - Initial slice-timing correction (done using the parameter 
-        estimates obtained above. Initial because the satrecov 
-        model is initially estimated upon data which hasn't been 
+    - Initial slice-timing correction (done using the parameter
+        estimates obtained above. Initial because the satrecov
+        model is initially estimated upon data which hasn't been
         motion corrected - we account for this later)
     - Motion estimation
-    - Second slice-timing correction (use the motion estimates 
-        from above to align the parameter estimates with individual 
-        frames of the ASL series prior to correction. Perform 
-        slice-timing correction again using these aligned 
+    - Second slice-timing correction (use the motion estimates
+        from above to align the parameter estimates with individual
+        frames of the ASL series prior to correction. Perform
+        slice-timing correction again using these aligned
         parameter maps.)
-    - Registration (apply motion estimates to the final slice-timing 
-        corrected ASL series from the above step to obtain final, 
+    - Registration (apply motion estimates to the final slice-timing
+        corrected ASL series from the above step to obtain final,
         fully-corrected, registered ASL series)
 """
 

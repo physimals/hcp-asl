@@ -1,5 +1,5 @@
 """
-This contains a range of functions required to correct for the 
+This contains a range of functions required to correct for the
 Magnetisation Transfer effect visible in the HCP data.
 """
 

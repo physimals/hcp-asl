@@ -2,7 +2,6 @@
 """Partial volume processing using FS volumetric segmentation"""
 
 import argparse
-import glob
 import os
 import os.path as op
 import pathlib
@@ -176,7 +175,7 @@ def run_pv_estimation(subject_dir, cores, outdir, interpolation):
 def main():
     desc = """
     Generate PV estimates for a reference voxel grid. FS' volumetric 
-    segmentation is used . 
+    segmentation is used.
     """
 
     parser = argparse.ArgumentParser(description=desc)

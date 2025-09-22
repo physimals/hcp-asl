@@ -1,5 +1,5 @@
-import os.path as op
 import logging
+import os.path as op
 
 import numpy as np
 import regtricks as rt
@@ -59,7 +59,7 @@ def register_asl2struct(src, struct, fsdir, reg_dir):
     # convert .dat to .mat
     try:
         asl2orig_fsl = rt.Registration.from_flirt(omat_path, src, orig_mgz)
-    except RuntimeError as e:
+    except RuntimeError:
         # final row != [0 0 0 1], round to 5 d.p. and try again
         logging.warning("FSL .mat file has an invalid format. Rounding to 5 d.p.")
         arr = np.loadtxt(omat_path)
