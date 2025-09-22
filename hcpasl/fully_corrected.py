@@ -34,7 +34,6 @@ def fully_correct_asl_calibration_aslt1w(
     is_longitudinal=False,
     aslt1w_cross_dir=None,
     topup_cross_dir=None,
-    longitudinal_template=None,
 ):
     """
     Apply all corrections to ASL and calibration images, map into ASLT1w space.
