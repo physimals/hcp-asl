@@ -61,6 +61,7 @@ def process_subject(
     outdir="hcp_asl",
     stages=set(range(14)),
     is_longitudinal=False,
+    longitudinal_study_dir="",
     longitudinal_template="",
 ):
     """
@@ -121,6 +122,8 @@ def process_subject(
         All prior stages are assumed to have run successfully.
     is_longitudinal : bool, optional
         longitudinal mode
+    longitudinal_study_dir: pathlib.Path
+        Study dir that contains longitudinal sessions, only used in longitudinal mode
     longitudinal_template : str, required if is_longitudinal=True
         Longitudinal base template label, should match the one used
         in other HCP pipelines.
@@ -169,7 +172,7 @@ def process_subject(
         subid=subid,
         study_dir=os.path.dirname(subject_dir),
     )
-    confLong = RuntimeConfig(study_dir=os.path.dirname(subject_dir))
+    confLong = RuntimeConfig(study_dir=longitudinal_study_dir)
 
     def assign_vars0(conf):
         conf.asl_dir, conf.aslt1w_dir = [
@@ -815,6 +818,11 @@ def main():
         action="store_true",
     )
     optional.add_argument(
+        "--longitudinal_study_dir",
+        help="Study dir that contains longitudinal sessions, only used in longitudinal mode",
+    )
+
+    optional.add_argument(
         "--longitudinal_template",
         help="Longitudinal base template label (required in longitudinal mode)",
         default="",
@@ -897,7 +905,9 @@ def main():
             stages = set(range(14))
     else:
         stages = set(args.stages)
-
+    
+    longitudinal_study_dir=None if args.longitudinal_study_dir is None else Path(args.longitudinal_study_dir)
+    
     logging.info("All pipeline arguments:")
     for k, v in vars(args).items():
         logging.info(f"{k}: {v}")
@@ -925,6 +935,7 @@ def main():
             outdir=args.outdir,
             stages=stages,
             is_longitudinal=args.is_longitudinal,
+            longitudinal_study_dir=longitudinal_study_dir,
             longitudinal_template=args.longitudinal_template,
         )
     except Exception as e:
