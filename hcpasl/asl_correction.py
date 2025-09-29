@@ -46,14 +46,7 @@ from hcpasl.utils import (
     ImagePath,
     sp_run,
     make_motion_fov_mask,
-    ASL_SHAPE,
-    TIS,
-    NTIS,
-    RPTS,
-    SLICEDT,
-    SLICEBAND,
-    NSLICES,
-    IBF,
+    AslParams,
 )
 
 
@@ -93,7 +86,7 @@ def create_ti_image(asl, tis, sliceband, slicedt, outname, repeats=None):
     rt.ImageSpace.save_like(asl, ti_array, outname)
 
 
-def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
+def _satrecov_worker(control_name, satrecov_dir, params: AslParams, spatial):
     """
     Wrapper for fabber's saturation recovery model.
 
@@ -121,25 +114,23 @@ def _satrecov_worker(control_name, satrecov_dir, tis, rpts, ibf, spatial):
         "data": str(control_name),
         "overwrite": True,
         "noise": "white",
-        "ibf": ibf,
+        "ibf": params.ibf,
         "model": "satrecov",
         "save-mean": True,  # is this needed in nonspatial run?
         "casl": True,
-        "slicedt": 0.059,
-        "ti1": tis[0],
-        "ti2": tis[1],
-        "ti3": tis[2],
-        "ti4": tis[3],
-        "ti5": tis[4],
-        "sliceband": 10,
-        "bolus": 1.5,
-        "rpt1": rpts[0],
-        "rpt2": rpts[1],
-        "rpt3": rpts[2],
-        "rpt4": rpts[3],
-        "rpt5": rpts[4],
+        "slicedt": params.slicedt,
+        "sliceband": params.sliceband,
+        "bolus": params.bolus,
         "fixa": True,
     }
+
+    # variable number of TIs and RPTs
+    options["ntis"] = len(params.tis)
+    for i, ti in enumerate(params.tis, start=1):
+        options[f"ti{i}"] = ti
+    for i, rp in enumerate(params.rpts, start=1):
+        options[f"rpt{i}"] = rp
+
     # spatial or non-spatial specific options
     spatial_dir = satrecov_dir / "spatial"
     nospatial_dir = satrecov_dir / "nospatial"
@@ -198,6 +189,7 @@ def split_asl_label_control(asl_name, ntis, iaf, ibf, rpts):
     logging.info("Splitting data into label and control using asl_file.")
     asl_base = asl_name.parent / asl_name.stem.split(".")[0]
     # messy - is there a better way of filling in arguments?
+    rpts_str = ",".join([str(r) for r in rpts])
     cmd = [
         "asl_file",
         f"--data={str(asl_name)}",
@@ -205,7 +197,7 @@ def split_asl_label_control(asl_name, ntis, iaf, ibf, rpts):
         "--iaf=tc",
         f"--ibf={ibf}",
         "--spairs",
-        f"--rpts={rpts[0]},{rpts[1]},{rpts[2]},{rpts[3]},{rpts[4]}",
+        f"--rpts={rpts_str}",
         f"--out={asl_base}",
     ]
     sp_run(cmd)
@@ -214,7 +206,7 @@ def split_asl_label_control(asl_name, ntis, iaf, ibf, rpts):
     return even_name, odd_name
 
 
-def fit_satrecov_model(asl_name, results_dir):
+def fit_satrecov_model(asl_name, results_dir, params: AslParams):
     """
     Use Fabber's `satrecov` model to estimate a T1 map.
 
@@ -232,11 +224,13 @@ def fit_satrecov_model(asl_name, results_dir):
         parameter estimates.
     """
     # obtain control images of ASL series
-    control_name, tag_name = split_asl_label_control(asl_name, NTIS, "tc", IBF, RPTS)
+    control_name, tag_name = split_asl_label_control(
+        asl_name, params.ntis, "tc", params.ibf, params.rpts
+    )
     # satrecov nospatial
-    _satrecov_worker(control_name, results_dir, TIS, RPTS, IBF, spatial=False)
+    _satrecov_worker(control_name, results_dir, params, spatial=False)
     # satrecov spatial
-    _satrecov_worker(control_name, results_dir, TIS, RPTS, IBF, spatial=True)
+    _satrecov_worker(control_name, results_dir, params, spatial=True)
     t1_name = results_dir / "spatial/mean_T1t.nii.gz"
     return t1_name
 
@@ -354,6 +348,7 @@ def initial_corrections_asl(
     interpolation=3,
     nobandingcorr=False,
     gd_corr=True,
+    params: AslParams = None,
 ):
     """
     Full ASL correction and motion estimation pipeline.
@@ -511,7 +506,8 @@ def initial_corrections_asl(
     if not nobandingcorr:
         logging.info("Applying empirical banding correction to the ASL series.")
         eb_sfs = np.loadtxt(eb_factors)
-        eb_arr = np.tile(eb_sfs, (ASL_SHAPE[0], ASL_SHAPE[1], 1))
+        # tile scaling factors in x,y and along slice (z) dimension = len(eb_sfs)
+        eb_arr = np.tile(eb_sfs, (asl_spc.size[0], asl_spc.size[1], 1))
         eb_img = asl_spc.make_nifti(eb_arr)
         eb_img.to_filename(eb_dir / "eb_scaling_factors.nii.gz")
         eb_img = ImagePath(eb_dir / "eb_scaling_factors.nii.gz")
@@ -524,14 +520,22 @@ def initial_corrections_asl(
 
     # estimate satrecov model on gradient distortion-, bias- and MT- corrected ASL series
     logging.info("First satrecov model fit.")
-    t1_name = fit_satrecov_model(asl_gdc_bc_eb.path, satrecov_dir)
+    if params is None:
+        raise ValueError("AslParams must be provided to initial_corrections_asl")
+    t1_name = fit_satrecov_model(asl_gdc_bc_eb.path, satrecov_dir, params)
     t1_filt_name = fslmaths_median_filter(t1_name)
 
     # perform slice-time correction using estimated tissue params
     if not nobandingcorr:
         logging.info("Performing initial slice-time correction.")
         stcorr_img, stfactors_img = apply_slicetime_correction(
-            asl_gdc_bc_eb.path, t1_filt_name, TIS, RPTS, SLICEDT, SLICEBAND, NSLICES
+            asl_gdc_bc_eb.path,
+            t1_filt_name,
+            params.tis,
+            params.rpts,
+            params.slicedt,
+            params.sliceband,
+            params.nslices,
         )
         asl_gdc_bc_eb_st = asl_gdc_bc_eb.correct_from_image(
             stcorr_dir, "st", stcorr_img
@@ -651,7 +655,7 @@ def initial_corrections_asl(
     stcorr_dir = label_control_dir / "slicetime_correction/second"
     for d in [satrecov_dir, stcorr_dir]:
         d.mkdir(parents=True, exist_ok=True)
-    t1_name = fit_satrecov_model(asl_mc_sdc_bc_eb.path, satrecov_dir)
+    t1_name = fit_satrecov_model(asl_mc_sdc_bc_eb.path, satrecov_dir, params)
     t1_filt_name = fslmaths_median_filter(t1_name)
 
     # register T1t estimates back to the original space of the ASL volumes
@@ -705,11 +709,11 @@ def initial_corrections_asl(
         stcorr_img, stfactors_img = apply_slicetime_correction(
             asl_sdc_bc_eb.path,
             t1_filt_asln_name,
-            TIS,
-            RPTS,
-            SLICEDT,
-            SLICEBAND,
-            NSLICES,
+            params.tis,
+            params.rpts,
+            params.slicedt,
+            params.sliceband,
+            params.nslices,
         )
         asl_sdc_bc_eb_st = asl_sdc_bc_eb.correct_from_image(
             stcorr_dir, "st", stcorr_img
