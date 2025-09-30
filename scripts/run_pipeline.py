@@ -845,13 +845,17 @@ def main():
     optional.add_argument("--ntis", type=int, help="Number of TIs")
     optional.add_argument(
         "--tis",
-        type=str,
-        help="Comma-separated list of TIs in seconds (e.g., 1.7,2.2,2.7,3.2,3.7)",
+        type=float,
+        nargs="+",
+        metavar="TI",
+        help="Space-separated list of TIs in seconds (e.g., 1.7 2.2 2.7 3.2 3.7)",
     )
     optional.add_argument(
         "--rpts",
-        type=str,
-        help="Comma-separated repeats for each TI (e.g., 6,6,6,10,15)",
+        type=int,
+        nargs="+",
+        metavar="RPT",
+        help="Space-separated repeats for each TI (e.g., 6 6 6 10 15)",
     )
     optional.add_argument("--bolus", type=float, help="Labeling/bolus duration (s)")
     optional.add_argument("--slicedt", type=float, help="Slice time (s)")
@@ -865,12 +869,6 @@ def main():
         type=float,
         dest="te_ms",
         help="Echo time in milliseconds",
-    )
-    optional.add_argument(
-        "--calib_vols",
-        type=int,
-        choices=[2],
-        help="Number of calibration volumes at end of series (must be 2)",
     )
     optional.add_argument(
         "--tail_discard_vols",
@@ -948,7 +946,6 @@ def main():
         slicedt=args.slicedt,
         te_ms=args.te_ms,
         sliceband=args.sliceband,
-        calib_vols=args.calib_vols,
         tail_discard_vols=args.tail_discard_vols,
         ibf=args.ibf,
     )

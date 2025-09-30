@@ -1,11 +1,12 @@
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from importlib.resources import path as resource_path
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 from pathlib import Path
 
 import nibabel as nb
@@ -29,6 +30,7 @@ SLICEBAND = 10  # slices per band (groups). MB factor ~= NSLICES / SLICEBAND
 NSLICES = 60
 BOLUS = 1.5  # s
 TE = 19  # ms
+CALIBRATION_VOL_COUNT = 2
 
 
 @dataclass
@@ -42,9 +44,9 @@ class AslParams:
     - TE is stored in milliseconds to match oxford_asl expectation.
     - SLICEBAND is the number of slices within a band (group), not the multiband factor.
       For multiband factor MB and NSLICES total slices, SLICEBAND = NSLICES // MB.
-        - Calibration frames: this pipeline requires exactly two calibration volumes,
-            taken from the end of the series. Two preceding volumes may optionally be
-            discarded to preserve legacy behavior.
+        - Calibration frames: this pipeline always uses exactly two calibration volumes
+            placed immediately after any trailing discard volumes. Two preceding volumes
+            may optionally be discarded to preserve legacy behavior.
     """
 
     # derived from NIfTI header (x, y, z, t)
@@ -62,7 +64,6 @@ class AslParams:
     rpts: List[int] = None
 
     # calibration/discard policy
-    calib_vols: int = 2
     tail_discard_vols: int = 2
 
     def validate(self):
@@ -90,22 +91,21 @@ class AslParams:
                 self.sliceband,
                 self.nslices,
             )
-        if self.calib_vols < 0 or self.tail_discard_vols < 0:
-            raise ValueError("Calibration and discard volumes must be >= 0")
-        # enforce exactly two calibration volumes
-        if self.calib_vols != 2:
-            raise ValueError(
-                f"Exactly 2 calibration volumes are required (got {self.calib_vols})."
-            )
+        if self.tail_discard_vols < 0:
+            raise ValueError("Discard volumes must be >= 0")
 
 
-def _parse_csv(values: Optional[str], cast):
+def _parse_sequence(values: Optional[Iterable], cast):
     if values is None:
         return None
-    values = values.strip()
-    if values == "":
-        return None
-    return [cast(v) for v in values.split(",")]
+    if isinstance(values, (list, tuple)):
+        seq: Sequence = values
+    else:
+        text = str(values).strip()
+        if text == "":
+            return None
+        seq = [v for v in re.split(r"[\s,]+", text) if v]
+    return [cast(v) for v in seq]
 
 
 def _find_sidecar(mbpcasl_path: Path) -> Optional[Path]:
@@ -132,7 +132,6 @@ def load_asl_params(
     slicedt: Optional[float] = None,
     te_ms: Optional[float] = None,
     sliceband: Optional[int] = None,
-    calib_vols: Optional[int] = None,
     tail_discard_vols: Optional[int] = None,
     ibf: Optional[str] = None,
 ) -> AslParams:
@@ -143,8 +142,8 @@ def load_asl_params(
     - TE is reported as seconds in many BIDS sidecars; converted to milliseconds here.
         - SLICEBAND is derived as NSLICES // MultibandAccelerationFactor when available.
         - ASL_SHAPE and NSLICES are always taken from the NIfTI header.
-        - Exactly two calibration volumes are required; providing a different value
-            for calib_vols will raise an error.
+        - Exactly two calibration volumes are required; they immediately follow any
+            tail discard volumes.
     """
 
     nii = nb.load(str(mbpcasl_path))
@@ -192,9 +191,9 @@ def load_asl_params(
     if ibf is not None:
         params.ibf = str(ibf)
 
-    # comma separated values parsing
-    tis_list = _parse_csv(tis, float)
-    rpts_list = _parse_csv(rpts, int)
+    # sequence string parsing
+    tis_list = _parse_sequence(tis, float)
+    rpts_list = _parse_sequence(rpts, int)
     if tis_list is not None:
         params.tis = tis_list
     if rpts_list is not None:
@@ -203,12 +202,6 @@ def load_asl_params(
         params.ntis = int(ntis)
 
     # calibration/discard
-    if calib_vols is not None:
-        params.calib_vols = int(calib_vols)
-        if params.calib_vols != 2:
-            raise ValueError(
-                f"Exactly 2 calibration volumes are required (got {params.calib_vols})."
-            )
     if tail_discard_vols is not None:
         params.tail_discard_vols = int(tail_discard_vols)
 
@@ -372,9 +365,7 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     return vent_t1_nii
 
 
-def compute_split_indices(
-    total_vols: int, calib_vols: int = 2, tail_discard_vols: int = 2
-):
+def compute_split_indices(total_vols: int, tail_discard_vols: int = 2):
     """Compute indices for splitting ASL into data and calibrations.
 
     Assumes the last two volumes are calibrations and two immediately preceding
@@ -385,12 +376,9 @@ def compute_split_indices(
     """
     if total_vols <= 0:
         raise ValueError("ASL sequence has no timepoints")
-    if calib_vols < 0 or tail_discard_vols < 0:
-        raise ValueError("calib_vols and tail_discard_vols must be non-negative")
-    if calib_vols != 2:
-        raise ValueError(
-            f"Exactly 2 calibration volumes are required (got {calib_vols})."
-        )
+    if tail_discard_vols < 0:
+        raise ValueError("tail_discard_vols must be non-negative")
+    calib_vols = CALIBRATION_VOL_COUNT
     trail = calib_vols + tail_discard_vols
     if total_vols <= trail:
         raise ValueError(
@@ -398,8 +386,8 @@ def compute_split_indices(
         )
     data_start = 0
     data_len = total_vols - trail
-    calib_start = total_vols - calib_vols
-    calib_idxs = list(range(calib_start, total_vols))
+    calib_start = data_len + tail_discard_vols
+    calib_idxs = list(range(calib_start, calib_start + calib_vols))
     return data_start, data_len, calib_idxs
 
 
@@ -410,27 +398,25 @@ def split_asl(
     Split ASL sequence into label-control series and calibration images.
 
     The split strategy is determined from the ASL image length and AslParams
-    (calib_vols, tail_discard_vols). Exactly two calibration volumes are required;
+    tail_discard configuration. Exactly two calibration volumes are required;
     additional or fewer calibration volumes are not supported.
     """
     asl_img = nb.load(str(asl))
     total_vols = asl_img.shape[3] if asl_img.ndim == 4 else 1
     if params is None:
-        # default behavior: 2 calib, 2 discarded
-        calib_vols = 2
+        # default behavior: 2 discarded
         tail_discard_vols = 2
     else:
-        calib_vols = params.calib_vols
         tail_discard_vols = params.tail_discard_vols
 
     _, data_len, calib_idxs = compute_split_indices(
-        total_vols, calib_vols=calib_vols, tail_discard_vols=tail_discard_vols
+        total_vols, tail_discard_vols=tail_discard_vols
     )
     # cata
     fslroi(str(asl), str(tis_name), 0, data_len)
 
     # calibrations (require exactly two)
-    if len(calib_idxs) != 2:
+    if len(calib_idxs) != CALIBRATION_VOL_COUNT:
         raise ValueError(
             f"Expected exactly two calibration volumes at end of series (got {len(calib_idxs)})."
         )

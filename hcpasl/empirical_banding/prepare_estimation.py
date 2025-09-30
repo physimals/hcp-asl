@@ -88,7 +88,6 @@ def setup(subject_dir):
     total_vols = img.shape[3] if img.ndim == 4 else 1
     _, _, calib_idxs = compute_split_indices(
         total_vols,
-        calib_vols=asl_params.calib_vols,
         tail_discard_vols=asl_params.tail_discard_vols,
     )
     fslroi(str(mbpcasl), str(calib_names[0]), calib_idxs[0], 1)
