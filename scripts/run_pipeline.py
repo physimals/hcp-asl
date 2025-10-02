@@ -37,6 +37,7 @@ from hcpasl.utils import (
 
 
 def process_subject(
+    *,
     subid,
     subject_dir,
     eb_factors,
