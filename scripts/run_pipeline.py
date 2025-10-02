@@ -31,17 +31,13 @@ from hcpasl.utils import (
     setup_logger,
     sp_run,
     split_asl,
-    IBF,
-    TIS,
-    BOLUS,
-    TE,
-    SLICEDT,
-    SLICEBAND,
-    RPTS,
+    load_asl_params,
+    AslParams,
 )
 
 
 def process_subject(
+    *,
     subid,
     subject_dir,
     eb_factors,
@@ -54,6 +50,7 @@ def process_subject(
     reg_name,
     territories_atlas,
     territories_labels,
+    asl_params,
     use_t1=False,
     cores=1,
     interpolation=3,
@@ -222,7 +219,13 @@ def process_subject(
         logging.info(
             "Stage 0: Splitting ASL sequence into label-control pairs and calibration images."
         )
-        split_asl(mbpcasl, conf.tis_name, conf.calib0_name, conf.calib1_name)
+        split_asl(
+            mbpcasl,
+            conf.tis_name,
+            conf.calib0_name,
+            conf.calib1_name,
+            params=asl_params,
+        )
 
     # Run gradient_unwarp and topup on the calibration images
     # results stored in gradunwarp_dir and topup_dir respectively
@@ -315,6 +318,7 @@ def process_subject(
             cores=cores,
             interpolation=interpolation,
             nobandingcorr=nobandingcorr,
+            params=asl_params,
         )
 
     # perform tag-control subtraction in ASL0 space
@@ -357,20 +361,21 @@ def process_subject(
             "-m": conf.asl0_brainmask,
         }
         copy_oxford_asl_inputs(oxasl_inputs, conf.oxford_asl_dir / "oxford_asl_inputs")
+        # use resolved parameters for the oxford_asl call
         oxford_asl_call = [
             "oxford_asl",
             *[f"{k}={str(v)}" for k, v in oxasl_inputs.items()],
             f"-o={str(conf.oxford_asl_dir)}",
-            "--tis=" + ",".join([str(t) for t in TIS]),
-            f"--slicedt={SLICEDT}",
-            f"--sliceband={SLICEBAND}",
+            "--tis=" + ",".join([str(t) for t in asl_params.tis]),
+            f"--slicedt={asl_params.slicedt}",
+            f"--sliceband={asl_params.sliceband}",
             "--casl",
-            f"--ibf={IBF}",
+            f"--ibf={asl_params.ibf}",
             "--iaf=diff",
-            "--rpts=" + ",".join([str(r) for r in RPTS]),
+            "--rpts=" + ",".join([str(r) for r in asl_params.rpts]),
             "--fixbolus",
-            f"--bolus={BOLUS}",
-            f"--te={TE}",
+            f"--bolus={asl_params.bolus}",
+            f"--te={asl_params.te_ms}",
             "--spatial=off",
             "--debug",
         ]
@@ -518,12 +523,12 @@ def process_subject(
             f"-o={oxford_aslt1w_dir}",
             *[f"{k}={str(v)}" for k, v in oxasl_inputs.items()],
             "--casl",
-            f"--ibf={IBF}",
+            f"--ibf={asl_params.ibf}",
             "--iaf=diff",
-            "--rpts=" + ",".join([str(r) for r in RPTS]),
+            "--rpts=" + ",".join([str(r) for r in asl_params.rpts]),
             "--fixbolus",
-            f"--bolus={BOLUS}",
-            f"--te={TE}",
+            f"--bolus={asl_params.bolus}",
+            f"--te={asl_params.te_ms}",
             "--spatial=off",
             "--tr=8",
             "--pvcorr",
@@ -532,6 +537,7 @@ def process_subject(
         if use_t1:
             est_t1 = conf.aslt1w_dir / "registration/mean_T1t_filt.nii.gz"
             oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
+        logging.info(oxford_aslt1w_call)
         sp_run(oxford_aslt1w_call)
 
     mninonlinear_name = conf.subject_dir / "MNINonLinear"
@@ -828,6 +834,42 @@ def main():
         default="",
     )
 
+    # ASL acquisition parameter overrides
+    optional.add_argument("--ntis", type=int, help="Number of TIs")
+    optional.add_argument(
+        "--tis",
+        type=float,
+        nargs="+",
+        metavar="TI",
+        help="Space-separated list of TIs in seconds (e.g., 1.7 2.2 2.7 3.2 3.7)",
+    )
+    optional.add_argument(
+        "--rpts",
+        type=int,
+        nargs="+",
+        metavar="RPT",
+        help="Space-separated repeats for each TI (e.g., 6 6 6 10 15)",
+    )
+    optional.add_argument("--bolus", type=float, help="Labeling/bolus duration (s)")
+    optional.add_argument("--slicedt", type=float, help="Slice time (s)")
+    optional.add_argument(
+        "--sliceband",
+        type=int,
+        help="Slices per band (if omitted, derived from sidecar MB factor)",
+    )
+    optional.add_argument(
+        "--te",
+        type=float,
+        dest="te_ms",
+        help="Echo time in milliseconds",
+    )
+    optional.add_argument(
+        "--tail_discard_vols",
+        type=int,
+        help="Volumes immediately before calibrations to discard (default 2)",
+    )
+    optional.add_argument("--ibf", type=str, help="Input block format (default 'tis')")
+
     # assign arguments to variables
     args = parser.parse_args()
     subid = args.subid
@@ -886,6 +928,21 @@ def main():
         "sbrain": Path(args.sbrain).resolve(strict=True),
     }
     mbpcasl = Path(args.mbpcasl).resolve(strict=True)
+
+    # resolve ASL acquisition parameters
+    asl_params: AslParams = load_asl_params(
+        mbpcasl,
+        ntis=args.ntis,
+        tis=args.tis,
+        rpts=args.rpts,
+        bolus=args.bolus,
+        slicedt=args.slicedt,
+        te_ms=args.te_ms,
+        sliceband=args.sliceband,
+        tail_discard_vols=args.tail_discard_vols,
+        ibf=args.ibf,
+    )
+
     fmaps = {
         "AP": Path(args.fmap_ap).resolve(strict=True),
         "PA": Path(args.fmap_pa).resolve(strict=True),
@@ -905,12 +962,17 @@ def main():
             stages = set(range(14))
     else:
         stages = set(args.stages)
-    
-    longitudinal_study_dir=None if args.longitudinal_study_dir is None else Path(args.longitudinal_study_dir)
-    
+
+    longitudinal_study_dir = (
+        None
+        if args.longitudinal_study_dir is None
+        else Path(args.longitudinal_study_dir)
+    )
+
     logging.info("All pipeline arguments:")
     for k, v in vars(args).items():
         logging.info(f"{k}: {v}")
+    logging.info(f"Resolved ASL params: {asl_params}")
 
     # process subject
     logging.info(f"Processing subject {subject_dir}.")
@@ -925,6 +987,7 @@ def main():
             mbpcasl=mbpcasl,
             territories_atlas=args.territories_atlas,
             territories_labels=args.territories_labels,
+            asl_params=asl_params,
             structural=structural,
             fmaps=fmaps,
             use_t1=args.use_t1,

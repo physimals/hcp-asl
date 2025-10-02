@@ -16,7 +16,7 @@ from fsl.wrappers import bet, fslmaths, fslroi
 from hcpasl import distortion_correction
 from hcpasl.bias_estimation import bias_estimation, register_fmap
 from hcpasl.tissue_masks import generate_tissue_mask, generate_tissue_mask_in_ref_space
-from hcpasl.utils import linear_asl_reg
+from hcpasl.utils import linear_asl_reg, load_asl_params, compute_split_indices
 
 
 def setup(subject_dir):
@@ -81,12 +81,17 @@ def setup(subject_dir):
         for suf in ("PA", "AP")
     ]
 
-    # split mbpcasl sequence into its calibration images
+    # split mbpcasl sequence into its calibration images (always 2 calibration images)
     calib_names = [d / f"calib{n}.nii.gz" for n, d in enumerate(calib_dirs)]
-    [
-        fslroi(str(mbpcasl), calib_name, n, 1)
-        for calib_name, n in zip(calib_names, (88, 89))
-    ]
+    asl_params = load_asl_params(mbpcasl)
+    img = nb.load(str(mbpcasl))
+    total_vols = img.shape[3] if img.ndim == 4 else 1
+    _, _, calib_idxs = compute_split_indices(
+        total_vols,
+        tail_discard_vols=asl_params.tail_discard_vols,
+    )
+    fslroi(str(mbpcasl), str(calib_names[0]), calib_idxs[0], 1)
+    fslroi(str(mbpcasl), str(calib_names[1]), calib_idxs[1], 1)
 
     # return helpful dictionary
     names = {

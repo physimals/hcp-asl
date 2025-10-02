@@ -47,7 +47,8 @@ def tag_control_differencing(series, scaling_factors, outdir, mask=None):
     S_st = nb.load(scaling_factors)
 
     # calculate X_perf = X_tc * S_st
-    X_tc = np.ones((1, 1, 1, 86)) * 0.5
+    nvols = Y_moco.shape[3] if Y_moco.ndim == 4 else 1
+    X_tc = np.ones((1, 1, 1, nvols), dtype=np.float32) * 0.5
     X_tc[0, 0, 0, 0::2] = -0.5
     X_perf = X_tc * S_st.get_fdata()
 

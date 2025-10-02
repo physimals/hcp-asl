@@ -1,9 +1,12 @@
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from importlib.resources import path as resource_path
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, Sequence, Tuple
 from pathlib import Path
 
 import nibabel as nb
@@ -16,16 +19,194 @@ from fsl.wrappers.fnirt import applywarp, invwarp
 from . import resources
 
 # ASL sequence parameters
+# Default ASL sequence parameters (retain as fallbacks)
 ASL_SHAPE = (86, 86, 60, 86)
 NTIS = 5
 IBF = "tis"
 TIS = [1.7, 2.2, 2.7, 3.2, 3.7]  # s
 RPTS = [6, 6, 6, 10, 15]
 SLICEDT = 0.059  # s
-SLICEBAND = 10
+SLICEBAND = 10  # slices per band (groups). MB factor ~= NSLICES / SLICEBAND
 NSLICES = 60
 BOLUS = 1.5  # s
 TE = 19  # ms
+CALIBRATION_VOL_COUNT = 2
+
+
+@dataclass
+class AslParams:
+    """
+    Runtime-configurable ASL acquisition parameters.
+
+    Values are resolved by priority: JSON sidecar (if present) > CLI overrides > defaults above.
+
+    Notes:
+    - TE is stored in milliseconds to match oxford_asl expectation.
+    - SLICEBAND is the number of slices within a band (group), not the multiband factor.
+      For multiband factor MB and NSLICES total slices, SLICEBAND = NSLICES // MB.
+        - Calibration frames: this pipeline always uses exactly two calibration volumes
+            placed immediately after any trailing discard volumes. Two preceding volumes
+            may optionally be discarded to preserve legacy behavior.
+    """
+
+    # derived from NIfTI header (x, y, z, t)
+    asl_shape: Tuple[int, int, int, int] = ASL_SHAPE
+    nslices: int = NSLICES
+
+    # from sidecar/CLI/defaults
+    te_ms: float = TE
+    sliceband: int = SLICEBAND
+    slicedt: float = SLICEDT
+    bolus: float = BOLUS
+    ibf: str = IBF
+    ntis: int = NTIS
+    tis: List[float] = None
+    rpts: List[int] = None
+
+    # calibration/discard policy
+    tail_discard_vols: int = 2
+
+    def validate(self):
+        if self.tis is None:
+            self.tis = list(TIS)
+        if self.rpts is None:
+            self.rpts = list(RPTS)
+        if self.ntis is None:
+            self.ntis = len(self.tis)
+        if len(self.tis) != len(self.rpts):
+            raise ValueError(
+                f"Length mismatch: TIS({len(self.tis)}) vs RPTS({len(self.rpts)})"
+            )
+        if self.ntis != len(self.tis):
+            raise ValueError(
+                f"NTIS ({self.ntis}) does not match number of TIS values ({len(self.tis)})"
+            )
+        if self.asl_shape is None or len(self.asl_shape) != 4:
+            raise ValueError("ASL shape must be 4D (x,y,z,t)")
+        if self.nslices is None:
+            self.nslices = int(self.asl_shape[2])
+        if self.sliceband <= 0 or self.nslices % self.sliceband != 0:
+            logging.warning(
+                "SLICEBAND=%d does not evenly divide NSLICES=%d; slice-timing may be inaccurate",
+                self.sliceband,
+                self.nslices,
+            )
+        if self.tail_discard_vols < 0:
+            raise ValueError("Discard volumes must be >= 0")
+
+
+def _parse_sequence(values: Optional[Iterable], cast):
+    if values is None:
+        return None
+    if isinstance(values, (list, tuple)):
+        seq: Sequence = values
+    else:
+        text = str(values).strip()
+        if text == "":
+            return None
+        seq = [v for v in re.split(r"[\s,]+", text) if v]
+    return [cast(v) for v in seq]
+
+
+def _find_sidecar(mbpcasl_path: Path) -> Optional[Path]:
+    p = Path(mbpcasl_path)
+    candidates = []
+    if p.name.endswith(".nii.gz"):
+        candidates.append(p.with_suffix("").with_suffix(".json"))
+    if p.suffix == ".nii":
+        candidates.append(p.with_suffix(".json"))
+    candidates.append(p.parent / (p.stem.split(".")[0] + ".json"))
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+def load_asl_params(
+    mbpcasl_path: Path,
+    *,
+    ntis: Optional[int] = None,
+    tis: Optional[str] = None,
+    rpts: Optional[str] = None,
+    bolus: Optional[float] = None,
+    slicedt: Optional[float] = None,
+    te_ms: Optional[float] = None,
+    sliceband: Optional[int] = None,
+    tail_discard_vols: Optional[int] = None,
+    ibf: Optional[str] = None,
+) -> AslParams:
+    """Resolve ASL acquisition parameters for this run.
+
+    Priority: sidecar (when available) > CLI-provided values > defaults in this module.
+
+    - TE is reported as seconds in many BIDS sidecars; converted to milliseconds here.
+        - SLICEBAND is derived as NSLICES // MultibandAccelerationFactor when available.
+        - ASL_SHAPE and NSLICES are always taken from the NIfTI header.
+        - Exactly two calibration volumes are required; they immediately follow any
+            tail discard volumes.
+    """
+
+    nii = nb.load(str(mbpcasl_path))
+    shp = tuple(nii.shape)
+
+    params = AslParams(asl_shape=shp, nslices=int(shp[2]))
+
+    # sidecar JSON
+    sidecar = _find_sidecar(Path(mbpcasl_path))
+    sd = None
+    if sidecar is not None:
+        try:
+            with open(sidecar, "r") as f:
+                sd = json.load(f)
+        except Exception as e:
+            logging.warning(f"Failed to read sidecar {sidecar}: {e}")
+
+    # te (ms)
+    if te_ms is not None:
+        params.te_ms = float(te_ms)
+    elif sd and "EchoTime" in sd and sd["EchoTime"] is not None:
+        try:
+            # Sidecar EchoTime typically in seconds
+            params.te_ms = float(sd["EchoTime"]) * 1000.0
+        except Exception:
+            logging.warning("Could not parse EchoTime from sidecar; using default")
+
+    # SLICEBAND from sidecar if possible
+    mb_factor = None
+    if sd and "MultibandAccelerationFactor" in sd:
+        try:
+            mb_factor = int(sd["MultibandAccelerationFactor"])
+        except Exception:
+            mb_factor = None
+    if sliceband is not None:
+        params.sliceband = int(sliceband)
+    elif mb_factor and params.nslices % mb_factor == 0:
+        params.sliceband = params.nslices // mb_factor
+
+    # CLI or defaults for these
+    if slicedt is not None:
+        params.slicedt = float(slicedt)
+    if bolus is not None:
+        params.bolus = float(bolus)
+    if ibf is not None:
+        params.ibf = str(ibf)
+
+    # sequence string parsing
+    tis_list = _parse_sequence(tis, float)
+    rpts_list = _parse_sequence(rpts, int)
+    if tis_list is not None:
+        params.tis = tis_list
+    if rpts_list is not None:
+        params.rpts = rpts_list
+    if ntis is not None:
+        params.ntis = int(ntis)
+
+    # calibration/discard
+    if tail_discard_vols is not None:
+        params.tail_discard_vols = int(tail_discard_vols)
+
+    params.validate()
+    return params
 
 
 class ImagePath:
@@ -184,14 +365,63 @@ def get_ventricular_csf_mask(fslanatdir, interpolation=3):
     return vent_t1_nii
 
 
-def split_asl(asl, tis_name, calib0_name, calib1_name):
+def compute_split_indices(total_vols: int, tail_discard_vols: int = 2):
+    """Compute indices for splitting ASL into data and calibrations.
+
+    Assumes the last two volumes are calibrations and two immediately preceding
+    volumes may be discarded (legacy HCP behavior). Exactly two calibration
+    volumes are required.
+
+    Returns (data_start, data_len, calib_indices_list)
     """
-    Split ASL sequence into its constituent label-control series and
-    calibration images (final 2 vols).
+    if total_vols <= 0:
+        raise ValueError("ASL sequence has no timepoints")
+    if tail_discard_vols < 0:
+        raise ValueError("tail_discard_vols must be non-negative")
+    calib_vols = CALIBRATION_VOL_COUNT
+    trail = calib_vols + tail_discard_vols
+    if total_vols <= trail:
+        raise ValueError(
+            f"Not enough volumes to split: total={total_vols}, trailing_non_data={trail}"
+        )
+    data_start = 0
+    data_len = total_vols - trail
+    calib_start = data_len + tail_discard_vols
+    calib_idxs = list(range(calib_start, calib_start + calib_vols))
+    return data_start, data_len, calib_idxs
+
+
+def split_asl(
+    asl, tis_name, calib0_name, calib1_name, *, params: Optional[AslParams] = None
+):
     """
-    fslroi(str(asl), str(tis_name), 0, 86)
-    fslroi(str(asl), str(calib0_name), 88, 1)
-    fslroi(str(asl), str(calib1_name), 89, 1)
+    Split ASL sequence into label-control series and calibration images.
+
+    The split strategy is determined from the ASL image length and AslParams
+    tail_discard configuration. Exactly two calibration volumes are required;
+    additional or fewer calibration volumes are not supported.
+    """
+    asl_img = nb.load(str(asl))
+    total_vols = asl_img.shape[3] if asl_img.ndim == 4 else 1
+    if params is None:
+        # default behavior: 2 discarded
+        tail_discard_vols = 2
+    else:
+        tail_discard_vols = params.tail_discard_vols
+
+    _, data_len, calib_idxs = compute_split_indices(
+        total_vols, tail_discard_vols=tail_discard_vols
+    )
+    # cata
+    fslroi(str(asl), str(tis_name), 0, data_len)
+
+    # calibrations (require exactly two)
+    if len(calib_idxs) != CALIBRATION_VOL_COUNT:
+        raise ValueError(
+            f"Expected exactly two calibration volumes at end of series (got {len(calib_idxs)})."
+        )
+    fslroi(str(asl), str(calib0_name), calib_idxs[0], 1)
+    fslroi(str(asl), str(calib1_name), calib_idxs[1], 1)
 
 
 def setup_logger(file_path):
