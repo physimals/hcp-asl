@@ -531,12 +531,13 @@ def process_subject(
             f"-o={oxford_aslt1w_dir}",
             *[f"{k}={str(v)}" for k, v in oxasl_inputs.items()],
             "--casl",
-            f"--ibf={IBF}",
+            f"--ibf={(asl_params.ibf if asl_params else IBF)}",
             "--iaf=diff",
-            "--rpts=" + ",".join([str(r) for r in RPTS]),
+            "--rpts="
+            + ",".join([str(r) for r in (asl_params.rpts if asl_params else RPTS)]),
             "--fixbolus",
-            f"--bolus={BOLUS}",
-            f"--te={TE}",
+            f"--bolus={(asl_params.bolus if asl_params else BOLUS)}",
+            f"--te={(asl_params.te_ms if asl_params else TE)}",
             "--spatial=off",
             "--tr=8",
             "--pvcorr",
@@ -545,6 +546,7 @@ def process_subject(
         if use_t1:
             est_t1 = conf.aslt1w_dir / "registration/mean_T1t_filt.nii.gz"
             oxford_aslt1w_call.append(f"--t1im={str(est_t1)}")
+        logging.info(oxford_aslt1w_call)
         sp_run(oxford_aslt1w_call)
 
     mninonlinear_name = conf.subject_dir / "MNINonLinear"
