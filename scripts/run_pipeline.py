@@ -33,13 +33,6 @@ from hcpasl.utils import (
     split_asl,
     load_asl_params,
     AslParams,
-    IBF,
-    TIS,
-    BOLUS,
-    TE,
-    SLICEDT,
-    SLICEBAND,
-    RPTS,
 )
 
 
@@ -56,6 +49,7 @@ def process_subject(
     reg_name,
     territories_atlas,
     territories_labels,
+    asl_params,
     use_t1=False,
     cores=1,
     interpolation=3,
@@ -65,7 +59,6 @@ def process_subject(
     is_longitudinal=False,
     longitudinal_study_dir="",
     longitudinal_template="",
-    asl_params: "AslParams" = None,
 ):
     """
     Run the hcp-asl pipeline for a given subject.
@@ -372,18 +365,16 @@ def process_subject(
             "oxford_asl",
             *[f"{k}={str(v)}" for k, v in oxasl_inputs.items()],
             f"-o={str(conf.oxford_asl_dir)}",
-            "--tis="
-            + ",".join([str(t) for t in (asl_params.tis if asl_params else TIS)]),
-            f"--slicedt={(asl_params.slicedt if asl_params else SLICEDT)}",
-            f"--sliceband={(asl_params.sliceband if asl_params else SLICEBAND)}",
+            "--tis=" + ",".join([str(t) for t in asl_params.tis]),
+            f"--slicedt={asl_params.slicedt}",
+            f"--sliceband={asl_params.sliceband}",
             "--casl",
-            f"--ibf={(asl_params.ibf if asl_params else IBF)}",
+            f"--ibf={asl_params.ibf}",
             "--iaf=diff",
-            "--rpts="
-            + ",".join([str(r) for r in (asl_params.rpts if asl_params else RPTS)]),
+            "--rpts=" + ",".join([str(r) for r in asl_params.rpts]),
             "--fixbolus",
-            f"--bolus={(asl_params.bolus if asl_params else BOLUS)}",
-            f"--te={(asl_params.te_ms if asl_params else TE)}",
+            f"--bolus={asl_params.bolus}",
+            f"--te={asl_params.te_ms}",
             "--spatial=off",
             "--debug",
         ]
@@ -531,13 +522,12 @@ def process_subject(
             f"-o={oxford_aslt1w_dir}",
             *[f"{k}={str(v)}" for k, v in oxasl_inputs.items()],
             "--casl",
-            f"--ibf={(asl_params.ibf if asl_params else IBF)}",
+            f"--ibf={asl_params.ibf}",
             "--iaf=diff",
-            "--rpts="
-            + ",".join([str(r) for r in (asl_params.rpts if asl_params else RPTS)]),
+            "--rpts=" + ",".join([str(r) for r in asl_params.rpts]),
             "--fixbolus",
-            f"--bolus={(asl_params.bolus if asl_params else BOLUS)}",
-            f"--te={(asl_params.te_ms if asl_params else TE)}",
+            f"--bolus={asl_params.bolus}",
+            f"--te={asl_params.te_ms}",
             "--spatial=off",
             "--tr=8",
             "--pvcorr",
@@ -996,6 +986,7 @@ def main():
             mbpcasl=mbpcasl,
             territories_atlas=args.territories_atlas,
             territories_labels=args.territories_labels,
+            asl_params=asl_params,
             structural=structural,
             fmaps=fmaps,
             use_t1=args.use_t1,
@@ -1008,7 +999,6 @@ def main():
             is_longitudinal=args.is_longitudinal,
             longitudinal_study_dir=longitudinal_study_dir,
             longitudinal_template=args.longitudinal_template,
-            asl_params=asl_params,
         )
     except Exception as e:
         logging.error(f"Error processing subject {subject_dir}:\n {e}")
